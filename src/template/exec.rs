@@ -865,13 +865,30 @@ impl<'s, 'e> State<'s, 'e> {
         // Reflection-based functions see Go's named type; everything else
         // sees a map/slice-kind object (e.g. `VersionSet`) as its data, as
         // Go's reflect.Value.Len/Index/MapKeys would.
-        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike")
+        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike" | "dig")
             || name.starts_with("duration")
             || name == "mustToDuration";
         match target {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
             CallTarget::Func(f) => {
                 let mut vals = values(argv);
+                // Sprig's slice/rest/initial return the input's slice type.
+                let keep_type: Option<&'static str> = if matches!(
+                    name,
+                    "slice" | "mustSlice" | "rest" | "mustRest" | "initial" | "mustInitial"
+                ) {
+                    vals.first().and_then(|v| v.as_object()).and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>()).map(|t| t.go_type)
+                } else {
+                    None
+                };
+                let byte_func = matches!(name, "b64enc" | "b32enc" | "sha1sum" | "sha256sum" | "sha512sum" | "adler32sum");
+                for v in &mut vals {
+                    if let Value::Object(o) = v
+                        && let Some(b) = o.as_any().downcast_ref::<crate::value::GoBytesString>()
+                    {
+                        *v = if byte_func { Value::Bytes(b.0.clone()) } else { o.to_data() };
+                    }
+                }
                 if !keeps_objects {
                     for v in &mut vals {
                         if let Value::Object(o) = v
@@ -882,7 +899,12 @@ impl<'s, 'e> State<'s, 'e> {
                     }
                 }
                 let mut cc = CallCtx { env: &mut *self.ctx.env };
-                (f.imp)(&mut cc, &vals).map(Ev::of_result).map_err(CallErr::Plain)
+                let r = (f.imp)(&mut cc, &vals);
+                let r = match (r, keep_type) {
+                    (Ok(Value::List(l)), Some(t)) => Ok(Value::Object(Rc::new(crate::value::TypedList { go_type: t, items: l }))),
+                    (r, _) => r,
+                };
+                r.map(Ev::of_result).map_err(CallErr::Plain)
             }
             CallTarget::Method(o, _, mname) => {
                 let vals = values(argv);
@@ -1184,6 +1206,7 @@ fn assignable(v: &Value, ty: Ty) -> bool {
         (Ty::Strings, Value::List(l)) => l.iter().all(|v| matches!(v, Value::String(_))),
         (Ty::Map, Value::Map(_)) => true,
         (Ty::Strings, Value::Object(o)) => o.type_name() == "[]string",
+        (Ty::String, Value::Object(o)) => o.type_name() == "string",
         (Ty::Object(name) | Ty::Struct(name), Value::Object(o)) => o.type_name() == name,
         _ => false,
     }
@@ -1353,6 +1376,10 @@ impl State<'_, '_> {
                     Ev::Val(Value::List(l)) => Ok(Ev::Val(Value::Int(l.len() as i64))),
                     Ev::Val(Value::Bytes(b)) => Ok(Ev::Val(Value::Int(b.len() as i64))),
                     Ev::Val(Value::Map(m)) => Ok(Ev::Val(Value::Int(m.len() as i64))),
+                    Ev::Val(Value::Object(o)) if o.as_any().is::<crate::value::GoBytesString>() => {
+                        let b = o.as_any().downcast_ref::<crate::value::GoBytesString>().map_or(0, |b| b.0.len());
+                        Ok(Ev::Val(Value::Int(b as i64)))
+                    }
                     other => Err(plain(format!("len of type {}", other.type_string()))),
                 }
             }

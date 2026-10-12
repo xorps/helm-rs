@@ -544,3 +544,42 @@ impl Object for TypedMap {
         self
     }
 }
+
+/// A Go `string` holding bytes that are not valid UTF-8 (e.g. `.Files.Get`
+/// of a binary file). Byte-oriented functions (`b64enc`, `sha256sum`, `len`,
+/// ...) see the exact bytes; elsewhere it behaves as the lossily decoded
+/// text.
+#[derive(Debug)]
+pub struct GoBytesString(pub Rc<[u8]>);
+
+impl Value {
+    /// A Go string from raw bytes: a plain [`Value::String`] when valid
+    /// UTF-8, otherwise a [`GoBytesString`].
+    pub fn go_string(bytes: &[u8]) -> Value {
+        match core::str::from_utf8(bytes) {
+            Ok(s) => Value::str(s),
+            Err(_) => Value::object(GoBytesString(Rc::from(bytes))),
+        }
+    }
+}
+
+impl Object for GoBytesString {
+    fn type_name(&self) -> &str {
+        "string"
+    }
+    fn kind(&self) -> Kind {
+        Kind::String
+    }
+    fn format(&self, out: &mut String) {
+        out.push_str(&String::from_utf8_lossy(&self.0));
+    }
+    fn to_data(&self) -> Value {
+        Value::string(String::from_utf8_lossy(&self.0).into_owned())
+    }
+    fn truthy(&self) -> bool {
+        !self.0.is_empty()
+    }
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}

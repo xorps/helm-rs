@@ -108,7 +108,8 @@ impl Object for Files {
     fn call_method(&self, name: &str, args: &[Value]) -> Result<Value, FuncError> {
         let arg = || args.first().and_then(Value::as_str).unwrap_or("");
         match name {
-            "Get" => Ok(Value::string(String::from_utf8_lossy(&self.get_bytes(arg())).into_owned())),
+            // Go strings carry raw bytes (binary files stay exact).
+            "Get" => Ok(Value::go_string(&self.get_bytes(arg()))),
             "GetBytes" => Ok(Value::Bytes(self.get_bytes(arg()))),
             "Glob" => Ok(Value::object(self.glob(arg()))),
             "Lines" => Ok(Value::string_list(self.lines(arg()).into_iter().map(Value::string).collect())),

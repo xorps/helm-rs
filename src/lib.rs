@@ -26,7 +26,7 @@ pub mod yaml;
 
 pub use error::{Error, ErrorKind, Location};
 pub use func::{CallCtx, DeterministicEnv, Env, Func, FuncError, FuncMap, Sig, Ty};
-pub use value::{GoField, GoStruct, JsonField, Kind, Map, MapKind, MapRef, Object, Stringer, TypedList, TypedMap, Value};
+pub use value::{GoBytesString, GoField, GoStruct, JsonField, Kind, Map, MapKind, MapRef, Object, Stringer, TypedList, TypedMap, Value};
 
 #[doc(hidden)]
 pub mod __private {

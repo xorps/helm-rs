@@ -66,10 +66,10 @@ pub(super) fn register(f: &mut FuncMap) {
     f.add("nindent", Sig::new(&[I, S]), |a| indent(iarg(a, 0), sarg(a, 1)).map(|s| Value::string(format!("\n{s}"))));
     f.add("replace", Sig::new(&[S, S, S]), |a| replace(sarg(a, 2), sarg(a, 0), sarg(a, 1)).map(Value::string));
     f.add("plural", Sig::new(&[S, S, I]), |a| Ok(Value::str(if iarg(a, 2) == 1 { sarg(a, 0) } else { sarg(a, 1) })));
-    f.add("sha1sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha1::Sha1::digest(sarg(a, 0).as_bytes())))));
-    f.add("sha256sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha256::digest(sarg(a, 0).as_bytes())))));
-    f.add("sha512sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha512::digest(sarg(a, 0).as_bytes())))));
-    f.add("adler32sum", Sig::new(&[S]), |a| Ok(Value::string(adler32(sarg(a, 0).as_bytes()).to_string())));
+    f.add("sha1sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha1::Sha1::digest(&sbytes(a, 0))))));
+    f.add("sha256sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha256::digest(&sbytes(a, 0))))));
+    f.add("sha512sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha512::digest(&sbytes(a, 0))))));
+    f.add("adler32sum", Sig::new(&[S]), |a| Ok(Value::string(adler32(&sbytes(a, 0)).to_string())));
     f.add("toString", Sig::new(&[A]), |a| Ok(Value::string(strval(arg(a, 0)))));
     f.add("split", Sig::new(&[S, S]), |a| Ok(parts_map(go_split(sarg(a, 1), sarg(a, 0), -1))));
     f.add("splitList", Sig::new(&[S, S]), |a| Ok(str_list(go_split(sarg(a, 1), sarg(a, 0), -1))));
@@ -87,14 +87,14 @@ pub(super) fn register(f: &mut FuncMap) {
         }
         Ok(str_list(items))
     });
-    f.add("b64enc", Sig::new(&[S]), |a| Ok(Value::string(base64_encode(sarg(a, 0).as_bytes()))));
+    f.add("b64enc", Sig::new(&[S]), |a| Ok(Value::string(base64_encode(&sbytes(a, 0)))));
     f.add("b64dec", Sig::new(&[S]), |a| {
         Ok(Value::string(match base64_decode(sarg(a, 0).as_bytes()) {
             Ok(b) => strconv::lossy_vec(b),
             Err(e) => e,
         }))
     });
-    f.add("b32enc", Sig::new(&[S]), |a| Ok(Value::string(base32_encode(sarg(a, 0).as_bytes()))));
+    f.add("b32enc", Sig::new(&[S]), |a| Ok(Value::string(base32_encode(&sbytes(a, 0)))));
     f.add("b32dec", Sig::new(&[S]), |a| {
         Ok(Value::string(match base32_decode(sarg(a, 0).as_bytes()) {
             Ok(b) => strconv::lossy_vec(b),
@@ -1047,5 +1047,14 @@ fn expand_env(s: &str) -> String {
             }
             strconv::lossy_vec(out)
         }
+    }
+}
+
+/// A string argument as bytes; byte-carrying Go strings arrive as `Bytes`.
+fn sbytes(a: &[Value], i: usize) -> alloc::vec::Vec<u8> {
+    match a.get(i) {
+        Some(Value::Bytes(b)) => b.to_vec(),
+        Some(Value::String(s)) => s.as_bytes().to_vec(),
+        _ => alloc::vec::Vec::new(),
     }
 }
