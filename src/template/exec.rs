@@ -25,7 +25,7 @@ use super::{GoErr, Set, TemplateFile};
 use crate::error::{Error, ErrorKind, Frame, Location};
 use crate::func::{CallCtx, Env, Func, FuncError, FuncMap, Ty};
 use crate::gofmt;
-use crate::value::{Map, MapKind, MapRef, Value};
+use crate::value::{Kind, Map, MapKind, MapRef, Value};
 
 /// An evaluated value with its Go static-type state.
 #[derive(Clone, Debug)]
@@ -411,7 +411,7 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn walk_range_inner(&mut self, dot: &Ev, r: &BranchNode, out: &mut String) -> R<()> {
-        let val = self.eval_pipeline(dot, &r.pipe)?.indirect_iface();
+        let val = as_data(self.eval_pipeline(dot, &r.pipe)?.indirect_iface());
         let mark = self.mark();
         let decl = &r.pipe.decl;
         let one = |s: &mut Self, index: Ev, elem: Ev, out: &mut String| -> R<()> {
@@ -689,6 +689,17 @@ impl<'s, 'e> State<'s, 'e> {
                         return self.errorf(format!("{field_name} has arguments but cannot be invoked as function"));
                     }
                     return Ok(Ev::of(f));
+                }
+                if o.kind() == Kind::Map
+                    && let Value::Map(m) = o.to_data()
+                {
+                    if has_args {
+                        return self.errorf(format!("{field_name} is not a method but has arguments"));
+                    }
+                    return Ok(match m.get(field_name) {
+                        Some(v) => Ev::Val(v),
+                        None => Ev::Val(Value::Bytes(Rc::from(&[][..]))),
+                    });
                 }
             }
             Value::Map(m) => {
@@ -1025,6 +1036,17 @@ impl<'s, 'e> State<'s, 'e> {
     }
 }
 
+/// Go map/slice-kind named types (e.g. `.Files`, `VersionSet`) behave like
+/// their underlying data for `range`, `len`, `index` and key lookup.
+fn as_data(v: Ev) -> Ev {
+    match &v {
+        Ev::Val(Value::Object(o)) | Ev::Iface(Value::Object(o)) if matches!(o.kind(), Kind::Map | Kind::Slice) => {
+            Ev::Val(o.to_data())
+        }
+        _ => v,
+    }
+}
+
 impl Ev {
     /// A function's return value: nil becomes a nil interface.
     fn of_result(v: Value) -> Ev {
@@ -1243,6 +1265,7 @@ impl State<'_, '_> {
             Builtin::Not => Ok(Ev::Val(Value::Bool(!truth(&argv[0])))),
             Builtin::Len => {
                 let (item, is_nil) = indirect(&argv[0]);
+                let item = as_data(item);
                 if is_nil {
                     return Err(plain("len of nil pointer".into()));
                 }
@@ -1338,6 +1361,7 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
     for index in indexes {
         let index = index.clone().indirect_iface();
         let (it, is_nil) = indirect(&item);
+        let it = as_data(it);
         if is_nil {
             return Err("index of nil pointer".into());
         }

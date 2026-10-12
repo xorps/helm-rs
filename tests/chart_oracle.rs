@@ -471,7 +471,6 @@ fn template_matches_helm() {
 /// Collection-like objects (`.Files` is a Go map, `.Capabilities.APIVersions`
 /// a slice) used with `range`, `len` and `index`.
 #[test]
-#[ignore = "needs engine support for map/slice-kind Objects (Object::to_data)"]
 fn template_collection_objects_match_helm() {
     if !semver_ready() {
         return;
