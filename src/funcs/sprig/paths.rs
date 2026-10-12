@@ -10,7 +10,13 @@ use crate::value::Value;
 
 pub(super) fn register(f: &mut FuncMap) {
     const S1: Sig = Sig::new(&[Ty::String]);
-    for (name, os) in [("base", "osBase"), ("dir", "osDir"), ("clean", "osClean"), ("ext", "osExt"), ("isAbs", "osIsAbs")] {
+    for (name, os) in [
+        ("base", "osBase"),
+        ("dir", "osDir"),
+        ("clean", "osClean"),
+        ("ext", "osExt"),
+        ("isAbs", "osIsAbs"),
+    ] {
         let imp: fn(&[Value]) -> crate::func::FuncResult = match name {
             "base" => |a| Ok(Value::string(base(sarg(a, 0)))),
             "dir" => |a| Ok(Value::string(dir(sarg(a, 0)))),

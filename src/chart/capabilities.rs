@@ -144,9 +144,17 @@ impl KubeVersion {
         }
         let normalized = alloc::format!(
             "v{}",
-            parsed.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(".")
+            parsed
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(".")
         );
-        let git = if version.starts_with('v') { version.to_string() } else { alloc::format!("v{version}") };
+        let git = if version.starts_with('v') {
+            version.to_string()
+        } else {
+            alloc::format!("v{version}")
+        };
         Ok(KubeVersion {
             version: git,
             normalized,
@@ -190,10 +198,26 @@ impl Object for KubeVersion {
             ptr: false,
             type_name: "common.KubeVersion",
             fields: alloc::vec![
-                GoField { name: "Version", value: Value::str(&self.version), json: JsonField::Name("Version") },
-                GoField { name: "normalizedVersion", value: Value::str(&self.normalized), json: JsonField::Skip },
-                GoField { name: "Major", value: Value::str(&self.major), json: JsonField::Name("Major") },
-                GoField { name: "Minor", value: Value::str(&self.minor), json: JsonField::Name("Minor") },
+                GoField {
+                    name: "Version",
+                    value: Value::str(&self.version),
+                    json: JsonField::Name("Version")
+                },
+                GoField {
+                    name: "normalizedVersion",
+                    value: Value::str(&self.normalized),
+                    json: JsonField::Skip
+                },
+                GoField {
+                    name: "Major",
+                    value: Value::str(&self.major),
+                    json: JsonField::Name("Major")
+                },
+                GoField {
+                    name: "Minor",
+                    value: Value::str(&self.minor),
+                    json: JsonField::Name("Minor")
+                },
             ],
         })
     }
@@ -212,12 +236,22 @@ impl Object for KubeVersion {
 impl KubeVersion {
     /// `KubeVersion.String()`.
     pub fn string(&self) -> &str {
-        if self.normalized.is_empty() { &self.version } else { &self.normalized }
+        if self.normalized.is_empty() {
+            &self.version
+        } else {
+            &self.normalized
+        }
     }
 
     /// Go `%v` of the struct value (`{Version normalized Major Minor}`).
     pub fn go_struct_string(&self) -> String {
-        alloc::format!("{{{} {} {} {}}}", self.version, self.normalized, self.major, self.minor)
+        alloc::format!(
+            "{{{} {} {} {}}}",
+            self.version,
+            self.normalized,
+            self.major,
+            self.minor
+        )
     }
 }
 
@@ -298,23 +332,47 @@ impl Object for BuildInfo {
     fn format(&self, out: &mut String) {
         out.push_str(&alloc::format!(
             "{{{} {} {} {} {}}}",
-            self.version, self.git_commit, self.git_tree_state, self.go_version, self.kube_client_version
+            self.version,
+            self.git_commit,
+            self.git_tree_state,
+            self.go_version,
+            self.kube_client_version
         ));
     }
     fn stringer(&self) -> crate::value::Stringer {
         crate::value::Stringer::None
     }
     fn go_struct(&self) -> Option<GoStruct> {
-        let f = |name, v: &String, json| GoField { name, value: Value::str(v), json };
+        let f = |name, v: &String, json| GoField {
+            name,
+            value: Value::str(v),
+            json,
+        };
         Some(GoStruct {
             ptr: false,
             type_name: "version.BuildInfo",
             fields: alloc::vec![
                 f("Version", &self.version, JsonField::OmitEmpty("version")),
-                f("GitCommit", &self.git_commit, JsonField::OmitEmpty("git_commit")),
-                f("GitTreeState", &self.git_tree_state, JsonField::OmitEmpty("git_tree_state")),
-                f("GoVersion", &self.go_version, JsonField::OmitEmpty("go_version")),
-                f("KubeClientVersion", &self.kube_client_version, JsonField::Name("kube_client_version")),
+                f(
+                    "GitCommit",
+                    &self.git_commit,
+                    JsonField::OmitEmpty("git_commit")
+                ),
+                f(
+                    "GitTreeState",
+                    &self.git_tree_state,
+                    JsonField::OmitEmpty("git_tree_state")
+                ),
+                f(
+                    "GoVersion",
+                    &self.go_version,
+                    JsonField::OmitEmpty("go_version")
+                ),
+                f(
+                    "KubeClientVersion",
+                    &self.kube_client_version,
+                    JsonField::Name("kube_client_version")
+                ),
             ],
         })
     }
@@ -330,7 +388,10 @@ impl Object for BuildInfo {
                 m.insert(k.into(), Value::str(v));
             }
         }
-        m.insert("kube_client_version".into(), Value::str(&self.kube_client_version));
+        m.insert(
+            "kube_client_version".into(),
+            Value::str(&self.kube_client_version),
+        );
         Value::map(m)
     }
     fn as_any(&self) -> &dyn Any {
@@ -369,9 +430,21 @@ impl Object for CapabilitiesObject {
             ptr: true,
             type_name: "common.Capabilities",
             fields: alloc::vec![
-                GoField { name: "KubeVersion", value: Value::Object(self.kube_version.clone()), json: JsonField::Name("KubeVersion") },
-                GoField { name: "APIVersions", value: Value::Object(self.api_versions.clone()), json: JsonField::Name("APIVersions") },
-                GoField { name: "HelmVersion", value: Value::Object(self.helm_version.clone()), json: JsonField::Name("HelmVersion") },
+                GoField {
+                    name: "KubeVersion",
+                    value: Value::Object(self.kube_version.clone()),
+                    json: JsonField::Name("KubeVersion")
+                },
+                GoField {
+                    name: "APIVersions",
+                    value: Value::Object(self.api_versions.clone()),
+                    json: JsonField::Name("APIVersions")
+                },
+                GoField {
+                    name: "HelmVersion",
+                    value: Value::Object(self.helm_version.clone()),
+                    json: JsonField::Name("HelmVersion")
+                },
             ],
         })
     }

@@ -366,21 +366,28 @@ fn corpus() -> Vec<String> {
 #[test]
 fn from_yaml_corpus_matches_helm() {
     let inputs = corpus();
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
 #[test]
 fn random_documents2_match_helm() {
     let mut r = Rng::new(2024);
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(3000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3000);
     let inputs: Vec<String> = (0..n)
         .map(|i| {
             let d = gen_doc2(&mut r);
             if i % 3 == 0 { mutate(&mut r, &d) } else { d }
         })
         .collect();
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
@@ -404,7 +411,9 @@ fn reader_chunk_boundaries_match_helm() {
             }
         }
     }
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
@@ -427,30 +436,46 @@ fn from_yaml_array_corpus_matches_helm() {
         .iter()
         .map(|s| s.to_string()),
     );
-    let Some(m) = diff_inputs(&inputs, &from_yaml_array_probe, &from_yaml_array_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_array_probe, &from_yaml_array_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
 #[test]
 fn random_documents_match_helm() {
     let mut r = Rng::new(42);
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(3000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3000);
     let inputs: Vec<String> = (0..n).map(|_| gen_doc(&mut r)).collect();
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
 #[test]
 fn mutated_documents_match_helm() {
     let mut r = Rng::new(7);
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(3000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3000);
     let base = corpus();
     let inputs: Vec<String> = (0..n)
         .map(|i| {
-            let doc = if i % 2 == 0 { gen_doc(&mut r) } else { base[r.below(base.len())].clone() };
+            let doc = if i % 2 == 0 {
+                gen_doc(&mut r)
+            } else {
+                base[r.below(base.len())].clone()
+            };
             mutate(&mut r, &doc)
         })
         .collect();
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }

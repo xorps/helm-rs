@@ -8,15 +8,21 @@ use alloc::vec::Vec;
 use crate::error::Error;
 use crate::value::{Map, MapRef, Value};
 
-use super::coalesce::{coalesce_tables, coalesce_values, merge_tables, merge_values, trim_nil_values};
+use super::Chart;
+use super::coalesce::{
+    coalesce_tables, coalesce_values, merge_tables, merge_values, trim_nil_values,
+};
 use super::metadata::Dependency;
 use super::values::{path_value, table};
-use super::Chart;
 
 /// `util.IsCompatibleRange(constraint, version)`.
 pub fn is_compatible_range(constraint: &str, ver: &str) -> bool {
-    let Ok(v) = crate::semver::Version::parse(ver) else { return false };
-    let Ok(c) = crate::semver::Constraints::parse(constraint) else { return false };
+    let Ok(v) = crate::semver::Version::parse(ver) else {
+        return false;
+    };
+    let Ok(c) = crate::semver::Constraints::parse(constraint) else {
+        return false;
+    };
     c.check(&v)
 }
 
@@ -41,7 +47,9 @@ fn process_dependency_conditions(reqs: &mut [Dependency], cvals: &MapRef, cpath:
 }
 
 fn process_dependency_tags(reqs: &mut [Dependency], cvals: &MapRef) {
-    let Some(vt) = table(cvals, "tags") else { return };
+    let Some(vt) = table(cvals, "tags") else {
+        return;
+    };
     for r in reqs.iter_mut() {
         let (mut has_true, mut has_false) = (false, false);
         for k in r.tags.iter().flatten() {
@@ -80,12 +88,15 @@ fn get_alias_dependency(charts: &[Chart], dep: &Dependency) -> Option<Chart> {
 }
 
 fn process_dependency_enabled(c: &mut Chart, v: &MapRef, path: &str) -> Result<(), Error> {
-    let Some(reqs) = c.metadata.dependencies.clone() else { return Ok(()) };
+    let Some(reqs) = c.metadata.dependencies.clone() else {
+        return Ok(());
+    };
     let mut chart_dependencies: Vec<Chart> = Vec::new();
     for existing in &c.dependencies {
-        let listed = reqs
-            .iter()
-            .any(|req| existing.name() == req.name && is_compatible_range(&req.version, &existing.metadata.version));
+        let listed = reqs.iter().any(|req| {
+            existing.name() == req.name
+                && is_compatible_range(&req.version, &existing.metadata.version)
+        });
         if !listed {
             chart_dependencies.push(existing.clone());
         }
@@ -108,16 +119,30 @@ fn process_dependency_enabled(c: &mut Chart, v: &MapRef, path: &str) -> Result<(
     let reqs = c.metadata.dependencies.as_deref_mut().unwrap_or_default();
     process_dependency_tags(reqs, &cvals);
     process_dependency_conditions(reqs, &cvals, path);
-    let rm: BTreeSet<String> = reqs.iter().filter(|r| !r.enabled).map(|r| r.name.clone()).collect();
-    let mut cd: Vec<Chart> =
-        core::mem::take(&mut c.dependencies).into_iter().filter(|n| !rm.contains(n.name())).collect();
-    let cd_metadata: Vec<Dependency> = reqs.iter().filter(|n| !rm.contains(&n.name)).cloned().collect();
+    let rm: BTreeSet<String> = reqs
+        .iter()
+        .filter(|r| !r.enabled)
+        .map(|r| r.name.clone())
+        .collect();
+    let mut cd: Vec<Chart> = core::mem::take(&mut c.dependencies)
+        .into_iter()
+        .filter(|n| !rm.contains(n.name()))
+        .collect();
+    let cd_metadata: Vec<Dependency> = reqs
+        .iter()
+        .filter(|n| !rm.contains(&n.name))
+        .cloned()
+        .collect();
     for t in cd.iter_mut() {
         let subpath = alloc::format!("{path}{}.", t.name());
         process_dependency_enabled(t, &cvals, &subpath)?;
     }
     // Go: `append(nil, cdMetadata...)` stays nil when nothing is kept.
-    c.metadata.dependencies = if cd_metadata.is_empty() { None } else { Some(cd_metadata) };
+    c.metadata.dependencies = if cd_metadata.is_empty() {
+        None
+    } else {
+        Some(cd_metadata)
+    };
     c.dependencies = cd;
     Ok(())
 }
@@ -145,7 +170,11 @@ fn process_import_values(c: &mut Chart, merge: bool) -> Result<(), Error> {
         return Ok(());
     }
     let empty = MapRef::default();
-    let cvals = if merge { merge_values(c, &empty)? } else { coalesce_values(c, &empty)? };
+    let cvals = if merge {
+        merge_values(c, &empty)?
+    } else {
+        coalesce_values(c, &empty)?
+    };
     let mut b = MapRef::default();
     let deps = c.metadata.dependencies.as_deref_mut().unwrap_or_default();
     for r in deps.iter_mut() {
@@ -154,14 +183,21 @@ fn process_import_values(c: &mut Chart, merge: bool) -> Result<(), Error> {
             match riv {
                 Value::Map(iv) => {
                     let child = crate::gofmt::format_value(&iv.get("child").unwrap_or(Value::Nil));
-                    let parent = crate::gofmt::format_value(&iv.get("parent").unwrap_or(Value::Nil));
+                    let parent =
+                        crate::gofmt::format_value(&iv.get("parent").unwrap_or(Value::Nil));
                     let mut m = Map::new();
                     m.insert("child".into(), Value::str(&child));
                     m.insert("parent".into(), Value::str(&parent));
                     outiv.push(Value::string_map(m)); // Go map[string]string
-                    let Some(vv) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else { continue };
+                    let Some(vv) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else {
+                        continue;
+                    };
                     let src = path_to_map(&parent, as_map(vv));
-                    b = if merge { merge_tables(&b, &src) } else { coalesce_tables(&b, &src) };
+                    b = if merge {
+                        merge_tables(&b, &src)
+                    } else {
+                        coalesce_tables(&b, &src)
+                    };
                 }
                 Value::String(iv) => {
                     let child = alloc::format!("exports.{iv}");
@@ -169,9 +205,15 @@ fn process_import_values(c: &mut Chart, merge: bool) -> Result<(), Error> {
                     m.insert("child".into(), Value::str(&child));
                     m.insert("parent".into(), Value::str("."));
                     outiv.push(Value::string_map(m)); // Go map[string]string
-                    let Some(vm) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else { continue };
+                    let Some(vm) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else {
+                        continue;
+                    };
                     let src = as_map(vm);
-                    b = if merge { merge_tables(&b, &src) } else { coalesce_tables(&b, &src) };
+                    b = if merge {
+                        merge_tables(&b, &src)
+                    } else {
+                        coalesce_tables(&b, &src)
+                    };
                 }
                 _ => {}
             }

@@ -18,9 +18,15 @@ pub fn helm_bin() -> Option<PathBuf> {
         return Some(p);
     }
     if std::env::var_os("HELM_ORACLE_REQUIRED").is_some() {
-        panic!("helm binary not found at {}; run scripts/fetch-helm.sh", p.display());
+        panic!(
+            "helm binary not found at {}; run scripts/fetch-helm.sh",
+            p.display()
+        );
     }
-    eprintln!("skipping: helm binary not found at {} (run scripts/fetch-helm.sh)", p.display());
+    eprintln!(
+        "skipping: helm binary not found at {} (run scripts/fetch-helm.sh)",
+        p.display()
+    );
     None
 }
 
@@ -28,7 +34,11 @@ fn scratch_file(contents: &str) -> PathBuf {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir = repo_root().join("target/tmp/helm-bin");
     std::fs::create_dir_all(&dir).unwrap();
-    let p = dir.join(format!("values-{}-{}.yaml", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+    let p = dir.join(format!(
+        "values-{}-{}.yaml",
+        std::process::id(),
+        N.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::write(&p, contents).unwrap();
     p
 }
@@ -36,18 +46,28 @@ fn scratch_file(contents: &str) -> PathBuf {
 /// Runs `helm template <release> <chart> [-f values] ...` in a hermetic
 /// environment. `Ok(stdout)` or `Err(message)` where the message is stderr
 /// without the leading `Error: ` (what the oracle's `template` op returns).
-pub fn helm_template(helm: &Path, chart: &Path, values_yaml: &str, opts: &Opts) -> Result<String, String> {
+pub fn helm_template(
+    helm: &Path,
+    chart: &Path,
+    values_yaml: &str,
+    opts: &Opts,
+) -> Result<String, String> {
     let home = repo_root().join("target/tmp/helm-home");
     let mut cmd = Command::new(helm);
     cmd.env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("HOME", &home)
         .env("KUBECONFIG", "/dev/null")
-        .env("HELM_NAMESPACE", opts.namespace.as_deref().unwrap_or("default"))
+        .env(
+            "HELM_NAMESPACE",
+            opts.namespace.as_deref().unwrap_or("default"),
+        )
         .env("HELM_CONFIG_HOME", home.join("config"))
         .env("HELM_CACHE_HOME", home.join("cache"))
         .env("HELM_DATA_HOME", home.join("data"));
-    cmd.arg("template").arg(opts.release.as_deref().unwrap_or("release-name")).arg(chart);
+    cmd.arg("template")
+        .arg(opts.release.as_deref().unwrap_or("release-name"))
+        .arg(chart);
     let vf = (!values_yaml.is_empty()).then(|| scratch_file(values_yaml));
     if let Some(v) = &vf {
         cmd.arg("-f").arg(v);

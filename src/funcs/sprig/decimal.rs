@@ -3,7 +3,12 @@
 //! created with `NewFromFloat`, division rounded to 16 places (half away from
 //! zero), and conversion back with `Float64()` (nearest float).
 
-#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::collapsible_match,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 use alloc::format;
 use alloc::string::String;
@@ -190,7 +195,11 @@ impl BigUint {
     fn shr1(&self) -> BigUint {
         let mut out = alloc::vec![0u32; self.0.len()];
         for i in 0..self.0.len() {
-            let hi = if i + 1 < self.0.len() { self.0[i + 1] << 31 } else { 0 };
+            let hi = if i + 1 < self.0.len() {
+                self.0[i + 1] << 31
+            } else {
+                0
+            };
             out[i] = (self.0[i] >> 1) | hi;
         }
         let mut b = BigUint(out);
@@ -252,7 +261,11 @@ impl Decimal {
             )));
         }
         if f == 0.0 {
-            return Ok(Decimal { neg: false, mag: BigUint::zero(), exp: 0 });
+            return Ok(Decimal {
+                neg: false,
+                mag: BigUint::zero(),
+                exp: 0,
+            });
         }
         let mut s = String::new();
         let _ = write!(s, "{:e}", f.abs());
@@ -265,7 +278,11 @@ impl Decimal {
             mag = mag.mul_small(10).add(&BigUint::from_u64((c - b'0') as u64));
         }
         // value = 0.digits * 10^(e+1) = digits * 10^(e + 1 - nd)
-        Ok(Decimal { neg: f < 0.0, mag, exp: e + 1 - nd })
+        Ok(Decimal {
+            neg: f < 0.0,
+            mag,
+            exp: e + 1 - nd,
+        })
     }
 
     fn rescale(&self, exp: i64) -> Result<BigUint, FuncError> {
@@ -292,16 +309,26 @@ impl Decimal {
         let b = o.rescale(exp)?;
         let on = o.neg ^ negate_o;
         let (neg, mag) = Decimal::signed_add(self.neg, a, on, b);
-        Ok(Decimal { neg: neg && !mag.is_zero(), mag, exp })
+        Ok(Decimal {
+            neg: neg && !mag.is_zero(),
+            mag,
+            exp,
+        })
     }
 
     pub fn mul(&self, o: &Decimal) -> Result<Decimal, FuncError> {
         let exp = self.exp + o.exp;
         if exp > i32::MAX as i64 || exp < i32::MIN as i64 {
-            return Err(FuncError::new(format!("exponent {exp} overflows an int32!")));
+            return Err(FuncError::new(format!(
+                "exponent {exp} overflows an int32!"
+            )));
         }
         let mag = self.mag.mul(&o.mag);
-        Ok(Decimal { neg: (self.neg ^ o.neg) && !mag.is_zero(), mag, exp })
+        Ok(Decimal {
+            neg: (self.neg ^ o.neg) && !mag.is_zero(),
+            mag,
+            exp,
+        })
     }
 
     /// `Div` = `DivRound(d2, 16)`.
@@ -325,8 +352,16 @@ impl Decimal {
         let (q, r) = aa.divmod(&bb);
         let neg = self.neg ^ o.neg;
         let r2 = r.add(&r);
-        let q = if r2.cmp(&bb) == Ordering::Less { q } else { q.add(&BigUint::from_u64(1)) };
-        Ok(Decimal { neg: neg && !q.is_zero(), mag: q, exp: -PREC })
+        let q = if r2.cmp(&bb) == Ordering::Less {
+            q
+        } else {
+            q.add(&BigUint::from_u64(1))
+        };
+        Ok(Decimal {
+            neg: neg && !q.is_zero(),
+            mag: q,
+            exp: -PREC,
+        })
     }
 
     /// `Float64()`: the nearest float64.
@@ -334,7 +369,12 @@ impl Decimal {
         if self.mag.is_zero() {
             return 0.0;
         }
-        let s = format!("{}{}e{}", if self.neg { "-" } else { "" }, self.mag.to_decimal(), self.exp);
+        let s = format!(
+            "{}{}e{}",
+            if self.neg { "-" } else { "" },
+            self.mag.to_decimal(),
+            self.exp
+        );
         s.parse::<f64>().unwrap_or(0.0)
     }
 }

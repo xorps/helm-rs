@@ -24,9 +24,15 @@ pub(super) fn register(f: &mut FuncMap) {
             Err(_) => 0,
         }))
     });
-    f.add("int64", Sig::new(&[A]), |a| Ok(Value::Int64(to_int64(arg(a, 0)))));
-    f.add("int", Sig::new(&[A]), |a| Ok(Value::Int(to_int64(arg(a, 0)))));
-    f.add("float64", Sig::new(&[A]), |a| Ok(Value::Float(to_float64(arg(a, 0)))));
+    f.add("int64", Sig::new(&[A]), |a| {
+        Ok(Value::Int64(to_int64(arg(a, 0))))
+    });
+    f.add("int", Sig::new(&[A]), |a| {
+        Ok(Value::Int(to_int64(arg(a, 0))))
+    });
+    f.add("float64", Sig::new(&[A]), |a| {
+        Ok(Value::Float(to_float64(arg(a, 0))))
+    });
     f.add("seq", Sig::variadic(&[], I), seq);
     f.add("toDecimal", Sig::new(&[A]), |a| {
         let s = crate::gofmt::format_value(arg(a, 0));
@@ -36,10 +42,22 @@ pub(super) fn register(f: &mut FuncMap) {
         let n = iarg(a, 0);
         until_step(0, n, if n < 0 { -1 } else { 1 })
     });
-    f.add("untilStep", Sig::new(&[I, I, I]), |a| until_step(iarg(a, 0), iarg(a, 1), iarg(a, 2)));
-    f.add("add1", Sig::new(&[A]), |a| Ok(Value::Int64(to_int64(arg(a, 0)).wrapping_add(1))));
-    f.add("add", Sig::variadic(&[], A), |a| Ok(Value::Int64(a.iter().fold(0i64, |s, v| s.wrapping_add(to_int64(v))))));
-    f.add("sub", Sig::new(&[A, A]), |a| Ok(Value::Int64(to_int64(arg(a, 0)).wrapping_sub(to_int64(arg(a, 1))))));
+    f.add("untilStep", Sig::new(&[I, I, I]), |a| {
+        until_step(iarg(a, 0), iarg(a, 1), iarg(a, 2))
+    });
+    f.add("add1", Sig::new(&[A]), |a| {
+        Ok(Value::Int64(to_int64(arg(a, 0)).wrapping_add(1)))
+    });
+    f.add("add", Sig::variadic(&[], A), |a| {
+        Ok(Value::Int64(
+            a.iter().fold(0i64, |s, v| s.wrapping_add(to_int64(v))),
+        ))
+    });
+    f.add("sub", Sig::new(&[A, A]), |a| {
+        Ok(Value::Int64(
+            to_int64(arg(a, 0)).wrapping_sub(to_int64(arg(a, 1))),
+        ))
+    });
     f.add("div", Sig::new(&[A, A]), |a| {
         let (x, y) = (to_int64(arg(a, 0)), to_int64(arg(a, 1)));
         if y == 0 {
@@ -55,28 +73,64 @@ pub(super) fn register(f: &mut FuncMap) {
         Ok(Value::Int64(x.wrapping_rem(y)))
     });
     f.add("mul", Sig::variadic(&[A], A), |a| {
-        Ok(Value::Int64(a[1..].iter().fold(to_int64(arg(a, 0)), |s, v| s.wrapping_mul(to_int64(v)))))
+        Ok(Value::Int64(
+            a[1..]
+                .iter()
+                .fold(to_int64(arg(a, 0)), |s, v| s.wrapping_mul(to_int64(v))),
+        ))
     });
     f.add_ctx("randInt", Sig::new(&[I, I]), rand_int);
-    f.add("add1f", Sig::new(&[A]), |a| decimal_op(arg(a, 0), &[Value::Int(1)], Op::Add));
-    f.add("addf", Sig::variadic(&[], A), |a| decimal_op(&Value::Float(0.0), a, Op::Add));
-    f.add("subf", Sig::variadic(&[A], A), |a| decimal_op(arg(a, 0), &a[1..], Op::Sub));
-    f.add("divf", Sig::variadic(&[A], A), |a| decimal_op(arg(a, 0), &a[1..], Op::Div));
-    f.add("mulf", Sig::variadic(&[A], A), |a| decimal_op(arg(a, 0), &a[1..], Op::Mul));
-    let max: fn(&[Value]) -> FuncResult = |a| Ok(Value::Int64(a[1..].iter().fold(to_int64(arg(a, 0)), |m, v| m.max(to_int64(v)))));
+    f.add("add1f", Sig::new(&[A]), |a| {
+        decimal_op(arg(a, 0), &[Value::Int(1)], Op::Add)
+    });
+    f.add("addf", Sig::variadic(&[], A), |a| {
+        decimal_op(&Value::Float(0.0), a, Op::Add)
+    });
+    f.add("subf", Sig::variadic(&[A], A), |a| {
+        decimal_op(arg(a, 0), &a[1..], Op::Sub)
+    });
+    f.add("divf", Sig::variadic(&[A], A), |a| {
+        decimal_op(arg(a, 0), &a[1..], Op::Div)
+    });
+    f.add("mulf", Sig::variadic(&[A], A), |a| {
+        decimal_op(arg(a, 0), &a[1..], Op::Mul)
+    });
+    let max: fn(&[Value]) -> FuncResult = |a| {
+        Ok(Value::Int64(
+            a[1..]
+                .iter()
+                .fold(to_int64(arg(a, 0)), |m, v| m.max(to_int64(v))),
+        ))
+    };
     f.add("biggest", Sig::variadic(&[A], A), max);
     f.add("max", Sig::variadic(&[A], A), max);
     f.add("min", Sig::variadic(&[A], A), |a| {
-        Ok(Value::Int64(a[1..].iter().fold(to_int64(arg(a, 0)), |m, v| m.min(to_int64(v)))))
+        Ok(Value::Int64(
+            a[1..]
+                .iter()
+                .fold(to_int64(arg(a, 0)), |m, v| m.min(to_int64(v))),
+        ))
     });
     f.add("maxf", Sig::variadic(&[A], A), |a| {
-        Ok(Value::Float(a[1..].iter().fold(to_float64(arg(a, 0)), |m, v| go_max(m, to_float64(v)))))
+        Ok(Value::Float(
+            a[1..]
+                .iter()
+                .fold(to_float64(arg(a, 0)), |m, v| go_max(m, to_float64(v))),
+        ))
     });
     f.add("minf", Sig::variadic(&[A], A), |a| {
-        Ok(Value::Float(a[1..].iter().fold(to_float64(arg(a, 0)), |m, v| go_min(m, to_float64(v)))))
+        Ok(Value::Float(
+            a[1..]
+                .iter()
+                .fold(to_float64(arg(a, 0)), |m, v| go_min(m, to_float64(v))),
+        ))
     });
-    f.add("ceil", Sig::new(&[A]), |a| Ok(Value::Float(libm_ceil(to_float64(arg(a, 0))))));
-    f.add("floor", Sig::new(&[A]), |a| Ok(Value::Float(libm_floor(to_float64(arg(a, 0))))));
+    f.add("ceil", Sig::new(&[A]), |a| {
+        Ok(Value::Float(libm_ceil(to_float64(arg(a, 0)))))
+    });
+    f.add("floor", Sig::new(&[A]), |a| {
+        Ok(Value::Float(libm_floor(to_float64(arg(a, 0)))))
+    });
     f.add("round", Sig::variadic(&[A, I], Ty::Float64), round);
 }
 
@@ -156,8 +210,15 @@ fn until_step(start: i64, stop: i64, step: i64) -> FuncResult {
 }
 
 fn until_step_ints(start: i64, stop: i64, step: i64) -> Result<Vec<i64>, FuncError> {
-    match until_step(start, stop, step)?.as_object().and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>()) {
-        Some(t) => Ok(t.items.iter().map(|v| if let Value::Int(n) = v { *n } else { 0 }).collect()),
+    match until_step(start, stop, step)?
+        .as_object()
+        .and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>())
+    {
+        Some(t) => Ok(t
+            .items
+            .iter()
+            .map(|v| if let Value::Int(n) = v { *n } else { 0 })
+            .collect()),
         None => Ok(Vec::new()),
     }
 }
@@ -198,7 +259,9 @@ fn rand_int(ctx: &mut CallCtx<'_>, a: &[Value]) -> FuncResult {
     if n <= 0 {
         return Err(FuncError::new("invalid argument to Intn"));
     }
-    Ok(Value::Int((super::rand_below(ctx, n as u64) as i64).wrapping_add(min)))
+    Ok(Value::Int(
+        (super::rand_below(ctx, n as u64) as i64).wrapping_add(min),
+    ))
 }
 
 #[derive(Clone, Copy)]
@@ -233,7 +296,11 @@ fn round(a: &[Value]) -> FuncResult {
     let pow = go_pow10(places);
     let digit = pow * val;
     let div = modf_frac(digit);
-    let r = if div >= round_on { libm_ceil(digit) } else { libm_floor(digit) };
+    let r = if div >= round_on {
+        libm_ceil(digit)
+    } else {
+        libm_floor(digit)
+    };
     Ok(Value::Float(r / pow))
 }
 
@@ -245,9 +312,17 @@ fn modf_frac(f: f64) -> f64 {
     if f.is_nan() {
         return f;
     }
-    let int = if f < 0.0 { -libm_floor(-f) } else { libm_floor(f) };
+    let int = if f < 0.0 {
+        -libm_floor(-f)
+    } else {
+        libm_floor(f)
+    };
     let frac = f - int;
-    if frac == 0.0 && f.is_sign_negative() { -0.0 } else { frac }
+    if frac == 0.0 && f.is_sign_negative() {
+        -0.0
+    } else {
+        frac
+    }
 }
 
 /// `math.Pow(10, y)` for integral `y`.
@@ -308,7 +383,11 @@ fn ldexp(frac: f64, exp: i64) -> f64 {
         return if frac < 0.0 { -0.0 } else { 0.0 };
     }
     if exp > 1023 {
-        return if frac < 0.0 { f64::NEG_INFINITY } else { f64::INFINITY };
+        return if frac < 0.0 {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        };
     }
     let mut m = 1.0;
     if exp < -1022 {

@@ -25,13 +25,19 @@ pub(super) fn register(f: &mut FuncMap) {
         let mut i = 0;
         while i < a.len() {
             let key = strval(&a[i]);
-            let v = if i + 1 >= a.len() { Value::str("") } else { a[i + 1].clone() };
+            let v = if i + 1 >= a.len() {
+                Value::str("")
+            } else {
+                a[i + 1].clone()
+            };
             m.insert(key, v);
             i += 2;
         }
         Ok(Value::map(m))
     });
-    f.add("get", Sig::new(&[M, S]), |a| Ok(marg(a, 0).get(sarg(a, 1)).unwrap_or_else(|| Value::str(""))));
+    f.add("get", Sig::new(&[M, S]), |a| {
+        Ok(marg(a, 0).get(sarg(a, 1)).unwrap_or_else(|| Value::str("")))
+    });
     f.add("set", Sig::new(&[M, S, A]), |a| {
         let m = marg(a, 0);
         m.insert(sarg(a, 1), arg(a, 2).clone());
@@ -42,7 +48,9 @@ pub(super) fn register(f: &mut FuncMap) {
         m.remove(sarg(a, 1));
         Ok(Value::Map(m))
     });
-    f.add("hasKey", Sig::new(&[M, S]), |a| Ok(Value::Bool(marg(a, 0).contains_key(sarg(a, 1)))));
+    f.add("hasKey", Sig::new(&[M, S]), |a| {
+        Ok(Value::Bool(marg(a, 0).contains_key(sarg(a, 1))))
+    });
     f.add("pluck", Sig::variadic(&[S], M), |a| {
         let key = sarg(a, 0);
         let mut res = Vec::new();
@@ -74,20 +82,39 @@ pub(super) fn register(f: &mut FuncMap) {
     f.add("omit", Sig::variadic(&[M], S), |a| {
         let d = marg(a, 0);
         let omit: Vec<&str> = (1..a.len()).map(|i| sarg(a, i)).collect();
-        let res: Map = d.borrow().iter().filter(|(k, _)| !omit.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let res: Map = d
+            .borrow()
+            .iter()
+            .filter(|(k, _)| !omit.contains(&k.as_str()))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         Ok(Value::map(res))
     });
-    f.add("merge", Sig::variadic(&[M], M), |a| merge(a, false).or_else(|_| Ok(Value::str(""))));
+    f.add("merge", Sig::variadic(&[M], M), |a| {
+        merge(a, false).or_else(|_| Ok(Value::str("")))
+    });
     f.add("mustMerge", Sig::variadic(&[M], M), |a| merge(a, false));
-    f.add("mergeOverwrite", Sig::variadic(&[M], M), |a| merge(a, true).or_else(|_| Ok(Value::str(""))));
-    f.add("mustMergeOverwrite", Sig::variadic(&[M], M), |a| merge(a, true));
-    f.add("values", Sig::new(&[M]), |a| Ok(Value::list(marg(a, 0).borrow().values().cloned().collect())));
+    f.add("mergeOverwrite", Sig::variadic(&[M], M), |a| {
+        merge(a, true).or_else(|_| Ok(Value::str("")))
+    });
+    f.add("mustMergeOverwrite", Sig::variadic(&[M], M), |a| {
+        merge(a, true)
+    });
+    f.add("values", Sig::new(&[M]), |a| {
+        Ok(Value::list(marg(a, 0).borrow().values().cloned().collect()))
+    });
     f.add("dig", Sig::variadic(&[], A), dig);
 }
 
 fn interface_conversion(v: &Value, want: &str) -> FuncError {
-    let have = if v.is_nil() { String::from("nil") } else { v.type_name() };
-    FuncError::new(format!("interface conversion: interface {{}} is {have}, not {want}"))
+    let have = if v.is_nil() {
+        String::from("nil")
+    } else {
+        v.type_name()
+    };
+    FuncError::new(format!(
+        "interface conversion: interface {{}} is {have}, not {want}"
+    ))
 }
 
 fn dig(ps: &[Value]) -> FuncResult {
@@ -110,7 +137,9 @@ fn dig(ps: &[Value]) -> FuncResult {
     let mut dict = dict.clone();
     let mut i = 0;
     loop {
-        let Some(step) = dict.get(&ks[i]) else { return Ok(def.clone()) };
+        let Some(step) = dict.get(&ks[i]) else {
+            return Ok(def.clone());
+        };
         if i + 1 == ks.len() {
             return Ok(step);
         }
@@ -144,11 +173,20 @@ fn merge(a: &[Value], overwrite: bool) -> FuncResult {
 }
 
 /// mergo `deepMerge` for `map[string]interface{}` destinations.
-fn deep_merge_map(dst: &MapRef, src: &MapRef, overwrite: bool, depth: usize) -> Result<(), FuncError> {
+fn deep_merge_map(
+    dst: &MapRef,
+    src: &MapRef,
+    overwrite: bool,
+    depth: usize,
+) -> Result<(), FuncError> {
     if depth > 1000 {
         return Err(FuncError::new("mergo: structure too deep (cyclic?)"));
     }
-    let src_entries: Vec<(String, Value)> = src.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let src_entries: Vec<(String, Value)> = src
+        .borrow()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
     for (key, src_el) in src_entries {
         let dst_el = dst.get(&key);
         if src_el.is_nil() {

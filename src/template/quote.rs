@@ -110,7 +110,9 @@ pub const ERR_SYNTAX: &str = "invalid syntax";
 /// in strings), and the remaining input.
 pub fn unquote_char(s: &str, quote: u8) -> Result<(UnquotedChar, &str), &'static str> {
     let bytes = s.as_bytes();
-    let Some(&c) = bytes.first() else { return Err(ERR_SYNTAX) };
+    let Some(&c) = bytes.first() else {
+        return Err(ERR_SYNTAX);
+    };
     if c == quote && (quote == b'\'' || quote == b'"') {
         return Err(ERR_SYNTAX);
     }

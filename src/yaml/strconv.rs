@@ -12,7 +12,11 @@ use super::isprint::is_print;
 /// leading/trailing zeros and the decimal point position `dp`, so that
 /// `|f| = 0.d1d2... * 10^dp`. Zero yields no digits and `dp == 0`.
 fn shortest_digits(f: f64, bits32: bool) -> (Vec<u8>, i32) {
-    let s = if bits32 { format!("{:e}", (f as f32).abs()) } else { format!("{:e}", f.abs()) };
+    let s = if bits32 {
+        format!("{:e}", (f as f32).abs())
+    } else {
+        format!("{:e}", f.abs())
+    };
     let (mant, exp) = match s.split_once('e') {
         Some(p) => p,
         None => (s.as_str(), "0"),
@@ -35,7 +39,11 @@ pub(crate) fn format_float(f: f64, fmt: u8, bits32: bool) -> String {
         return "NaN".into();
     }
     if f.is_infinite() {
-        return if f > 0.0 { "+Inf".into() } else { "-Inf".into() };
+        return if f > 0.0 {
+            "+Inf".into()
+        } else {
+            "-Inf".into()
+        };
     }
     let neg = f.is_sign_negative();
     let (s, dp) = shortest_digits(f, bits32);
@@ -394,7 +402,10 @@ pub(crate) fn parse_uint(s: &str, base: u32) -> Result<u64, NumErr> {
         if range {
             continue;
         }
-        match n.checked_mul(base as u64).and_then(|x| x.checked_add(d as u64)) {
+        match n
+            .checked_mul(base as u64)
+            .and_then(|x| x.checked_add(d as u64))
+        {
             Some(x) => n = x,
             None => range = true,
         }
@@ -426,7 +437,11 @@ pub(crate) fn parse_int(s: &str, base: u32) -> Result<i64, NumErr> {
     if neg && un > cutoff {
         return Err(NumErr::Range);
     }
-    Ok(if neg { (un as i64).wrapping_neg() } else { un as i64 })
+    Ok(if neg {
+        (un as i64).wrapping_neg()
+    } else {
+        un as i64
+    })
 }
 
 /// Go's `strconv.Quote(s)`.

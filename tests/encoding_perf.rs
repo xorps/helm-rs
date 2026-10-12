@@ -8,9 +8,14 @@ use helm_rs::{json, yaml};
 fn large_documents_are_fast() {
     let mut doc = String::new();
     for i in 0..5000 {
-        doc.push_str(&format!("key{i}:\n  name: \"value {i}\"\n  list: [1, 2, {i}]\n  nested: {{a: b, c: [x, y]}}\n"));
+        doc.push_str(&format!(
+            "key{i}:\n  name: \"value {i}\"\n  list: [1, 2, {i}]\n  nested: {{a: b, c: [x, y]}}\n"
+        ));
     }
-    if let Some(n) = std::env::var("PERF_PARSE_LOOPS").ok().and_then(|s| s.parse::<usize>().ok()) {
+    if let Some(n) = std::env::var("PERF_PARSE_LOOPS")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+    {
         for _ in 0..n {
             let _ = yaml::from_str(&doc).unwrap();
         }

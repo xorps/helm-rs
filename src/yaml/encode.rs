@@ -36,7 +36,13 @@ pub(crate) fn key_less(a: &str, b: &str, v3: bool) -> bool {
     }
 }
 
-fn key_less_runes(alen: usize, blen: usize, ar: impl Fn(usize) -> char, br: impl Fn(usize) -> char, v3: bool) -> bool {
+fn key_less_runes(
+    alen: usize,
+    blen: usize,
+    ar: impl Fn(usize) -> char,
+    br: impl Fn(usize) -> char,
+    v3: bool,
+) -> bool {
     let mut digits = false;
     let mut i = 0;
     while i < alen && i < blen {
@@ -74,12 +80,16 @@ fn key_less_runes(alen: usize, blen: usize, ar: impl Fn(usize) -> char, br: impl
         }
         let mut ai = i;
         while ai < alen && is_digit(ar(ai)) {
-            an = an.wrapping_mul(10).wrapping_add((ar(ai) as i64).wrapping_sub('0' as i64));
+            an = an
+                .wrapping_mul(10)
+                .wrapping_add((ar(ai) as i64).wrapping_sub('0' as i64));
             ai += 1;
         }
         let mut bi = i;
         while bi < blen && is_digit(br(bi)) {
-            bn = bn.wrapping_mul(10).wrapping_add((br(bi) as i64).wrapping_sub('0' as i64));
+            bn = bn
+                .wrapping_mul(10)
+                .wrapping_add((br(bi) as i64).wrapping_sub('0' as i64));
             bi += 1;
         }
         if an != bn {
@@ -188,17 +198,31 @@ impl Enc {
     }
 
     fn start(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::StreamStart, ..Default::default() })?;
-        self.emit(Event { typ: EventType::DocumentStart, implicit: true, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::StreamStart,
+            ..Default::default()
+        })?;
+        self.emit(Event {
+            typ: EventType::DocumentStart,
+            implicit: true,
+            ..Default::default()
+        })
     }
 
     fn end_doc(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::DocumentEnd, implicit: true, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::DocumentEnd,
+            implicit: true,
+            ..Default::default()
+        })
     }
 
     fn finish(&mut self) -> EncResult {
         self.em.open_ended = false;
-        self.emit(Event { typ: EventType::StreamEnd, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::StreamEnd,
+            ..Default::default()
+        })
     }
 
     fn scalar(&mut self, value: &[u8], style: ScalarStyle) -> EncResult {
@@ -228,7 +252,8 @@ impl Enc {
     }
 
     fn stringv(&mut self, s: &str) -> EncResult {
-        let (rtag, _) = resolve::resolve("", s, !self.v3).unwrap_or((STR_TAG, resolve::Resolved::Str));
+        let (rtag, _) =
+            resolve::resolve("", s, !self.v3).unwrap_or((STR_TAG, resolve::Resolved::Str));
         let mut can_use_plain = rtag == STR_TAG && !resolve::is_base60_float(s);
         if self.v3 && resolve::is_old_bool(s) {
             can_use_plain = false;
@@ -244,16 +269,32 @@ impl Enc {
     }
 
     fn mapping_start(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::MappingStart, implicit: true, flow: false, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::MappingStart,
+            implicit: true,
+            flow: false,
+            ..Default::default()
+        })
     }
     fn mapping_end(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::MappingEnd, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::MappingEnd,
+            ..Default::default()
+        })
     }
     fn sequence_start(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::SequenceStart, implicit: true, flow: false, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::SequenceStart,
+            implicit: true,
+            flow: false,
+            ..Default::default()
+        })
     }
     fn sequence_end(&mut self) -> EncResult {
-        self.emit(Event { typ: EventType::SequenceEnd, ..Default::default() })
+        self.emit(Event {
+            typ: EventType::SequenceEnd,
+            ..Default::default()
+        })
     }
 
     #[inline(never)]
@@ -286,7 +327,8 @@ impl Enc {
         &self,
         entries: &'v [(GoVal, GoVal, (super::scanner::Mark, super::scanner::Mark))],
     ) -> Vec<&'v (GoVal, GoVal, (super::scanner::Mark, super::scanner::Mark))> {
-        let mut sorted: Vec<&(GoVal, GoVal, (super::scanner::Mark, super::scanner::Mark))> = entries.iter().collect();
+        let mut sorted: Vec<&(GoVal, GoVal, (super::scanner::Mark, super::scanner::Mark))> =
+            entries.iter().collect();
         let v3 = self.v3;
         sort_by_less(&mut sorted, &|a, b| go_key_less(&a.0, &b.0, v3));
         sorted
@@ -326,7 +368,9 @@ impl Enc {
         match v {
             Value::Nil => self.nilv(),
             Value::Bool(b) => self.scalar(if *b { b"true" } else { b"false" }, ScalarStyle::Plain),
-            Value::Int(i) | Value::Int64(i) => self.scalar(format!("{i}").as_bytes(), ScalarStyle::Plain),
+            Value::Int(i) | Value::Int64(i) => {
+                self.scalar(format!("{i}").as_bytes(), ScalarStyle::Plain)
+            }
             Value::Uint64(u) => self.scalar(format!("{u}").as_bytes(), ScalarStyle::Plain),
             Value::Float(f) => self.floatv(*f),
             Value::String(s) => self.stringv(s),
@@ -351,7 +395,11 @@ impl Enc {
 
     #[inline(never)]
     fn sorted_value_entries(&self, m: &crate::value::MapRef) -> Vec<(String, Value)> {
-        let mut entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let mut entries: Vec<(String, Value)> = m
+            .borrow()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         let v3 = self.v3;
         sort_by_less(&mut entries, &|a, b| key_less(&a.0, &b.0, v3));
         entries
@@ -389,7 +437,11 @@ impl Enc {
                     // order, keyed by the lowercased field name.
                     (|| {
                         self.mapping_start()?;
-                        for f in gs.fields.iter().filter(|f| f.name.starts_with(|c: char| c.is_ascii_uppercase())) {
+                        for f in gs
+                            .fields
+                            .iter()
+                            .filter(|f| f.name.starts_with(|c: char| c.is_ascii_uppercase()))
+                        {
                             self.stringv(&f.name.to_ascii_lowercase())?;
                             self.marshal_value(&f.value)?;
                         }
@@ -398,7 +450,9 @@ impl Enc {
                 } else {
                     match o.to_data() {
                         // A nil map encodes as `{}` (only nil pointers are null).
-                        Value::Nil if o.kind() == crate::value::Kind::Map => self.marshal_value(&Value::empty_map()),
+                        Value::Nil if o.kind() == crate::value::Kind::Map => {
+                            self.marshal_value(&Value::empty_map())
+                        }
                         data => self.marshal_value(&data),
                     }
                 };

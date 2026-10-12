@@ -11,7 +11,22 @@ fn value_for(rng: &mut Rng, t: Ty) -> Value {
         Ty::Any => rand_arg(rng, 2).value,
         Ty::String => Value::string(match rng.below(5) {
             0 => rand_string(rng, 8),
-            1 => ["(", "[", "\\", "a{1001}", "%", "%!", "${", "2006-01-02", "1h", ">=1.2", "x||y", "::", "-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----"][rng.below(13) as usize].to_string(),
+            1 => [
+                "(",
+                "[",
+                "\\",
+                "a{1001}",
+                "%",
+                "%!",
+                "${",
+                "2006-01-02",
+                "1h",
+                ">=1.2",
+                "x||y",
+                "::",
+                "-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----",
+            ][rng.below(13) as usize]
+                .to_string(),
             _ => rand_string(rng, 4),
         }),
         Ty::Bool => Value::Bool(rng.chance(1, 2)),
@@ -39,10 +54,24 @@ fn value_for(rng: &mut Rng, t: Ty) -> Value {
 #[test]
 fn no_function_panics() {
     let funcs = helm_rs::funcs::helm();
-    let seed: u64 = std::env::var("NOPANIC_SEED").ok().and_then(|s| s.parse().ok()).unwrap_or(99);
-    let base_rounds: usize = std::env::var("NOPANIC_ROUNDS").ok().and_then(|s| s.parse().ok()).unwrap_or(400);
+    let seed: u64 = std::env::var("NOPANIC_SEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(99);
+    let base_rounds: usize = std::env::var("NOPANIC_ROUNDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(400);
     let mut rng = Rng::new(seed);
-    let slow = ["genPrivateKey", "genCA", "genSelfSignedCert", "genSignedCert", "derivePassword", "bcrypt", "htpasswd"];
+    let slow = [
+        "genPrivateKey",
+        "genCA",
+        "genSelfSignedCert",
+        "genSignedCert",
+        "derivePassword",
+        "bcrypt",
+        "htpasswd",
+    ];
     let mut names: Vec<String> = funcs.names().map(String::from).collect();
     names.sort();
     let mut calls = 0;
@@ -52,9 +81,18 @@ fn no_function_panics() {
             continue;
         }
         let f = funcs.get(name).unwrap();
-        let rounds = if slow.contains(&name.as_str()) { 3 } else { base_rounds };
+        let rounds = if slow.contains(&name.as_str()) {
+            3
+        } else {
+            base_rounds
+        };
         for _ in 0..rounds {
-            let mut args: Vec<Value> = f.sig.params.iter().map(|&t| value_for(&mut rng, t)).collect();
+            let mut args: Vec<Value> = f
+                .sig
+                .params
+                .iter()
+                .map(|&t| value_for(&mut rng, t))
+                .collect();
             if let Some(v) = f.sig.variadic {
                 for _ in 0..rng.below(4) {
                     args.push(value_for(&mut rng, v));
@@ -78,7 +116,10 @@ fn huge_requests_fail_cleanly() {
     let cases: Vec<(&str, Vec<Value>)> = vec![
         ("repeat", vec![Value::Int(1 << 40), Value::str("abc")]),
         ("until", vec![Value::Int(1_000_000_000_000)]),
-        ("untilStep", vec![Value::Int(0), Value::Int(i64::MAX), Value::Int(1)]),
+        (
+            "untilStep",
+            vec![Value::Int(0), Value::Int(i64::MAX), Value::Int(1)],
+        ),
         ("seq", vec![Value::Int(1_000_000_000_000)]),
         ("indent", vec![Value::Int(1 << 40), Value::str("a\nb")]),
         ("randAlphaNum", vec![Value::Int(1 << 50)]),
@@ -101,7 +142,11 @@ fn huge_requests_fail_cleanly() {
         let f = funcs.get(name).unwrap();
         let mut env = DeterministicEnv::default();
         let mut ctx = CallCtx { env: &mut env };
-        let args = if name.starts_with("merge") { vec![m.clone(), m.clone()] } else { vec![m.clone()] };
+        let args = if name.starts_with("merge") {
+            vec![m.clone(), m.clone()]
+        } else {
+            vec![m.clone()]
+        };
         let _ = (f.imp)(&mut ctx, &args);
     }
     // Break the cycle so the test does not leak.
@@ -113,11 +158,16 @@ fn huge_requests_fail_cleanly() {
 #[test]
 fn gofmt_never_panics() {
     let mut rng = Rng::new(5);
-    let chars = ["%", "v", "d", "*", "[", "]", "1", "0", ".", "-", "+", "#", " ", "x", "q", "é", "9", "T", "!"];
+    let chars = [
+        "%", "v", "d", "*", "[", "]", "1", "0", ".", "-", "+", "#", " ", "x", "q", "é", "9", "T",
+        "!",
+    ];
     for _ in 0..20000 {
         let n = rng.below(12);
         let f: String = (0..n).map(|_| *rng.pick(&chars)).collect();
-        let args: Vec<Value> = (0..rng.below(4)).map(|_| rand_arg(&mut rng, 2).value).collect();
+        let args: Vec<Value> = (0..rng.below(4))
+            .map(|_| rand_arg(&mut rng, 2).value)
+            .collect();
         let _ = helm_rs::gofmt::sprintf(&f, &args);
         let _ = helm_rs::gofmt::sprint(&args);
     }

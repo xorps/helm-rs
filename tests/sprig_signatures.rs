@@ -9,34 +9,230 @@ use helm_rs::{Sig, Ty};
 
 /// Sprig's genericMap keys (v3.3.0), minus `fail` (provided by the engine).
 const SPRIG_FUNCS: &[&str] = &[
-    "hello", "ago", "date", "date_in_zone", "date_modify", "dateInZone", "dateModify", "duration", "durationRound",
-    "htmlDate", "htmlDateInZone", "must_date_modify", "mustDateModify", "mustToDate", "now", "toDate", "unixEpoch",
-    "abbrev", "abbrevboth", "trunc", "trim", "upper", "lower", "title", "untitle", "substr", "repeat", "trimall",
-    "trimAll", "trimSuffix", "trimPrefix", "nospace", "initials", "randAlphaNum", "randAlpha", "randAscii",
-    "randNumeric", "swapcase", "shuffle", "snakecase", "camelcase", "kebabcase", "wrap", "wrapWith", "contains",
-    "hasPrefix", "hasSuffix", "quote", "squote", "cat", "indent", "nindent", "replace", "plural", "sha1sum",
-    "sha256sum", "sha512sum", "adler32sum", "toString", "atoi", "int64", "int", "float64", "seq", "toDecimal", "split",
-    "splitList", "splitn", "toStrings", "until", "untilStep", "add1", "add", "sub", "div", "mod", "mul", "randInt",
-    "add1f", "addf", "subf", "divf", "mulf", "biggest", "max", "min", "maxf", "minf", "ceil", "floor", "round", "join",
-    "sortAlpha", "default", "empty", "coalesce", "all", "any", "compact", "mustCompact", "fromJson", "toJson",
-    "toPrettyJson", "toRawJson", "mustFromJson", "mustToJson", "mustToPrettyJson", "mustToRawJson", "ternary",
-    "deepCopy", "mustDeepCopy", "typeOf", "typeIs", "typeIsLike", "kindOf", "kindIs", "deepEqual", "env", "expandenv",
-    "getHostByName", "base", "dir", "clean", "ext", "isAbs", "osBase", "osClean", "osDir", "osExt", "osIsAbs",
-    "b64enc", "b64dec", "b32enc", "b32dec", "tuple", "list", "dict", "get", "set", "unset", "hasKey", "pluck", "keys",
-    "pick", "omit", "merge", "mergeOverwrite", "mustMerge", "mustMergeOverwrite", "values", "append", "push",
-    "mustAppend", "mustPush", "prepend", "mustPrepend", "first", "mustFirst", "rest", "mustRest", "last", "mustLast",
-    "initial", "mustInitial", "reverse", "mustReverse", "uniq", "mustUniq", "without", "mustWithout", "has",
-    "mustHas", "slice", "mustSlice", "concat", "dig", "chunk", "mustChunk", "bcrypt", "htpasswd", "genPrivateKey",
-    "derivePassword", "buildCustomCert", "genCA", "genCAWithKey", "genSelfSignedCert", "genSelfSignedCertWithKey",
-    "genSignedCert", "genSignedCertWithKey", "encryptAES", "decryptAES", "randBytes", "uuidv4", "semver",
-    "semverCompare", "regexMatch", "mustRegexMatch", "regexFindAll", "mustRegexFindAll", "regexFind",
-    "mustRegexFind", "regexReplaceAll", "mustRegexReplaceAll", "regexReplaceAllLiteral",
-    "mustRegexReplaceAllLiteral", "regexSplit", "mustRegexSplit", "regexQuoteMeta", "urlParse", "urlJoin",
+    "hello",
+    "ago",
+    "date",
+    "date_in_zone",
+    "date_modify",
+    "dateInZone",
+    "dateModify",
+    "duration",
+    "durationRound",
+    "htmlDate",
+    "htmlDateInZone",
+    "must_date_modify",
+    "mustDateModify",
+    "mustToDate",
+    "now",
+    "toDate",
+    "unixEpoch",
+    "abbrev",
+    "abbrevboth",
+    "trunc",
+    "trim",
+    "upper",
+    "lower",
+    "title",
+    "untitle",
+    "substr",
+    "repeat",
+    "trimall",
+    "trimAll",
+    "trimSuffix",
+    "trimPrefix",
+    "nospace",
+    "initials",
+    "randAlphaNum",
+    "randAlpha",
+    "randAscii",
+    "randNumeric",
+    "swapcase",
+    "shuffle",
+    "snakecase",
+    "camelcase",
+    "kebabcase",
+    "wrap",
+    "wrapWith",
+    "contains",
+    "hasPrefix",
+    "hasSuffix",
+    "quote",
+    "squote",
+    "cat",
+    "indent",
+    "nindent",
+    "replace",
+    "plural",
+    "sha1sum",
+    "sha256sum",
+    "sha512sum",
+    "adler32sum",
+    "toString",
+    "atoi",
+    "int64",
+    "int",
+    "float64",
+    "seq",
+    "toDecimal",
+    "split",
+    "splitList",
+    "splitn",
+    "toStrings",
+    "until",
+    "untilStep",
+    "add1",
+    "add",
+    "sub",
+    "div",
+    "mod",
+    "mul",
+    "randInt",
+    "add1f",
+    "addf",
+    "subf",
+    "divf",
+    "mulf",
+    "biggest",
+    "max",
+    "min",
+    "maxf",
+    "minf",
+    "ceil",
+    "floor",
+    "round",
+    "join",
+    "sortAlpha",
+    "default",
+    "empty",
+    "coalesce",
+    "all",
+    "any",
+    "compact",
+    "mustCompact",
+    "fromJson",
+    "toJson",
+    "toPrettyJson",
+    "toRawJson",
+    "mustFromJson",
+    "mustToJson",
+    "mustToPrettyJson",
+    "mustToRawJson",
+    "ternary",
+    "deepCopy",
+    "mustDeepCopy",
+    "typeOf",
+    "typeIs",
+    "typeIsLike",
+    "kindOf",
+    "kindIs",
+    "deepEqual",
+    "env",
+    "expandenv",
+    "getHostByName",
+    "base",
+    "dir",
+    "clean",
+    "ext",
+    "isAbs",
+    "osBase",
+    "osClean",
+    "osDir",
+    "osExt",
+    "osIsAbs",
+    "b64enc",
+    "b64dec",
+    "b32enc",
+    "b32dec",
+    "tuple",
+    "list",
+    "dict",
+    "get",
+    "set",
+    "unset",
+    "hasKey",
+    "pluck",
+    "keys",
+    "pick",
+    "omit",
+    "merge",
+    "mergeOverwrite",
+    "mustMerge",
+    "mustMergeOverwrite",
+    "values",
+    "append",
+    "push",
+    "mustAppend",
+    "mustPush",
+    "prepend",
+    "mustPrepend",
+    "first",
+    "mustFirst",
+    "rest",
+    "mustRest",
+    "last",
+    "mustLast",
+    "initial",
+    "mustInitial",
+    "reverse",
+    "mustReverse",
+    "uniq",
+    "mustUniq",
+    "without",
+    "mustWithout",
+    "has",
+    "mustHas",
+    "slice",
+    "mustSlice",
+    "concat",
+    "dig",
+    "chunk",
+    "mustChunk",
+    "bcrypt",
+    "htpasswd",
+    "genPrivateKey",
+    "derivePassword",
+    "buildCustomCert",
+    "genCA",
+    "genCAWithKey",
+    "genSelfSignedCert",
+    "genSelfSignedCertWithKey",
+    "genSignedCert",
+    "genSignedCertWithKey",
+    "encryptAES",
+    "decryptAES",
+    "randBytes",
+    "uuidv4",
+    "semver",
+    "semverCompare",
+    "regexMatch",
+    "mustRegexMatch",
+    "regexFindAll",
+    "mustRegexFindAll",
+    "regexFind",
+    "mustRegexFind",
+    "regexReplaceAll",
+    "mustRegexReplaceAll",
+    "regexReplaceAllLiteral",
+    "mustRegexReplaceAllLiteral",
+    "regexSplit",
+    "mustRegexSplit",
+    "regexQuoteMeta",
+    "urlParse",
+    "urlJoin",
 ];
 
 const HELM_DURATION_FUNCS: &[&str] = &[
-    "mustToDuration", "durationSeconds", "durationMilliseconds", "durationMicroseconds", "durationNanoseconds",
-    "durationMinutes", "durationHours", "durationDays", "durationWeeks", "durationRoundTo", "durationTruncateTo",
+    "mustToDuration",
+    "durationSeconds",
+    "durationMilliseconds",
+    "durationMicroseconds",
+    "durationNanoseconds",
+    "durationMinutes",
+    "durationHours",
+    "durationDays",
+    "durationWeeks",
+    "durationRoundTo",
+    "durationTruncateTo",
 ];
 
 #[test]
@@ -115,7 +311,10 @@ fn signatures_match_helm() {
             let args: Vec<&str> = sig.params.iter().map(|&t| dummy(t)).chain(["0"]).collect();
             exprs.push(format!("{name} {}", args.join(" ")));
             labels.push(format!("{name} (too many)"));
-            expect.push(Err(format!("wrong number of args for {name}: want {n} got {}", n + 1)));
+            expect.push(Err(format!(
+                "wrong number of args for {name}: want {n} got {}",
+                n + 1
+            )));
         }
         // Parameter types.
         let mut all: Vec<Ty> = sig.params.to_vec();
@@ -128,21 +327,38 @@ fn signatures_match_helm() {
                 continue;
             }
             // Struct-typed parameters reject nil, so they cannot take a dummy.
-            if all.iter().enumerate().any(|(j, t)| j != k && matches!(t, Ty::Object(_) | Ty::Struct(_))) {
+            if all
+                .iter()
+                .enumerate()
+                .any(|(j, t)| j != k && matches!(t, Ty::Object(_) | Ty::Struct(_)))
+            {
                 continue;
             }
             // Known divergence: derivePassword's counter is a Go uint32.
             if name == "derivePassword" && k == 0 {
                 continue;
             }
-            let args: Vec<&str> = all.iter().enumerate().map(|(j, &t)| if j == k { f } else { dummy(t) }).collect();
+            let args: Vec<&str> = all
+                .iter()
+                .enumerate()
+                .map(|(j, &t)| if j == k { f } else { dummy(t) })
+                .collect();
             exprs.push(format!("{name} {}", args.join(" ")));
             labels.push(format!("{name} (param {k} type)"));
-            let got = if f == "(list)" { "[]interface {}" } else { "string" };
-            expect.push(Err(format!("wrong type for value; expected {}; got {got}", go_type_name(all[k]))));
+            let got = if f == "(list)" {
+                "[]interface {}"
+            } else {
+                "string"
+            };
+            expect.push(Err(format!(
+                "wrong type for value; expected {}; got {got}",
+                go_type_name(all[k])
+            )));
         }
     }
-    let Some(helm) = helm_eval_many(&exprs, "") else { return };
+    let Some(helm) = helm_eval_many(&exprs, "") else {
+        return;
+    };
     let mut bad = Vec::new();
     for i in 0..exprs.len() {
         let got = match &helm[i] {
@@ -167,7 +383,10 @@ fn signatures_match_helm() {
             _ => false,
         };
         if !ok {
-            bad.push(format!("{}: {}\n   want: {:?}\n   helm: {:?}", labels[i], exprs[i], expect[i], got));
+            bad.push(format!(
+                "{}: {}\n   want: {:?}\n   helm: {:?}",
+                labels[i], exprs[i], expect[i], got
+            ));
         }
     }
     report("signatures_match_helm", exprs.len(), &bad);

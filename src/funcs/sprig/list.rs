@@ -5,8 +5,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use super::{NIL_DEREF, arg, deep_equal, empty, iarg, kind_name, slice_items, to_int64};
-use crate::funcs::duration::f64_to_i64;
 use crate::func::{FuncError, FuncMap, FuncResult, Sig, Ty};
+use crate::funcs::duration::f64_to_i64;
 use crate::value::Value;
 
 const A: Ty = Ty::Any;
@@ -28,8 +28,12 @@ macro_rules! both {
 }
 
 pub(super) fn register(f: &mut FuncMap) {
-    f.add("list", Sig::variadic(&[], A), |a| Ok(Value::list(a.to_vec())));
-    f.add("tuple", Sig::variadic(&[], A), |a| Ok(Value::list(a.to_vec())));
+    f.add("list", Sig::variadic(&[], A), |a| {
+        Ok(Value::list(a.to_vec()))
+    });
+    f.add("tuple", Sig::variadic(&[], A), |a| {
+        Ok(Value::list(a.to_vec()))
+    });
     for n in ["append", "mustAppend", "push", "mustPush"] {
         f.add(n, Sig::new(&[A, A]), push);
     }
@@ -77,7 +81,11 @@ pub(super) fn register(f: &mut FuncMap) {
     both!(f, "without", "mustWithout", Sig::variadic(&[A], A), |a| {
         let l = items(arg(a, 0), |t| format!("Cannot find without on type {t}"))?;
         let omit = &a[1.min(a.len())..];
-        Ok(Value::list(l.into_iter().filter(|v| !omit.iter().any(|o| deep_equal(v, o))).collect()))
+        Ok(Value::list(
+            l.into_iter()
+                .filter(|v| !omit.iter().any(|o| deep_equal(v, o)))
+                .collect(),
+        ))
     });
     both!(f, "has", "mustHas", Sig::new(&[A, A]), |a| {
         let hay = arg(a, 1);
@@ -107,7 +115,9 @@ fn push(a: &[Value]) -> FuncResult {
 
 fn slice(a: &[Value]) -> FuncResult {
     let list = arg(a, 0);
-    let l = items(list, |t| format!("list should be type of slice or array but {t}"))?;
+    let l = items(list, |t| {
+        format!("list should be type of slice or array but {t}")
+    })?;
     let n = l.len() as i64;
     if n == 0 {
         return Ok(Value::Nil);
@@ -115,10 +125,14 @@ fn slice(a: &[Value]) -> FuncResult {
     let start = if a.len() > 1 { to_int64(&a[1]) } else { 0 };
     let end = if a.len() > 2 { to_int64(&a[2]) } else { n };
     if start < 0 || end < start || end > n {
-        return Err(FuncError::new("reflect.Value.Slice: slice index out of bounds"));
+        return Err(FuncError::new(
+            "reflect.Value.Slice: slice index out of bounds",
+        ));
     }
     match list {
-        Value::Bytes(b) => Ok(Value::Bytes(b[start as usize..end as usize].to_vec().into())),
+        Value::Bytes(b) => Ok(Value::Bytes(
+            b[start as usize..end as usize].to_vec().into(),
+        )),
         _ => Ok(Value::list(l[start as usize..end as usize].to_vec())),
     }
 }

@@ -56,11 +56,17 @@ fn resolve_map(s: &str, v2: bool) -> Option<(&'static str, Resolved)> {
     let r = match s {
         "true" | "True" | "TRUE" => (BOOL_TAG, Resolved::Bool(true)),
         "false" | "False" | "FALSE" => (BOOL_TAG, Resolved::Bool(false)),
-        "y" | "Y" | "yes" | "Yes" | "YES" | "on" | "On" | "ON" if v2 => (BOOL_TAG, Resolved::Bool(true)),
-        "n" | "N" | "no" | "No" | "NO" | "off" | "Off" | "OFF" if v2 => (BOOL_TAG, Resolved::Bool(false)),
+        "y" | "Y" | "yes" | "Yes" | "YES" | "on" | "On" | "ON" if v2 => {
+            (BOOL_TAG, Resolved::Bool(true))
+        }
+        "n" | "N" | "no" | "No" | "NO" | "off" | "Off" | "OFF" if v2 => {
+            (BOOL_TAG, Resolved::Bool(false))
+        }
         "" | "~" | "null" | "Null" | "NULL" => (NULL_TAG, Resolved::Null),
         ".nan" | ".NaN" | ".NAN" => (FLOAT_TAG, Resolved::Float(f64::NAN)),
-        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => (FLOAT_TAG, Resolved::Float(f64::INFINITY)),
+        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => {
+            (FLOAT_TAG, Resolved::Float(f64::INFINITY))
+        }
         "-.inf" | "-.Inf" | "-.INF" => (FLOAT_TAG, Resolved::Float(f64::NEG_INFINITY)),
         "<<" => (MERGE_TAG, Resolved::Merge),
         _ => return None,
@@ -167,12 +173,29 @@ pub(crate) fn is_base60_float(s: &str) -> bool {
 pub(crate) fn is_old_bool(s: &str) -> bool {
     matches!(
         s,
-        "y" | "Y" | "yes" | "Yes" | "YES" | "on" | "On" | "ON" | "n" | "N" | "no" | "No" | "NO" | "off" | "Off" | "OFF"
+        "y" | "Y"
+            | "yes"
+            | "Yes"
+            | "YES"
+            | "on"
+            | "On"
+            | "ON"
+            | "n"
+            | "N"
+            | "no"
+            | "No"
+            | "NO"
+            | "off"
+            | "Off"
+            | "OFF"
     )
 }
 
 pub(crate) fn resolvable_tag(tag: &str) -> bool {
-    matches!(tag, "" | STR_TAG | BOOL_TAG | INT_TAG | FLOAT_TAG | NULL_TAG | TIMESTAMP_TAG)
+    matches!(
+        tag,
+        "" | STR_TAG | BOOL_TAG | INT_TAG | FLOAT_TAG | NULL_TAG | TIMESTAMP_TAG
+    )
 }
 
 /// Go's `resolve(tag, in)`. `v2` selects the YAML 1.1 boolean table (v2)
@@ -194,7 +217,12 @@ pub(crate) fn resolve(tag: &str, in_: &str, v2: bool) -> Result<(&'static str, R
             return Ok((FLOAT_TAG, Resolved::Float(i as f64)));
         }
     }
-    Err(format!("cannot decode {} `{}` as a {}", short_tag(rtag), in_, short_tag(tag)))
+    Err(format!(
+        "cannot decode {} `{}` as a {}",
+        short_tag(rtag),
+        in_,
+        short_tag(tag)
+    ))
 }
 
 fn int_result(i: i64) -> (&'static str, Resolved) {
@@ -288,7 +316,9 @@ fn getnum(s: &[u8], fixed: bool) -> Option<(u32, &[u8])> {
         return None;
     }
     match s.get(1) {
-        Some(d1) if d1.is_ascii_digit() => Some(((d0 - b'0') as u32 * 10 + (d1 - b'0') as u32, &s[2..])),
+        Some(d1) if d1.is_ascii_digit() => {
+            Some(((d0 - b'0') as u32 * 10 + (d1 - b'0') as u32, &s[2..]))
+        }
         _ => {
             if fixed {
                 None
@@ -326,7 +356,9 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
         return false;
     }
     v = &v[1..];
-    let Some((month, r)) = getnum(v, false) else { return false };
+    let Some((month, r)) = getnum(v, false) else {
+        return false;
+    };
     v = r;
     if month == 0 || month > 12 {
         return false;
@@ -335,12 +367,18 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
         return false;
     }
     v = &v[1..];
-    let Some((day, r)) = getnum(v, false) else { return false };
+    let Some((day, r)) = getnum(v, false) else {
+        return false;
+    };
     v = r;
     match layout {
         Layout::DateOnly => {}
         Layout::T | Layout::LowerT => {
-            let sep = if matches!(layout, Layout::T) { b'T' } else { b't' };
+            let sep = if matches!(layout, Layout::T) {
+                b'T'
+            } else {
+                b't'
+            };
             if v.first() != Some(&sep) {
                 return false;
             }
@@ -354,7 +392,9 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
         }
     }
     if !matches!(layout, Layout::DateOnly) {
-        let Some((hour, r)) = getnum(v, false) else { return false };
+        let Some((hour, r)) = getnum(v, false) else {
+            return false;
+        };
         v = r;
         if hour >= 24 {
             return false;
@@ -363,7 +403,9 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
             return false;
         }
         v = &v[1..];
-        let Some((min, r)) = getnum(v, false) else { return false };
+        let Some((min, r)) = getnum(v, false) else {
+            return false;
+        };
         v = r;
         if min >= 60 {
             return false;
@@ -372,7 +414,9 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
             return false;
         }
         v = &v[1..];
-        let Some((sec, r)) = getnum(v, false) else { return false };
+        let Some((sec, r)) = getnum(v, false) else {
+            return false;
+        };
         v = r;
         if sec >= 60 {
             return false;
@@ -394,8 +438,12 @@ fn parse_layout(s: &[u8], layout: Layout) -> bool {
                     return false;
                 }
                 let (sign, hh, mm) = (v[0], &v[1..3], &v[4..6]);
-                let Some((hr, _)) = getnum(hh, true) else { return false };
-                let Some((mn, _)) = getnum(mm, true) else { return false };
+                let Some((hr, _)) = getnum(hh, true) else {
+                    return false;
+                };
+                let Some((mn, _)) = getnum(mm, true) else {
+                    return false;
+                };
                 if hr > 24 || mn > 60 {
                     return false;
                 }
@@ -422,13 +470,19 @@ pub(crate) fn parse_timestamp(s: &str) -> bool {
     if i != 4 || i == b.len() || b[i] != b'-' {
         return false;
     }
-    [Layout::T, Layout::LowerT, Layout::Space, Layout::DateOnly].iter().any(|l| parse_layout(b, *l))
+    [Layout::T, Layout::LowerT, Layout::Space, Layout::DateOnly]
+        .iter()
+        .any(|l| parse_layout(b, *l))
 }
 
 /// Go's `base64.StdEncoding.DecodeString` (newlines and carriage returns are
 /// ignored).
 pub(crate) fn base64_decode(s: &[u8]) -> Option<Vec<u8>> {
-    let clean: Vec<u8> = s.iter().copied().filter(|&c| c != b'\n' && c != b'\r').collect();
+    let clean: Vec<u8> = s
+        .iter()
+        .copied()
+        .filter(|&c| c != b'\n' && c != b'\r')
+        .collect();
     if clean.len() % 4 != 0 {
         return None;
     }
@@ -479,12 +533,24 @@ pub(crate) fn base64_encode(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         out.push(T[(n >> 18) as usize & 63] as char);
         out.push(T[(n >> 12) as usize & 63] as char);
-        out.push(if chunk.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if chunk.len() > 2 { T[n as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }

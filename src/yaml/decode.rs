@@ -26,7 +26,11 @@ pub(crate) struct DecodeError {
 
 impl DecodeError {
     fn new(message: String, mark: Option<Mark>) -> Self {
-        DecodeError { message, mark, offset: None }
+        DecodeError {
+            message,
+            mark,
+            offset: None,
+        }
     }
 }
 
@@ -132,7 +136,11 @@ pub(crate) fn compose(input: &[u8]) -> Result<(Vec<Node>, Option<usize>), Decode
                 nodes.push(n);
             }
             EventType::SequenceStart | EventType::MappingStart => {
-                let kind = if ev.typ == EventType::SequenceStart { NodeKind::Sequence } else { NodeKind::Mapping };
+                let kind = if ev.typ == EventType::SequenceStart {
+                    NodeKind::Sequence
+                } else {
+                    NodeKind::Mapping
+                };
                 let mut n = new_node(kind, &ev);
                 n.tag = go_lossy_utf8(&ev.tag);
                 nodes.push(n);
@@ -155,7 +163,11 @@ pub(crate) fn compose(input: &[u8]) -> Result<(Vec<Node>, Option<usize>), Decode
             stack.push(id);
             if stack.len() > MAX_DEPTH + 1 {
                 return Err(DecodeError::new(
-                    format!("line {}: exceeded max depth of {}", ev.start_mark.line + 1, MAX_DEPTH),
+                    format!(
+                        "line {}: exceeded max depth of {}",
+                        ev.start_mark.line + 1,
+                        MAX_DEPTH
+                    ),
                     Some(ev.start_mark),
                 ));
             }
@@ -165,7 +177,14 @@ pub(crate) fn compose(input: &[u8]) -> Result<(Vec<Node>, Option<usize>), Decode
 
 fn expect_error(p: &Parser<'_>, want: EventType, got: EventType) -> DecodeError {
     let _ = p;
-    DecodeError::new(format!("expected {} event but got {}", want.go_name(), got.go_name()), None)
+    DecodeError::new(
+        format!(
+            "expected {} event but got {}",
+            want.go_name(),
+            got.go_name()
+        ),
+        None,
+    )
 }
 
 /// Go's `(*parser).fail()`.
@@ -180,8 +199,16 @@ fn parser_error(p: &Parser<'_>) -> DecodeError {
     } else if e.context_mark.line != 0 {
         line = e.context_mark.line;
     }
-    let where_ = if line != 0 { format!("line {line}: ") } else { String::new() };
-    let msg = if e.problem.is_empty() { "unknown problem parsing YAML content" } else { e.problem.as_str() };
+    let where_ = if line != 0 {
+        format!("line {line}: ")
+    } else {
+        String::new()
+    };
+    let msg = if e.problem.is_empty() {
+        "unknown problem parsing YAML content"
+    } else {
+        e.problem.as_str()
+    };
     let mut err = DecodeError::new(format!("{where_}{msg}"), None);
     if e.kind == ErrorKind::Reader {
         err.offset = Some(e.problem_offset);
@@ -365,7 +392,8 @@ fn allowed_alias_ratio(decode_count: usize) -> f64 {
     } else if dc >= ALIAS_RATIO_RANGE_HIGH {
         0.10
     } else {
-        0.99 - 0.89 * ((dc - ALIAS_RATIO_RANGE_LOW) / (ALIAS_RATIO_RANGE_HIGH - ALIAS_RATIO_RANGE_LOW))
+        0.99 - 0.89
+            * ((dc - ALIAS_RATIO_RANGE_LOW) / (ALIAS_RATIO_RANGE_HIGH - ALIAS_RATIO_RANGE_LOW))
     }
 }
 
@@ -386,7 +414,14 @@ enum Out<'a> {
 
 impl<'n> Decoder<'n> {
     pub fn new(nodes: &'n [Node]) -> Self {
-        Decoder { nodes, aliases: Vec::new(), decode_count: 0, alias_count: 0, alias_depth: 0, depth: 0 }
+        Decoder {
+            nodes,
+            aliases: Vec::new(),
+            decode_count: 0,
+            alias_count: 0,
+            alias_depth: 0,
+            depth: 0,
+        }
     }
 
     #[inline(never)]
@@ -410,14 +445,18 @@ impl<'n> Decoder<'n> {
         }
         if self.alias_count > 100
             && self.decode_count > 1000
-            && (self.alias_count as f64) / (self.decode_count as f64) > allowed_alias_ratio(self.decode_count)
+            && (self.alias_count as f64) / (self.decode_count as f64)
+                > allowed_alias_ratio(self.decode_count)
         {
             return Err(self.fail("document contains excessive aliasing".into(), n));
         }
         self.depth += 1;
         if self.depth > MAX_DEPTH + 2 {
             let m = self.nodes[n].mark;
-            return Err(self.fail(format!("line {}: exceeded max depth of {}", m.line + 1, MAX_DEPTH), n));
+            return Err(self.fail(
+                format!("line {}: exceeded max depth of {}", m.line + 1, MAX_DEPTH),
+                n,
+            ));
         }
         Ok(())
     }
@@ -464,7 +503,9 @@ impl<'n> Decoder<'n> {
         if self.aliases.contains(&n) {
             return Err(self.fail(format!("anchor '{}' value contains itself", node.value), n));
         }
-        let Some(target) = node.alias else { return Ok(None) };
+        let Some(target) = node.alias else {
+            return Ok(None);
+        };
         self.aliases.push(n);
         self.alias_depth += 1;
         Ok(Some(target))
@@ -532,12 +573,17 @@ impl<'n> Decoder<'n> {
 
     fn is_merge(&self, n: usize) -> bool {
         let node = &self.nodes[n];
-        node.kind == NodeKind::Scalar && node.value == "<<" && (node.implicit || node.tag == MERGE_TAG)
+        node.kind == NodeKind::Scalar
+            && node.value == "<<"
+            && (node.implicit || node.tag == MERGE_TAG)
     }
 
     #[inline(never)]
     fn want_map(&self, n: usize) -> Box<DecodeError> {
-        self.fail("map merge requires map or sequence of maps as the value".into(), n)
+        self.fail(
+            "map merge requires map or sequence of maps as the value".into(),
+            n,
+        )
     }
 
     fn merge(&mut self, n: usize, out: &mut IndexedMap) -> Result<(), Box<DecodeError>> {
@@ -601,7 +647,9 @@ impl<'n> Decoder<'n> {
             Resolved::Int(i) => GoVal::Int(i),
             Resolved::Uint(u) => GoVal::Uint(u),
             Resolved::Float(f) => GoVal::Float(f),
-            Resolved::Str | Resolved::Timestamp | Resolved::Merge => GoVal::Str(node.value.as_bytes().to_vec()),
+            Resolved::Str | Resolved::Timestamp | Resolved::Merge => {
+                GoVal::Str(node.value.as_bytes().to_vec())
+            }
         })
     }
 }
@@ -711,7 +759,10 @@ pub(crate) fn has_key_collisions(v: &GoVal) -> bool {
 
 #[inline(never)]
 fn unsupported_float(f: f64, m: Mark) -> Box<DecodeError> {
-    Box::new(DecodeError::new(format!("json: unsupported value: {}", format_float(f, b'g', false)), Some(m)))
+    Box::new(DecodeError::new(
+        format!("json: unsupported value: {}", format_float(f, b'g', false)),
+        Some(m),
+    ))
 }
 
 /// `json.Marshal` followed by `json.Unmarshal` into `interface{}`.

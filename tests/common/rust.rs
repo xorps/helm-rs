@@ -53,7 +53,10 @@ fn install_hook() {
                     .map(|s| s.to_string())
                     .or_else(|| info.payload().downcast_ref::<String>().cloned())
                     .unwrap_or_else(|| "<non-string panic>".into());
-                let loc = info.location().map(|l| format!(" at {}:{}", l.file(), l.line())).unwrap_or_default();
+                let loc = info
+                    .location()
+                    .map(|l| format!(" at {}:{}", l.file(), l.line()))
+                    .unwrap_or_default();
                 LAST_PANIC.with(|p| *p.borrow_mut() = Some(format!("{msg}{loc}")));
             } else {
                 prev(info)
@@ -71,7 +74,11 @@ pub fn catch<T>(f: impl FnOnce() -> Result<T, Error>) -> Outcome<T> {
     match r {
         Ok(Ok(v)) => Outcome::Ok(v),
         Ok(Err(e)) => Outcome::Err(e),
-        Err(_) => Outcome::Panic(LAST_PANIC.with(|p| p.borrow_mut().take()).unwrap_or_else(|| "panic".into())),
+        Err(_) => Outcome::Panic(
+            LAST_PANIC
+                .with(|p| p.borrow_mut().take())
+                .unwrap_or_else(|| "panic".into()),
+        ),
     }
 }
 
@@ -87,12 +94,19 @@ pub fn default_capabilities() -> Capabilities {
 pub fn render_options(opts: &Opts) -> RenderOptions {
     let mut caps = default_capabilities();
     if let Some(k) = &opts.kube_version {
-        caps.kube_version = if k.starts_with('v') { k.clone() } else { format!("v{k}") };
+        caps.kube_version = if k.starts_with('v') {
+            k.clone()
+        } else {
+            format!("v{k}")
+        };
     }
     caps.api_versions.extend(opts.api_versions.iter().cloned());
     RenderOptions {
         release: ReleaseOptions {
-            name: opts.release.clone().unwrap_or_else(|| "release-name".into()),
+            name: opts
+                .release
+                .clone()
+                .unwrap_or_else(|| "release-name".into()),
             namespace: opts.namespace.clone().unwrap_or_else(|| "default".into()),
             revision: 1,
             is_install: !opts.is_upgrade,
@@ -119,7 +133,12 @@ pub fn render_tgz(tgz: &[u8], values_yaml: &str, opts: &Opts) -> Outcome<BTreeMa
     catch(|| {
         let chart = Chart::from_tgz(tgz)?;
         let values = parse_values(values_yaml)?;
-        chart::render(&chart, &values, &render_options(opts), &mut DeterministicEnv::default())
+        chart::render(
+            &chart,
+            &values,
+            &render_options(opts),
+            &mut DeterministicEnv::default(),
+        )
     })
 }
 
@@ -127,14 +146,32 @@ pub fn template_tgz(tgz: &[u8], values_yaml: &str, opts: &Opts) -> Outcome<Strin
     catch(|| {
         let chart = Chart::from_tgz(tgz)?;
         let values = parse_values(values_yaml)?;
-        chart::template(&chart, &values, &render_options(opts), &mut DeterministicEnv::default())
+        chart::template(
+            &chart,
+            &values,
+            &render_options(opts),
+            &mut DeterministicEnv::default(),
+        )
     })
 }
 
-pub fn render_files(files: &BTreeMap<String, String>, values_yaml: &str, opts: &Opts) -> Outcome<BTreeMap<String, String>> {
+pub fn render_files(
+    files: &BTreeMap<String, String>,
+    values_yaml: &str,
+    opts: &Opts,
+) -> Outcome<BTreeMap<String, String>> {
     catch(|| {
-        let chart = Chart::from_files(files.iter().map(|(k, v)| (k.clone(), v.as_bytes().to_vec())))?;
+        let chart = Chart::from_files(
+            files
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_bytes().to_vec())),
+        )?;
         let values = parse_values(values_yaml)?;
-        chart::render(&chart, &values, &render_options(opts), &mut DeterministicEnv::default())
+        chart::render(
+            &chart,
+            &values,
+            &render_options(opts),
+            &mut DeterministicEnv::default(),
+        )
     })
 }

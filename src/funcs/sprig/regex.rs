@@ -26,26 +26,62 @@ fn split(re: GoRegex, a: &[Value]) -> FuncResult {
 
 pub(super) fn register(f: &mut FuncMap) {
     f.add("regexMatch", Sig::new(&[S, S]), |a| {
-        Ok(Value::Bool(compile(sarg(a, 0)).map(|re| re.is_match(sarg(a, 1))).unwrap_or(false)))
+        Ok(Value::Bool(
+            compile(sarg(a, 0))
+                .map(|re| re.is_match(sarg(a, 1)))
+                .unwrap_or(false),
+        ))
     });
-    f.add("mustRegexMatch", Sig::new(&[S, S]), |a| Ok(Value::Bool(checked(sarg(a, 0))?.is_match(sarg(a, 1)))));
-    f.add("regexFindAll", Sig::new(&[S, S, I]), |a| find_all(must(sarg(a, 0))?, a));
-    f.add("mustRegexFindAll", Sig::new(&[S, S, I]), |a| find_all(checked(sarg(a, 0))?, a));
-    f.add("regexFind", Sig::new(&[S, S]), |a| Ok(Value::str(must(sarg(a, 0))?.find_string(sarg(a, 1)))));
-    f.add("mustRegexFind", Sig::new(&[S, S]), |a| Ok(Value::str(checked(sarg(a, 0))?.find_string(sarg(a, 1)))));
+    f.add("mustRegexMatch", Sig::new(&[S, S]), |a| {
+        Ok(Value::Bool(checked(sarg(a, 0))?.is_match(sarg(a, 1))))
+    });
+    f.add("regexFindAll", Sig::new(&[S, S, I]), |a| {
+        find_all(must(sarg(a, 0))?, a)
+    });
+    f.add("mustRegexFindAll", Sig::new(&[S, S, I]), |a| {
+        find_all(checked(sarg(a, 0))?, a)
+    });
+    f.add("regexFind", Sig::new(&[S, S]), |a| {
+        Ok(Value::str(must(sarg(a, 0))?.find_string(sarg(a, 1))))
+    });
+    f.add("mustRegexFind", Sig::new(&[S, S]), |a| {
+        Ok(Value::str(checked(sarg(a, 0))?.find_string(sarg(a, 1))))
+    });
     f.add("regexReplaceAll", Sig::new(&[S, S, S]), |a| {
-        Ok(Value::string(must(sarg(a, 0))?.replace_all(sarg(a, 1), sarg(a, 2), false)))
+        Ok(Value::string(must(sarg(a, 0))?.replace_all(
+            sarg(a, 1),
+            sarg(a, 2),
+            false,
+        )))
     });
     f.add("mustRegexReplaceAll", Sig::new(&[S, S, S]), |a| {
-        Ok(Value::string(checked(sarg(a, 0))?.replace_all(sarg(a, 1), sarg(a, 2), false)))
+        Ok(Value::string(checked(sarg(a, 0))?.replace_all(
+            sarg(a, 1),
+            sarg(a, 2),
+            false,
+        )))
     });
     f.add("regexReplaceAllLiteral", Sig::new(&[S, S, S]), |a| {
-        Ok(Value::string(must(sarg(a, 0))?.replace_all(sarg(a, 1), sarg(a, 2), true)))
+        Ok(Value::string(must(sarg(a, 0))?.replace_all(
+            sarg(a, 1),
+            sarg(a, 2),
+            true,
+        )))
     });
     f.add("mustRegexReplaceAllLiteral", Sig::new(&[S, S, S]), |a| {
-        Ok(Value::string(checked(sarg(a, 0))?.replace_all(sarg(a, 1), sarg(a, 2), true)))
+        Ok(Value::string(checked(sarg(a, 0))?.replace_all(
+            sarg(a, 1),
+            sarg(a, 2),
+            true,
+        )))
     });
-    f.add("regexSplit", Sig::new(&[S, S, I]), |a| split(must(sarg(a, 0))?, a));
-    f.add("mustRegexSplit", Sig::new(&[S, S, I]), |a| split(checked(sarg(a, 0))?, a));
-    f.add("regexQuoteMeta", Sig::new(&[S]), |a| Ok(Value::string(quote_meta(sarg(a, 0)))));
+    f.add("regexSplit", Sig::new(&[S, S, I]), |a| {
+        split(must(sarg(a, 0))?, a)
+    });
+    f.add("mustRegexSplit", Sig::new(&[S, S, I]), |a| {
+        split(checked(sarg(a, 0))?, a)
+    });
+    f.add("regexQuoteMeta", Sig::new(&[S]), |a| {
+        Ok(Value::string(quote_meta(sarg(a, 0))))
+    });
 }

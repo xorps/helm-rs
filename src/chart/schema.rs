@@ -148,7 +148,10 @@ impl JParser<'_> {
                 Some(c) if *c == b => self.i += 1,
                 None => return Err("unexpected EOF".into()),
                 Some(_) => {
-                    return Err(self.err_at(&alloc::format!("in literal {word} (expecting {})", quote_char(word.as_bytes()[k]))));
+                    return Err(self.err_at(&alloc::format!(
+                        "in literal {word} (expecting {})",
+                        quote_char(word.as_bytes()[k])
+                    )));
                 }
             }
         }
@@ -196,7 +199,9 @@ impl JParser<'_> {
         self.i += 1;
         let mut out: Vec<u8> = Vec::new();
         loop {
-            let Some(&c) = self.s.get(self.i) else { return Err("unexpected EOF".into()) };
+            let Some(&c) = self.s.get(self.i) else {
+                return Err("unexpected EOF".into());
+            };
             match c {
                 b'"' => {
                     self.i += 1;
@@ -204,7 +209,9 @@ impl JParser<'_> {
                 }
                 b'\\' => {
                     self.i += 1;
-                    let Some(&e) = self.s.get(self.i) else { return Err("unexpected EOF".into()) };
+                    let Some(&e) = self.s.get(self.i) else {
+                        return Err("unexpected EOF".into());
+                    };
                     self.i += 1;
                     match e {
                         b'"' | b'\\' | b'/' => out.push(e),
@@ -216,14 +223,17 @@ impl JParser<'_> {
                         b'u' => {
                             let hex = |p: &mut Self| -> Option<u32> {
                                 let h = p.s.get(p.i..p.i + 4)?;
-                                let v = u32::from_str_radix(core::str::from_utf8(h).ok()?, 16).ok()?;
+                                let v =
+                                    u32::from_str_radix(core::str::from_utf8(h).ok()?, 16).ok()?;
                                 p.i += 4;
                                 Some(v)
                             };
                             let Some(mut cp) = hex(self) else {
                                 return Err(self.err_at("in \\u hexadecimal character escape"));
                             };
-                            if (0xD800..0xDC00).contains(&cp) && self.s.get(self.i..self.i + 2) == Some(b"\\u") {
+                            if (0xD800..0xDC00).contains(&cp)
+                                && self.s.get(self.i..self.i + 2) == Some(b"\\u")
+                            {
                                 let save = self.i;
                                 self.i += 2;
                                 match hex(self) {
@@ -395,7 +405,9 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) = u8::from_str_radix(core::str::from_utf8(&b[i + 1..i + 3]).unwrap_or("zz"), 16) {
+            if let Ok(v) =
+                u8::from_str_radix(core::str::from_utf8(&b[i + 1..i + 3]).unwrap_or("zz"), 16)
+            {
                 out.push(v);
                 i += 3;
                 continue;
@@ -472,14 +484,26 @@ fn to_usize(j: Option<&J>) -> Option<usize> {
 
 fn num(j: Option<&J>) -> Option<Num> {
     match j {
-        Some(J::Num(t, f)) => Some(Num { text: t.clone(), f: *f }),
+        Some(J::Num(t, f)) => Some(Num {
+            text: t.clone(),
+            f: *f,
+        }),
         _ => None,
     }
 }
 
 fn strings(j: Option<&J>) -> Vec<String> {
     match j {
-        Some(J::Arr(a)) => a.iter().filter_map(|v| if let J::Str(s) = v { Some(s.clone()) } else { None }).collect(),
+        Some(J::Arr(a)) => a
+            .iter()
+            .filter_map(|v| {
+                if let J::Str(s) = v {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -495,7 +519,11 @@ impl Compiler<'_> {
         let idx = self.nodes.len();
         self.nodes.push(Node::default());
         self.by_ptr.insert(ptr.into(), idx);
-        let mut n = Node { location: alloc::format!("{ROOT_URL}#{ptr}"), draft: self.draft, ..Node::default() };
+        let mut n = Node {
+            location: alloc::format!("{ROOT_URL}#{ptr}"),
+            draft: self.draft,
+            ..Node::default()
+        };
         let m = match j {
             J::Bool(b) => {
                 n.boolean = Some(*b);
@@ -508,16 +536,17 @@ impl Compiler<'_> {
         let draft = self.draft;
         let sub = |c: &mut Self, kw: &str| -> Result<Option<usize>, String> {
             if m.contains_key(kw) {
-                c.compile(&alloc::format!("{ptr}/{}", escape_tok(kw))).map(Some)
+                c.compile(&alloc::format!("{ptr}/{}", escape_tok(kw)))
+                    .map(Some)
             } else {
                 Ok(None)
             }
         };
         let arr = |c: &mut Self, kw: &str| -> Result<Vec<usize>, String> {
             match m.get(kw) {
-                Some(J::Arr(a)) => {
-                    (0..a.len()).map(|i| c.compile(&alloc::format!("{ptr}/{}/{i}", escape_tok(kw)))).collect()
-                }
+                Some(J::Arr(a)) => (0..a.len())
+                    .map(|i| c.compile(&alloc::format!("{ptr}/{}/{i}", escape_tok(kw))))
+                    .collect(),
                 _ => Ok(Vec::new()),
             }
         };
@@ -526,7 +555,12 @@ impl Compiler<'_> {
                 Some(J::Obj(o)) => o
                     .keys()
                     .map(|k| {
-                        c.compile(&alloc::format!("{ptr}/{}/{}", escape_tok(kw), escape_tok(k))).map(|i| (k.clone(), i))
+                        c.compile(&alloc::format!(
+                            "{ptr}/{}/{}",
+                            escape_tok(kw),
+                            escape_tok(k)
+                        ))
+                        .map(|i| (k.clone(), i))
                     })
                     .collect(),
                 _ => Ok(Vec::new()),
@@ -536,7 +570,9 @@ impl Compiler<'_> {
             match m.get(kw) {
                 None => Ok(None),
                 Some(J::Bool(b)) => Ok(Some(Ok(*b))),
-                Some(_) => c.compile(&alloc::format!("{ptr}/{kw}")).map(|i| Some(Err(i))),
+                Some(_) => c
+                    .compile(&alloc::format!("{ptr}/{kw}"))
+                    .map(|i| Some(Err(i))),
             }
         };
         if let Some(J::Str(r)) = m.get("$ref") {
@@ -564,9 +600,14 @@ impl Compiler<'_> {
         n.properties = map(self, "properties")?;
         if let Some(J::Obj(pp)) = m.get("patternProperties") {
             for k in pp.keys() {
-                let idx = self.compile(&alloc::format!("{ptr}/patternProperties/{}", escape_tok(k)))?;
+                let idx =
+                    self.compile(&alloc::format!("{ptr}/patternProperties/{}", escape_tok(k)))?;
                 let re = goregex::compile(k).map_err(|e| {
-                    alloc::format!("invalid regex {} at {}: {e}", super::gostr::quote(k), super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/patternProperties")))
+                    alloc::format!(
+                        "invalid regex {} at {}: {e}",
+                        super::gostr::quote(k),
+                        super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/patternProperties"))
+                    )
                 })?;
                 n.pattern_properties.push((Rc::new(re), idx));
             }
@@ -576,7 +617,9 @@ impl Compiler<'_> {
             for (k, v) in deps {
                 let d = match v {
                     J::Arr(_) => Dep::Props(strings(Some(v))),
-                    _ => Dep::Schema(self.compile(&alloc::format!("{ptr}/dependencies/{}", escape_tok(k)))?),
+                    _ => Dep::Schema(
+                        self.compile(&alloc::format!("{ptr}/dependencies/{}", escape_tok(k)))?,
+                    ),
                 };
                 n.dependencies.push((k.clone(), d));
             }
@@ -585,12 +628,25 @@ impl Compiler<'_> {
         match m.get("type") {
             Some(J::Str(t)) => n.types = Some(Ty::parse(t).into_iter().collect()),
             Some(J::Arr(a)) => {
-                n.types = Some(a.iter().filter_map(|t| if let J::Str(t) = t { Ty::parse(t) } else { None }).collect())
+                n.types = Some(
+                    a.iter()
+                        .filter_map(|t| {
+                            if let J::Str(t) = t {
+                                Ty::parse(t)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                )
             }
             Some(_) => {
                 return Err(alloc::format!(
                     "\"{ROOT_URL}#\" is not valid against metaschema: jsonschema validation failed with 'https://json-schema.org/draft/2020-12/schema#'\n- at '': 'allOf' failed\n  - at '{}/type': 'anyOf' failed\n    - at '{}/type': value must be one of 'array', 'boolean', 'integer', 'null', 'number', 'object', 'string'\n    - at '{}/type': got {}, want array",
-                    ptr, ptr, ptr, json_type_name(m.get("type"))
+                    ptr,
+                    ptr,
+                    ptr,
+                    json_type_name(m.get("type"))
                 ));
             }
             None => {}
@@ -614,7 +670,11 @@ impl Compiler<'_> {
         n.min_length = to_usize(m.get("minLength"));
         if let Some(J::Str(pat)) = m.get("pattern") {
             let re = goregex::compile(pat).map_err(|e| {
-                alloc::format!("invalid regex {} at {}: {e}", super::gostr::quote(pat), super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/pattern")))
+                alloc::format!(
+                    "invalid regex {} at {}: {e}",
+                    super::gostr::quote(pat),
+                    super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/pattern"))
+                )
             })?;
             n.pattern = Some((pat.clone(), Rc::new(re)));
         }
@@ -683,7 +743,9 @@ impl Compiler<'_> {
             if frag.starts_with("urn:") {
                 return self.compile_true();
             }
-            return Err(alloc::format!("failing loading {r:?}: unsupported reference"));
+            return Err(alloc::format!(
+                "failing loading {r:?}: unsupported reference"
+            ));
         };
         let frag = percent_decode(frag);
         if frag.is_empty() || frag.starts_with('/') {
@@ -697,7 +759,11 @@ impl Compiler<'_> {
 
     fn compile_true(&mut self) -> Result<usize, String> {
         let idx = self.nodes.len();
-        self.nodes.push(Node { boolean: Some(true), location: "urn".into(), ..Node::default() });
+        self.nodes.push(Node {
+            boolean: Some(true),
+            location: "urn".into(),
+            ..Node::default()
+        });
         Ok(idx)
     }
 }
@@ -744,14 +810,21 @@ impl VErr {
             }
             indent += 1;
             let msg = match &self.kind {
-                Kind::Schema => alloc::format!("jsonschema validation failed with {}", squote(&alloc::format!("{ROOT_URL}#"))),
+                Kind::Schema => alloc::format!(
+                    "jsonschema validation failed with {}",
+                    squote(&alloc::format!("{ROOT_URL}#"))
+                ),
                 Kind::Group | Kind::Reference => "validation failed".into(),
                 Kind::Msg(m) => m.clone(),
             };
             if matches!(self.kind, Kind::Schema) {
                 sb.push_str(&msg);
             } else {
-                let ptr: String = self.loc.iter().map(|t| alloc::format!("/{}", escape_tok(t))).collect();
+                let ptr: String = self
+                    .loc
+                    .iter()
+                    .map(|t| alloc::format!("/{}", escape_tok(t)))
+                    .collect();
                 let _ = write!(sb, "at {}: {msg}", squote(&ptr));
             }
         }
@@ -847,7 +920,10 @@ fn fmt_f64(f: f64) -> String {
     } else {
         let point = exp as usize + 1;
         let (int, frac) = if digits.len() <= point {
-            (alloc::format!("{digits}{}", "0".repeat(point - digits.len())), String::new())
+            (
+                alloc::format!("{digits}{}", "0".repeat(point - digits.len())),
+                String::new(),
+            )
         } else {
             (digits[..point].to_string(), digits[point..].to_string())
         };
@@ -899,10 +975,14 @@ fn equals(v: &Value, j: &J) -> bool {
         (Value::Nil, J::Null) => true,
         (Value::Bool(a), J::Bool(b)) => a == b,
         (Value::String(a), J::Str(b)) => **a == **b,
-        (Value::List(a), J::Arr(b)) => a.len() == b.len() && a.iter().zip(b).all(|(x, y)| equals(x, y)),
+        (Value::List(a), J::Arr(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(x, y)| equals(x, y))
+        }
         (Value::Map(a), J::Obj(b)) => {
             let a = a.borrow();
-            a.len() == b.len() && a.iter().all(|(k, x)| b.get(k).is_some_and(|y| equals(x, y)))
+            a.len() == b.len()
+                && a.iter()
+                    .all(|(k, x)| b.get(k).is_some_and(|y| equals(x, y)))
         }
         (v, J::Num(_, f)) if type_of(v) == Some(Ty::Number) => as_f64(v) == *f,
         _ => false,
@@ -911,12 +991,18 @@ fn equals(v: &Value, j: &J) -> bool {
 
 fn values_equal(a: &Value, b: &Value) -> bool {
     match (a, b) {
-        (Value::List(x), Value::List(y)) => x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| values_equal(p, q)),
+        (Value::List(x), Value::List(y)) => {
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| values_equal(p, q))
+        }
         (Value::Map(x), Value::Map(y)) => {
             let (x, y) = (x.borrow(), y.borrow());
-            x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| values_equal(v, w)))
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| values_equal(v, w)))
         }
-        _ if type_of(a) == Some(Ty::Number) && type_of(b) == Some(Ty::Number) => as_f64(a) == as_f64(b),
+        _ if type_of(a) == Some(Ty::Number) && type_of(b) == Some(Ty::Number) => {
+            as_f64(a) == as_f64(b)
+        }
         _ => a == b,
     }
 }
@@ -931,7 +1017,11 @@ fn decimal(text: &str) -> Option<(i128, i32)> {
     let (int, frac) = mant.split_once('.').unwrap_or((mant, ""));
     let digits = alloc::format!("{int}{frac}");
     let digits = digits.trim_start_matches('0');
-    let m: i128 = if digits.is_empty() { 0 } else { digits.parse().ok()? };
+    let m: i128 = if digits.is_empty() {
+        0
+    } else {
+        digits.parse().ok()?
+    };
     Some((m, exp - frac.len() as i32))
 }
 
@@ -989,21 +1079,34 @@ const MAX_STEPS: usize = 2_000_000;
 
 impl Validator<'_> {
     fn err(loc: &[String], kind: Kind) -> VErr {
-        VErr { loc: loc.to_vec(), kind, causes: Vec::new() }
+        VErr {
+            loc: loc.to_vec(),
+            kind,
+            causes: Vec::new(),
+        }
     }
 
     fn msg(loc: &[String], m: String) -> VErr {
         Self::err(loc, Kind::Msg(m))
     }
 
-    fn validate(&mut self, v: &Value, loc: &mut Vec<String>, scope: &Scope<'_>) -> Result<(), VErr> {
+    fn validate(
+        &mut self,
+        v: &Value,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+    ) -> Result<(), VErr> {
         self.steps += 1;
         if self.steps > MAX_STEPS || loc.len() > 256 {
             return Err(Self::msg(loc, "validation too complex".into()));
         }
         let s = &self.nodes[scope.node];
         if let Some(b) = s.boolean {
-            return if b { Ok(()) } else { Err(Self::msg(loc, "false schema".into())) };
+            return if b {
+                Ok(())
+            } else {
+                Err(Self::msg(loc, "false schema".into()))
+            };
         }
         // cycle check
         let mut p = scope.parent;
@@ -1025,17 +1128,24 @@ impl Validator<'_> {
             p = sc.parent;
         }
         let Some(t) = type_of(v) else {
-            return Err(Self::msg(loc, alloc::format!("invalid jsonType {}", v.type_name())));
+            return Err(Self::msg(
+                loc,
+                alloc::format!("invalid jsonType {}", v.type_name()),
+            ));
         };
         if let Some(types) = &s.types {
             if !types.is_empty() {
-                let matched = types.contains(&t) || (types.contains(&Ty::Integer) && t == Ty::Number && is_integer(v));
+                let matched = types.contains(&t)
+                    || (types.contains(&Ty::Integer) && t == Ty::Number && is_integer(v));
                 if !matched {
                     let mut want = types.clone();
                     want.sort();
                     want.dedup();
                     let want: Vec<&str> = want.iter().map(|t| t.name()).collect();
-                    return Err(Self::msg(loc, alloc::format!("got {}, want {}", t.name(), want.join(" or "))));
+                    return Err(Self::msg(
+                        loc,
+                        alloc::format!("got {}, want {}", t.name(), want.join(" or ")),
+                    ));
                 }
             }
         }
@@ -1064,7 +1174,10 @@ impl Validator<'_> {
         }
         if let (Some(f), Value::String(st)) = (&s.format, v) {
             if let Err(e) = super::formats::check(f, st) {
-                return Err(Self::msg(loc, alloc::format!("{} is not valid {f}: {e}", squote(st))));
+                return Err(Self::msg(
+                    loc,
+                    alloc::format!("{} is not valid {f}: {e}", squote(st)),
+                ));
             }
         }
         let mut errors: Vec<VErr> = Vec::new();
@@ -1084,17 +1197,26 @@ impl Validator<'_> {
                 let n = st.chars().count();
                 if let Some(min) = s.min_length {
                     if n < min {
-                        errors.push(Self::msg(loc, alloc::format!("minLength: got {}, want {}", g(n), g(min))));
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("minLength: got {}, want {}", g(n), g(min)),
+                        ));
                     }
                 }
                 if let Some(max) = s.max_length {
                     if n > max {
-                        errors.push(Self::msg(loc, alloc::format!("maxLength: got {}, want {}", g(n), g(max))));
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("maxLength: got {}, want {}", g(n), g(max)),
+                        ));
                     }
                 }
                 if let Some((src, re)) = &s.pattern {
                     if !re.is_match(st) {
-                        errors.push(Self::msg(loc, alloc::format!("{} does not match pattern {}", squote(st), squote(src))));
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("{} does not match pattern {}", squote(st), squote(src)),
+                        ));
                     }
                 }
             }
@@ -1104,7 +1226,10 @@ impl Validator<'_> {
                 let mut check = |bound: &Option<Num>, name: &str, bad: fn(f64, f64) -> bool| {
                     if let Some(b) = bound {
                         if bad(x, b.f) {
-                            errors.push(Self::msg(loc, alloc::format!("{name}: got {fx}, want {}", fmt_f64(b.f))));
+                            errors.push(Self::msg(
+                                loc,
+                                alloc::format!("{name}: got {fx}, want {}", fmt_f64(b.f)),
+                            ));
                         }
                     }
                 };
@@ -1114,7 +1239,10 @@ impl Validator<'_> {
                 check(&s.exclusive_maximum, "exclusiveMaximum", |x, b| x >= b);
                 if let Some(mo) = &s.multiple_of {
                     if !is_multiple(x, mo) {
-                        errors.push(Self::msg(loc, alloc::format!("multipleOf: got {fx}, want {}", fmt_f64(mo.f))));
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("multipleOf: got {fx}, want {}", fmt_f64(mo.f)),
+                        ));
                     }
                 }
             }
@@ -1132,20 +1260,51 @@ impl Validator<'_> {
         }
     }
 
-    fn validate_self(&mut self, v: &Value, loc: &mut Vec<String>, scope: &Scope<'_>, node: usize, kw: &'static str) -> Result<(), VErr> {
-        let child = Scope { node, ref_kw: kw, vid: scope.vid, parent: Some(scope) };
+    fn validate_self(
+        &mut self,
+        v: &Value,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        node: usize,
+        kw: &'static str,
+    ) -> Result<(), VErr> {
+        let child = Scope {
+            node,
+            ref_kw: kw,
+            vid: scope.vid,
+            parent: Some(scope),
+        };
         self.validate(v, loc, &child)
     }
 
-    fn validate_val(&mut self, v: &Value, loc: &mut Vec<String>, scope: &Scope<'_>, node: usize, tok: String) -> Result<(), VErr> {
-        let child = Scope { node, ref_kw: "", vid: scope.vid + 1, parent: Some(scope) };
+    fn validate_val(
+        &mut self,
+        v: &Value,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        node: usize,
+        tok: String,
+    ) -> Result<(), VErr> {
+        let child = Scope {
+            node,
+            ref_kw: "",
+            vid: scope.vid + 1,
+            parent: Some(scope),
+        };
         loc.push(tok);
         let r = self.validate(v, loc, &child);
         loc.pop();
         r
     }
 
-    fn validate_ref(&mut self, v: &Value, loc: &mut Vec<String>, scope: &Scope<'_>, node: usize, kw: &'static str) -> Result<(), VErr> {
+    fn validate_ref(
+        &mut self,
+        v: &Value,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        node: usize,
+        kw: &'static str,
+    ) -> Result<(), VErr> {
         match self.validate_self(v, loc, scope, node, kw) {
             Ok(()) => Ok(()),
             Err(e) => {
@@ -1161,19 +1320,35 @@ impl Validator<'_> {
     }
 
     fn missing(obj: &MapRef, reqd: &[String]) -> Vec<String> {
-        reqd.iter().filter(|p| !obj.contains_key(p)).cloned().collect()
+        reqd.iter()
+            .filter(|p| !obj.contains_key(p))
+            .cloned()
+            .collect()
     }
 
-    fn obj_validate(&mut self, s: &Node, obj: &MapRef, loc: &mut Vec<String>, scope: &Scope<'_>, errors: &mut Vec<VErr>) {
+    fn obj_validate(
+        &mut self,
+        s: &Node,
+        obj: &MapRef,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        errors: &mut Vec<VErr>,
+    ) {
         let len = obj.len();
         if let Some(min) = s.min_props {
             if len < min {
-                errors.push(Self::msg(loc, alloc::format!("minProperties: got {}, want {}", g(len), g(min))));
+                errors.push(Self::msg(
+                    loc,
+                    alloc::format!("minProperties: got {}, want {}", g(len), g(min)),
+                ));
             }
         }
         if let Some(max) = s.max_props {
             if len > max {
-                errors.push(Self::msg(loc, alloc::format!("maxProperties: got {}, want {}", g(len), g(max))));
+                errors.push(Self::msg(
+                    loc,
+                    alloc::format!("maxProperties: got {}, want {}", g(len), g(max)),
+                ));
             }
         }
         if !s.required.is_empty() {
@@ -1188,22 +1363,31 @@ impl Validator<'_> {
                     Dep::Props(p) => {
                         let missing = Self::missing(obj, p);
                         if !missing.is_empty() {
-                            errors.push(Self::msg(loc, alloc::format!(
-                                "properties {} required, if {} exists",
-                                join_quoted(&missing),
-                                squote(pname)
-                            )));
+                            errors.push(Self::msg(
+                                loc,
+                                alloc::format!(
+                                    "properties {} required, if {} exists",
+                                    join_quoted(&missing),
+                                    squote(pname)
+                                ),
+                            ));
                         }
                     }
                     Dep::Schema(n) => {
-                        if let Err(e) = self.validate_self(&Value::Map(obj.clone()), loc, scope, *n, "") {
+                        if let Err(e) =
+                            self.validate_self(&Value::Map(obj.clone()), loc, scope, *n, "")
+                        {
                             errors.push(e);
                         }
                     }
                 }
             }
         }
-        let entries: Vec<(String, Value)> = obj.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let entries: Vec<(String, Value)> = obj
+            .borrow()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         let mut additional = Vec::new();
         for (pname, pvalue) in &entries {
             let mut evaluated = false;
@@ -1234,7 +1418,13 @@ impl Validator<'_> {
             }
         }
         if !additional.is_empty() {
-            errors.push(Self::msg(loc, alloc::format!("additional properties {} not allowed", join_quoted(&additional))));
+            errors.push(Self::msg(
+                loc,
+                alloc::format!(
+                    "additional properties {} not allowed",
+                    join_quoted(&additional)
+                ),
+            ));
         }
         if s.draft == 4 {
             return;
@@ -1242,10 +1432,22 @@ impl Validator<'_> {
         if let Some(pn) = s.property_names {
             for (pname, _) in &entries {
                 // Validated as a separate instance (fresh location and scope).
-                let child = Scope { node: pn, ref_kw: "", vid: 0, parent: None };
+                let child = Scope {
+                    node: pn,
+                    ref_kw: "",
+                    vid: 0,
+                    parent: None,
+                };
                 if let Err(e) = self.validate(&Value::str(pname), &mut Vec::new(), &child) {
-                    let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
-                    let mut pe = Self::msg(loc, alloc::format!("invalid propertyName {}", squote(pname)));
+                    let causes = if matches!(e.kind, Kind::Group) {
+                        e.causes
+                    } else {
+                        alloc::vec![e]
+                    };
+                    let mut pe = Self::msg(
+                        loc,
+                        alloc::format!("invalid propertyName {}", squote(pname)),
+                    );
                     pe.causes = causes;
                     errors.push(pe);
                 }
@@ -1265,33 +1467,52 @@ impl Validator<'_> {
             if obj.contains_key(pname) {
                 let missing = Self::missing(obj, reqd);
                 if !missing.is_empty() {
-                    errors.push(Self::msg(loc, alloc::format!(
-                        "properties {} required, if {} exists",
-                        join_quoted(&missing),
-                        squote(pname)
-                    )));
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!(
+                            "properties {} required, if {} exists",
+                            join_quoted(&missing),
+                            squote(pname)
+                        ),
+                    ));
                 }
             }
         }
     }
 
-    fn arr_validate(&mut self, s: &Node, arr: &[Value], loc: &mut Vec<String>, scope: &Scope<'_>, errors: &mut Vec<VErr>) {
+    fn arr_validate(
+        &mut self,
+        s: &Node,
+        arr: &[Value],
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        errors: &mut Vec<VErr>,
+    ) {
         let len = arr.len();
         if let Some(min) = s.min_items {
             if len < min {
-                errors.push(Self::msg(loc, alloc::format!("minItems: got {}, want {}", g(len), g(min))));
+                errors.push(Self::msg(
+                    loc,
+                    alloc::format!("minItems: got {}, want {}", g(len), g(min)),
+                ));
             }
         }
         if let Some(max) = s.max_items {
             if len > max {
-                errors.push(Self::msg(loc, alloc::format!("maxItems: got {}, want {}", g(len), g(max))));
+                errors.push(Self::msg(
+                    loc,
+                    alloc::format!("maxItems: got {}, want {}", g(len), g(max)),
+                ));
             }
         }
         if s.unique_items && len > 1 {
             'outer: for i in 1..len {
                 for j in 0..i {
                     if values_equal(&arr[i], &arr[j]) {
-                        errors.push(Self::msg(loc, alloc::format!("items at {} and {} are equal", g(j), g(i))));
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("items at {} and {} are equal", g(j), g(i)),
+                        ));
                         break 'outer;
                     }
                 }
@@ -1321,11 +1542,16 @@ impl Validator<'_> {
             }
             match &s.additional_items {
                 Some(Ok(false)) if evaluated != len => {
-                    errors.push(Self::msg(loc, alloc::format!("last {} additionalItem(s) not allowed", g(len - evaluated))));
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!("last {} additionalItem(s) not allowed", g(len - evaluated)),
+                    ));
                 }
                 Some(Err(n)) => {
                     for (i, item) in arr[evaluated..].iter().enumerate() {
-                        if let Err(e) = self.validate_val(item, loc, scope, *n, (evaluated + i).to_string()) {
+                        if let Err(e) =
+                            self.validate_val(item, loc, scope, *n, (evaluated + i).to_string())
+                        {
                             errors.push(e);
                         }
                     }
@@ -1335,13 +1561,17 @@ impl Validator<'_> {
         } else {
             let evaluated = s.prefix_items.len().min(len);
             for (i, item) in arr[..evaluated].iter().enumerate() {
-                if let Err(e) = self.validate_val(item, loc, scope, s.prefix_items[i], i.to_string()) {
+                if let Err(e) =
+                    self.validate_val(item, loc, scope, s.prefix_items[i], i.to_string())
+                {
                     errors.push(e);
                 }
             }
             if let Some(n) = s.items2020 {
                 for (i, item) in arr[evaluated..].iter().enumerate() {
-                    if let Err(e) = self.validate_val(item, loc, scope, n, (evaluated + i).to_string()) {
+                    if let Err(e) =
+                        self.validate_val(item, loc, scope, n, (evaluated + i).to_string())
+                    {
                         errors.push(e);
                     }
                 }
@@ -1356,11 +1586,19 @@ impl Validator<'_> {
                     Ok(()) => matched.push(i),
                 }
             }
-            let list = |m: &[usize]| m.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(" ");
+            let list = |m: &[usize]| {
+                m.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            };
             if let Some(min) = s.min_contains {
                 if matched.len() < min {
                     let msg = if matched.is_empty() {
-                        alloc::format!("min {} items required to match contains schema, but none matched", g(min))
+                        alloc::format!(
+                            "min {} items required to match contains schema, but none matched",
+                            g(min)
+                        )
                     } else {
                         alloc::format!(
                             "min {} items required to match contains schema, but matched {} items at {}",
@@ -1391,14 +1629,25 @@ impl Validator<'_> {
         }
     }
 
-    fn cond_validate(&mut self, s: &Node, v: &Value, loc: &mut Vec<String>, scope: &Scope<'_>, errors: &mut Vec<VErr>) {
+    fn cond_validate(
+        &mut self,
+        s: &Node,
+        v: &Value,
+        loc: &mut Vec<String>,
+        scope: &Scope<'_>,
+        errors: &mut Vec<VErr>,
+    ) {
         if let Some(n) = s.not {
             if self.validate_self(v, loc, scope, n, "").is_ok() {
                 errors.push(Self::msg(loc, "'not' failed".into()));
             }
         }
         if !s.all_of.is_empty() {
-            let errs: Vec<VErr> = s.all_of.iter().filter_map(|n| self.validate_self(v, loc, scope, *n, "").err()).collect();
+            let errs: Vec<VErr> = s
+                .all_of
+                .iter()
+                .filter_map(|n| self.validate_self(v, loc, scope, *n, "").err())
+                .collect();
             if !errs.is_empty() {
                 let mut e = Self::msg(loc, "'allOf' failed".into());
                 e.causes = errs;
@@ -1436,7 +1685,10 @@ impl Validator<'_> {
                     Ok(()) => match matched {
                         None => matched = Some(i),
                         Some(m) => {
-                            errors.push(Self::msg(loc, alloc::format!("'oneOf' failed, subschemas {m}, {i} matched")));
+                            errors.push(Self::msg(
+                                loc,
+                                alloc::format!("'oneOf' failed, subschemas {m}, {i} matched"),
+                            ));
                             break;
                         }
                     },
@@ -1506,21 +1758,39 @@ fn combine(loc: &str, mut errs: Vec<VErr>) -> Option<VErr> {
     match errs.len() {
         0 => None,
         1 => errs.pop(),
-        _ => Some(VErr { loc: tok_loc(loc), kind: Kind::Group, causes: errs }),
+        _ => Some(VErr {
+            loc: tok_loc(loc),
+            kind: Kind::Group,
+            causes: errs,
+        }),
     }
 }
 
 fn reference(loc: &str, e: VErr) -> VErr {
-    let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
-    VErr { loc: tok_loc(loc), kind: Kind::Reference, causes }
+    let causes = if matches!(e.kind, Kind::Group) {
+        e.causes
+    } else {
+        alloc::vec![e]
+    };
+    VErr {
+        loc: tok_loc(loc),
+        kind: Kind::Reference,
+        causes,
+    }
 }
 
 fn mmsg(loc: &str, m: String) -> VErr {
-    VErr { loc: tok_loc(loc), kind: Kind::Msg(m), causes: Vec::new() }
+    VErr {
+        loc: tok_loc(loc),
+        kind: Kind::Msg(m),
+        causes: Vec::new(),
+    }
 }
 
 fn regex_err(s: &str) -> Option<String> {
-    goregex::compile(s).err().map(|e| alloc::format!("{} is not valid regex: {e}", squote(s)))
+    goregex::compile(s)
+        .err()
+        .map(|e| alloc::format!("{} is not valid regex: {e}", squote(s)))
 }
 
 fn json_kind_name(j: &J) -> &'static str {
@@ -1548,16 +1818,24 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
     let schema_array = |kw: &str| -> Option<VErr> {
         let at = child(kw);
         let J::Arr(a) = m.get(kw)? else { return None };
-        let errs = a.iter().enumerate().filter_map(|(i, v)| sub(v, &alloc::format!("{at}/{i}"))).collect();
+        let errs = a
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| sub(v, &alloc::format!("{at}/{i}")))
+            .collect();
         combine(&at, errs)
     };
     let single = |kw: &str| -> Option<VErr> { sub(m.get(kw)?, &child(kw)) };
     let pattern = || -> Option<VErr> {
-        let J::Str(p) = m.get("pattern")? else { return None };
+        let J::Str(p) = m.get("pattern")? else {
+            return None;
+        };
         regex_err(p).map(|e| mmsg(&child("pattern"), e))
     };
     let prop_names = || -> Vec<VErr> {
-        let Some(J::Obj(o)) = m.get("patternProperties") else { return Vec::new() };
+        let Some(J::Obj(o)) = m.get("patternProperties") else {
+            return Vec::new();
+        };
         if draft == 4 {
             return Vec::new();
         }
@@ -1577,10 +1855,17 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
         let v = m.get(kw)?;
         let (branch1, branch2) = match v {
             J::Arr(a) if arr_ok => {
-                let want = if draft == 4 { "object" } else { "object or boolean" };
+                let want = if draft == 4 {
+                    "object"
+                } else {
+                    "object or boolean"
+                };
                 let t = mmsg(&at, alloc::format!("got array, want {want}"));
-                let errs: Vec<VErr> =
-                    a.iter().enumerate().filter_map(|(i, x)| sub(x, &alloc::format!("{at}/{i}"))).collect();
+                let errs: Vec<VErr> = a
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, x)| sub(x, &alloc::format!("{at}/{i}")))
+                    .collect();
                 if errs.is_empty() {
                     return None;
                 }
@@ -1589,7 +1874,13 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
             J::Arr(_) => return None,
             other => {
                 let e = sub(other, &at)?;
-                (Some(e), Some(mmsg(&at, alloc::format!("got {}, want array", json_kind_name(other)))))
+                (
+                    Some(e),
+                    Some(mmsg(
+                        &at,
+                        alloc::format!("got {}, want array", json_kind_name(other)),
+                    )),
+                )
             }
         };
         Some(VErr {
@@ -1600,7 +1891,9 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
     };
     let dependencies = || -> Option<VErr> {
         let at = child("dependencies");
-        let J::Obj(o) = m.get("dependencies")? else { return None };
+        let J::Obj(o) = m.get("dependencies")? else {
+            return None;
+        };
         let errs = o
             .iter()
             .filter_map(|(k, v)| {
@@ -1612,7 +1905,13 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
                 Some(VErr {
                     loc: tok_loc(&kat),
                     kind: Kind::Msg("'anyOf' failed".into()),
-                    causes: alloc::vec![e, mmsg(&kat, alloc::format!("got {}, want array", json_kind_name(v)))],
+                    causes: alloc::vec![
+                        e,
+                        mmsg(
+                            &kat,
+                            alloc::format!("got {}, want array", json_kind_name(v))
+                        )
+                    ],
                 })
             })
             .collect();
@@ -1633,11 +1932,23 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
                         sub(v, &child(kw)).map(|e| VErr {
                             loc: tok_loc(&child(kw)),
                             kind: Kind::Msg("'anyOf' failed".into()),
-                            causes: alloc::vec![mmsg(&child(kw), alloc::format!("got {}, want boolean", json_kind_name(v))), e],
+                            causes: alloc::vec![
+                                mmsg(
+                                    &child(kw),
+                                    alloc::format!("got {}, want boolean", json_kind_name(v))
+                                ),
+                                e
+                            ],
                         })
                     }
                 }
-                "additionalProperties" | "additionalItems" | "not" | "contains" | "propertyNames" | "if" | "then"
+                "additionalProperties"
+                | "additionalItems"
+                | "not"
+                | "contains"
+                | "propertyNames"
+                | "if"
+                | "then"
                 | "else" => single(kw),
                 "items" => any_of_schema_or_array(kw, true),
                 "allOf" | "anyOf" | "oneOf" => schema_array(kw),
@@ -1667,8 +1978,15 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
             "properties" | "dependentSchemas" => applicator.extend(schema_map(kw, &mut Vec::new())),
             "patternProperties" => applicator.extend(schema_map(kw, &mut prop_names())),
             "items" if draft == 2019 => applicator.extend(any_of_schema_or_array(kw, true)),
-            "additionalProperties" | "additionalItems" | "items" | "contains" | "propertyNames" | "if" | "then"
-            | "else" | "not" => applicator.extend(single(kw)),
+            "additionalProperties"
+            | "additionalItems"
+            | "items"
+            | "contains"
+            | "propertyNames"
+            | "if"
+            | "then"
+            | "else"
+            | "not" => applicator.extend(single(kw)),
             "allOf" | "anyOf" | "oneOf" | "prefixItems" => applicator.extend(schema_array(kw)),
             "unevaluatedItems" | "unevaluatedProperties" => unevaluated.extend(single(kw)),
             "pattern" => validation.extend(pattern()),
@@ -1680,20 +1998,35 @@ fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
         .filter_map(|v| combine(loc, v).map(|e| reference(loc, e)))
         .collect();
     if !vocab_errs.is_empty() {
-        errs.push(VErr { loc: tok_loc(loc), kind: Kind::Msg("'allOf' failed".into()), causes: vocab_errs });
+        errs.push(VErr {
+            loc: tok_loc(loc),
+            kind: Kind::Msg("'allOf' failed".into()),
+            causes: vocab_errs,
+        });
     }
     combine(loc, errs)
 }
 
 /// The metaschema check, with the library's error text.
 fn meta_check(root: &J, draft: u32) -> Result<(), String> {
-    let Some(e) = meta_schema(root, "", draft) else { return Ok(()) };
-    let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
-    let mut s = alloc::format!("jsonschema validation failed with {}", squote(meta_url(draft)));
+    let Some(e) = meta_schema(root, "", draft) else {
+        return Ok(());
+    };
+    let causes = if matches!(e.kind, Kind::Group) {
+        e.causes
+    } else {
+        alloc::vec![e]
+    };
+    let mut s = alloc::format!(
+        "jsonschema validation failed with {}",
+        squote(meta_url(draft))
+    );
     for c in &causes {
         c.display(&mut s, 1);
     }
-    Err(alloc::format!("\"{ROOT_URL}#\" is not valid against metaschema: {s}"))
+    Err(alloc::format!(
+        "\"{ROOT_URL}#\" is not valid against metaschema: {s}"
+    ))
 }
 
 /// Validates `values` against a single JSON schema document
@@ -1704,18 +2037,43 @@ pub fn validate_against_schema(values: &MapRef, schema: &[u8]) -> Result<(), Str
     meta_check(&root, draft)?;
     let mut anchors = BTreeMap::new();
     collect_anchors(&root, "", draft, &mut anchors);
-    let mut c = Compiler { root: &root, draft, nodes: Vec::new(), by_ptr: BTreeMap::new(), anchors };
+    let mut c = Compiler {
+        root: &root,
+        draft,
+        nodes: Vec::new(),
+        by_ptr: BTreeMap::new(),
+        anchors,
+    };
     let root_idx = c.compile("")?;
     let nodes = c.nodes;
-    let mut vd = Validator { nodes: &nodes, steps: 0 };
-    let scope = Scope { node: root_idx, ref_kw: "", vid: 0, parent: None };
+    let mut vd = Validator {
+        nodes: &nodes,
+        steps: 0,
+    };
+    let scope = Scope {
+        node: root_idx,
+        ref_kw: "",
+        vid: 0,
+        parent: None,
+    };
     let v = Value::Map(values.clone());
     if let Err(e) = vd.validate(&v, &mut Vec::new(), &scope) {
-        let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
-        let root_err = VErr { loc: Vec::new(), kind: Kind::Schema, causes };
+        let causes = if matches!(e.kind, Kind::Group) {
+            e.causes
+        } else {
+            alloc::vec![e]
+        };
+        let root_err = VErr {
+            loc: Vec::new(),
+            kind: Kind::Schema,
+            causes,
+        };
         let mut s = String::new();
         root_err.display(&mut s, 0);
-        let prefix = alloc::format!("jsonschema validation failed with {}\n", squote(&alloc::format!("{ROOT_URL}#")));
+        let prefix = alloc::format!(
+            "jsonschema validation failed with {}\n",
+            squote(&alloc::format!("{ROOT_URL}#"))
+        );
         let s = s.strip_prefix(prefix.as_str()).unwrap_or(&s).to_string();
         return Err(alloc::format!("{s}\n"));
     }

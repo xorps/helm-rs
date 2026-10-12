@@ -37,7 +37,11 @@ fn lcs(a: &[u8], b: &[u8]) -> usize {
     let mut t = vec![vec![0; b.len() + 1]; a.len() + 1];
     for i in 0..a.len() {
         for j in 0..b.len() {
-            t[i + 1][j + 1] = if a[i] == b[j] { t[i][j] + 1 } else { t[i][j + 1].max(t[i + 1][j]) };
+            t[i + 1][j + 1] = if a[i] == b[j] {
+                t[i][j] + 1
+            } else {
+                t[i][j + 1].max(t[i + 1][j])
+            };
         }
     }
     t[a.len()][b.len()]
@@ -58,10 +62,26 @@ fn volatile_lines_are_masked() {
     let vol = diff::volatile_lines(a, b);
     assert_eq!(vol.into_iter().collect::<Vec<_>>(), vec![1]);
     let vol = diff::volatile_lines(a, b);
-    assert!(diff::eq_modulo_volatile(a, &vol, "kind: Secret\npassword: CCCC\nname: x\n"));
-    assert!(diff::eq_modulo_volatile(a, &vol, "kind: Secret\npassword: C\nC\nname: x\n"));
-    assert!(!diff::eq_modulo_volatile(a, &vol, "kind: Secret\npassword: CCCC\nname: y\n"));
-    assert!(!diff::eq_modulo_volatile(a, &vol, "extra: 1\nkind: Secret\npassword: CCCC\nname: x\n"));
+    assert!(diff::eq_modulo_volatile(
+        a,
+        &vol,
+        "kind: Secret\npassword: CCCC\nname: x\n"
+    ));
+    assert!(diff::eq_modulo_volatile(
+        a,
+        &vol,
+        "kind: Secret\npassword: C\nC\nname: x\n"
+    ));
+    assert!(!diff::eq_modulo_volatile(
+        a,
+        &vol,
+        "kind: Secret\npassword: CCCC\nname: y\n"
+    ));
+    assert!(!diff::eq_modulo_volatile(
+        a,
+        &vol,
+        "extra: 1\nkind: Secret\npassword: CCCC\nname: x\n"
+    ));
     assert!(!diff::eq_modulo_volatile(a, &Default::default(), b));
 }
 
@@ -72,21 +92,43 @@ fn error_locations_are_extracted() {
     assert_eq!(
         locs,
         vec![
-            ErrLoc { name: "t/templates/t.yaml".into(), line: 3, col: Some(14) },
-            ErrLoc { name: "t/templates/_h.tpl".into(), line: 2, col: Some(5) },
+            ErrLoc {
+                name: "t/templates/t.yaml".into(),
+                line: 3,
+                col: Some(14)
+            },
+            ErrLoc {
+                name: "t/templates/_h.tpl".into(),
+                line: 2,
+                col: Some(5)
+            },
         ]
     );
     let locs = diff::error_locations("parse error at (t/templates/t.yaml:7): unexpected EOF");
-    assert_eq!(locs, vec![ErrLoc { name: "t/templates/t.yaml".into(), line: 7, col: None }]);
-    let locs = diff::error_locations("execution error at (loki/templates/validate.yaml:40:4): boom");
+    assert_eq!(
+        locs,
+        vec![ErrLoc {
+            name: "t/templates/t.yaml".into(),
+            line: 7,
+            col: None
+        }]
+    );
+    let locs =
+        diff::error_locations("execution error at (loki/templates/validate.yaml:40:4): boom");
     assert_eq!(locs[0].to_string(), "loki/templates/validate.yaml:40:4");
     assert!(diff::error_locations("see https://example.com:443/x").is_empty());
 }
 
 #[test]
 fn rng_is_reproducible() {
-    let a: Vec<u64> = { let mut r = Rng::new(42); (0..5).map(|_| r.next_u64()).collect() };
-    let b: Vec<u64> = { let mut r = Rng::new(42); (0..5).map(|_| r.next_u64()).collect() };
+    let a: Vec<u64> = {
+        let mut r = Rng::new(42);
+        (0..5).map(|_| r.next_u64()).collect()
+    };
+    let b: Vec<u64> = {
+        let mut r = Rng::new(42);
+        (0..5).map(|_| r.next_u64()).collect()
+    };
     assert_eq!(a, b);
     assert_ne!(Rng::fork(1, "a").next_u64(), Rng::fork(1, "b").next_u64());
 }

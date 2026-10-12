@@ -15,15 +15,24 @@ const TEMPLATES: &[(&str, &str)] = &[
     ("j.yaml", "{{ toJson .Values }}"),
     ("p.yaml", "{{ toYamlPretty .Values }}"),
     ("t.yaml", "{{ .Values | toToml }}"),
-    ("rt.yaml", "{{ $m := toYaml .Values | fromYaml }}{{ toJson $m }}"),
+    (
+        "rt.yaml",
+        "{{ $m := toYaml .Values | fromYaml }}{{ toJson $m }}",
+    ),
     ("jt.yaml", "{{ .Values | toJson | fromJson | toYaml }}"),
     ("ind.yaml", "data:\n{{ toYaml .Values | indent 2 }}"),
-    ("each.yaml", "{{ range $k, $v := .Values }}{{ $k }}: {{ toJson $v }} {{ toYaml $v | quote }}\n{{ end }}"),
+    (
+        "each.yaml",
+        "{{ range $k, $v := .Values }}{{ $k }}: {{ toJson $v }} {{ toYaml $v | quote }}\n{{ end }}",
+    ),
 ];
 
 fn chart(values: &str) -> BTreeMap<String, String> {
     let mut files = BTreeMap::new();
-    files.insert("Chart.yaml".to_string(), "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string());
+    files.insert(
+        "Chart.yaml".to_string(),
+        "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string(),
+    );
     files.insert("values.yaml".to_string(), values.to_string());
     for (n, t) in TEMPLATES {
         files.insert(format!("templates/{n}"), t.to_string());
@@ -33,18 +42,30 @@ fn chart(values: &str) -> BTreeMap<String, String> {
 
 #[test]
 fn random_values_render_like_helm() {
-    let Some(_) = common::Oracle::shared() else { return };
+    let Some(_) = common::Oracle::shared() else {
+        return;
+    };
     let mut r = Rng::new(555);
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(300);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(300);
     let mut mismatches = Vec::new();
     let mut total = 0;
     for i in 0..n {
-        let values = if i % 2 == 0 { gen_doc(&mut r) } else { gen_doc2(&mut r) };
+        let values = if i % 2 == 0 {
+            gen_doc(&mut r)
+        } else {
+            gen_doc2(&mut r)
+        };
         // Document splitting is the chart loader's business (and currently
         // differs: k8s' YAMLReader keeps a leading `---` line in the first
         // document, and reports a bad separator only when it reaches it);
         // keep single plain documents here.
-        if values.lines().any(|l| l.starts_with("---") || l.starts_with('%')) {
+        if values
+            .lines()
+            .any(|l| l.starts_with("---") || l.starts_with('%'))
+        {
             continue;
         }
         let files = chart(&values);
@@ -56,7 +77,10 @@ fn random_values_render_like_helm() {
             (OracleResult::Ok(h), Outcome::Ok(o)) => {
                 h == o
                     || (h.len() == o.len()
-                        && h.iter().all(|(k, v)| o.get(k).is_some_and(|w| w == v || equivalent(&values, v, w))))
+                        && h.iter().all(|(k, v)| {
+                            o.get(k)
+                                .is_some_and(|w| w == v || equivalent(&values, v, w))
+                        }))
             }
             (OracleResult::Err { message, .. }, Outcome::Err(e)) => {
                 *message == e.helm_message() || message.contains("unsupported map key")
@@ -70,7 +94,11 @@ fn random_values_render_like_helm() {
     for (v, h, o) in mismatches.iter().take(5) {
         eprintln!("---- values {v:?}\n  helm: {h}\n  ours: {o}");
     }
-    assert!(mismatches.is_empty(), "{} of {total} charts differ", mismatches.len());
+    assert!(
+        mismatches.is_empty(),
+        "{} of {total} charts differ",
+        mismatches.len()
+    );
 }
 
 /// Outputs that may legitimately differ (Go's random map iteration order):

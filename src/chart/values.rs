@@ -42,7 +42,11 @@ pub(crate) fn path_value(v: &MapRef, path: &str) -> Option<Value> {
 /// maps present on both sides.
 pub(crate) fn merge_maps(a: &MapRef, b: &MapRef) -> MapRef {
     let mut out: Map = a.borrow().clone();
-    let entries: Vec<(String, Value)> = b.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let entries: Vec<(String, Value)> = b
+        .borrow()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
     for (k, v) in entries {
         if let Value::Map(bm) = &v {
             if let Some(Value::Map(am)) = out.get(&k) {
@@ -84,10 +88,19 @@ pub(crate) fn split_yaml_documents(src: &str) -> (Vec<Doc>, Option<(String, u32)
         if let Some(rest) = line.strip_prefix("---") {
             let trimmed = rest.trim();
             if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                return (docs, Some((alloc::format!("invalid Yaml document separator: {trimmed}"), line_no)));
+                return (
+                    docs,
+                    Some((
+                        alloc::format!("invalid Yaml document separator: {trimmed}"),
+                        line_no,
+                    )),
+                );
             }
             if !buf.is_empty() {
-                docs.push(Doc { text: core::mem::take(&mut buf), first_line: buf_line });
+                docs.push(Doc {
+                    text: core::mem::take(&mut buf),
+                    first_line: buf_line,
+                });
                 pos = next;
                 line_no += 1;
                 continue;
@@ -102,7 +115,10 @@ pub(crate) fn split_yaml_documents(src: &str) -> (Vec<Doc>, Option<(String, u32)
         line_no += 1;
     }
     if !buf.is_empty() {
-        docs.push(Doc { text: buf, first_line: buf_line });
+        docs.push(Doc {
+            text: buf,
+            first_line: buf_line,
+        });
     }
     (docs, None)
 }

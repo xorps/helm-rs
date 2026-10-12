@@ -3,9 +3,9 @@
 mod common;
 
 use common::chart::*;
+use helm_rs::Value;
 use helm_rs::chart::{self, Chart, Glob};
 use helm_rs::value::Map;
-use helm_rs::Value;
 
 struct Rng(u64);
 
@@ -24,10 +24,16 @@ impl Rng {
 fn sample_tar() -> Vec<u8> {
     tar(&[
         ("c/", None),
-        ("c/Chart.yaml", Some(br#"{"apiVersion": "v2", "name": "c", "version": "0.1.0"}"#)),
+        (
+            "c/Chart.yaml",
+            Some(br#"{"apiVersion": "v2", "name": "c", "version": "0.1.0"}"#),
+        ),
         ("c/values.yaml", Some(br#"{"a": {"b": [1, 2]}}"#)),
         ("c/templates/x.yaml", Some(b"x: {{ .Values.a }}")),
-        ("c/charts/s/Chart.yaml", Some(br#"{"apiVersion": "v2", "name": "s", "version": "0.1.0"}"#)),
+        (
+            "c/charts/s/Chart.yaml",
+            Some(br#"{"apiVersion": "v2", "name": "s", "version": "0.1.0"}"#),
+        ),
     ])
 }
 
@@ -72,7 +78,13 @@ fn hostile_globs_and_metadata_do_not_panic() {
     if !semver_ready() {
         return;
     }
-    for p in ["{".repeat(10000), "?".repeat(100_000), "[".repeat(1000), "*".repeat(5000) + "x", "\\".into()] {
+    for p in [
+        "{".repeat(10000),
+        "?".repeat(100_000),
+        "[".repeat(1000),
+        "*".repeat(5000) + "x",
+        "\\".into(),
+    ] {
         let g = Glob::compile(&p);
         if let Ok(g) = g {
             let _ = g.matches(&"a".repeat(1000));
@@ -82,14 +94,23 @@ fn hostile_globs_and_metadata_do_not_panic() {
     let alphabet = br#"{}[]",:0123456789.eE-+ abcnulltrue\/"#;
     for _ in 0..3000 {
         let len = rng.below(60);
-        let s: Vec<u8> = (0..len).map(|_| alphabet[rng.below(alphabet.len())]).collect();
+        let s: Vec<u8> = (0..len)
+            .map(|_| alphabet[rng.below(alphabet.len())])
+            .collect();
         let s = String::from_utf8(s).unwrap();
-        let _ = Chart::from_files_with_parser([("Chart.yaml", s.clone()), ("values.yaml", s.clone())], json_yaml);
-        let _ = chart::validate_against_schema(&helm_rs::value::MapRef::new(Map::new()), s.as_bytes());
+        let _ = Chart::from_files_with_parser(
+            [("Chart.yaml", s.clone()), ("values.yaml", s.clone())],
+            json_yaml,
+        );
+        let _ =
+            chart::validate_against_schema(&helm_rs::value::MapRef::new(Map::new()), s.as_bytes());
         let _ = chart::KubeVersion::parse(&s);
         let _ = chart::split_manifests(&s);
         let _ = Value::Nil;
     }
     let deep = "[".repeat(100_000);
-    assert!(chart::validate_against_schema(&helm_rs::value::MapRef::new(Map::new()), deep.as_bytes()).is_err());
+    assert!(
+        chart::validate_against_schema(&helm_rs::value::MapRef::new(Map::new()), deep.as_bytes())
+            .is_err()
+    );
 }

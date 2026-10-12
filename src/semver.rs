@@ -50,7 +50,9 @@ fn is_ident_char(c: u8) -> bool {
 
 /// Matches `X+(\.X+)*` with X = `[0-9A-Za-z-]`.
 fn dotted_idents(s: &str) -> bool {
-    !s.is_empty() && s.split('.').all(|p| !p.is_empty() && p.bytes().all(is_ident_char))
+    !s.is_empty()
+        && s.split('.')
+            .all(|p| !p.is_empty() && p.bytes().all(is_ident_char))
 }
 
 fn contains_only(s: &str, allowed: fn(u8) -> bool) -> bool {
@@ -82,8 +84,12 @@ fn validate_metadata(m: &str) -> Result<(), String> {
 }
 
 fn parse_segment(s: &str) -> Result<u64, String> {
-    strconv::parse_uint(s, 10, 64)
-        .map_err(|e| format!("error parsing version segment: {}", strconv::num_error("ParseUint", s, e)))
+    strconv::parse_uint(s, 10, 64).map_err(|e| {
+        format!(
+            "error parsing version segment: {}",
+            strconv::num_error("ParseUint", s, e)
+        )
+    })
 }
 
 /// Matches Masterminds' loose version regex; returns
@@ -150,7 +156,9 @@ impl Version {
     /// `semver.NewVersion` (coercing mode, Helm's default).
     pub fn parse(v: &str) -> Result<Version, String> {
         if v.len() > MAX_VERSION_LEN {
-            return Err(format!("version string is too long (max {MAX_VERSION_LEN} bytes)"));
+            return Err(format!(
+                "version string is too long (max {MAX_VERSION_LEN} bytes)"
+            ));
         }
         let Some((major, minor, patch, pre, meta)) = match_loose(v) else {
             return Err(ERR_INVALID_SEMVER.into());
@@ -184,13 +192,22 @@ impl Version {
             return Err(ERR_EMPTY_STRING.into());
         }
         if v.len() > MAX_VERSION_LEN {
-            return Err(format!("version string is too long (max {MAX_VERSION_LEN} bytes)"));
+            return Err(format!(
+                "version string is too long (max {MAX_VERSION_LEN} bytes)"
+            ));
         }
         let parts: Vec<&str> = v.splitn(3, '.').collect();
         if parts.len() != 3 {
             return Err(ERR_INVALID_SEMVER.into());
         }
-        let mut sv = Version { major: 0, minor: 0, patch: 0, pre: String::new(), metadata: String::new(), original: v.into() };
+        let mut sv = Version {
+            major: 0,
+            minor: 0,
+            patch: 0,
+            pre: String::new(),
+            metadata: String::new(),
+            original: v.into(),
+        };
         let mut p2 = parts[2];
         if let Some((a, m)) = p2.split_once('+') {
             sv.metadata = m.into();
@@ -210,7 +227,9 @@ impl Version {
                 return Err(ERR_SEGMENT_STARTS_ZERO.into());
             }
         }
-        let pu = |s: &str| strconv::parse_uint(s, 10, 64).map_err(|e| strconv::num_error("ParseUint", s, e));
+        let pu = |s: &str| {
+            strconv::parse_uint(s, 10, 64).map_err(|e| strconv::num_error("ParseUint", s, e))
+        };
         sv.major = pu(parts[0])?;
         sv.minor = pu(parts[1])?;
         sv.patch = pu(p2)?;
@@ -219,7 +238,14 @@ impl Version {
 
     /// `semver.New(major, minor, patch, pre, metadata)`.
     pub fn new(major: u64, minor: u64, patch: u64, pre: &str, metadata: &str) -> Version {
-        let mut v = Version { major, minor, patch, pre: pre.into(), metadata: metadata.into(), original: String::new() };
+        let mut v = Version {
+            major,
+            minor,
+            patch,
+            pre: pre.into(),
+            metadata: metadata.into(),
+            original: String::new(),
+        };
         v.original = v.to_string();
         v
     }
@@ -229,7 +255,11 @@ impl Version {
     }
 
     fn original_v_prefix(&self) -> &str {
-        if self.original.starts_with('v') { "v" } else { "" }
+        if self.original.starts_with('v') {
+            "v"
+        } else {
+            ""
+        }
     }
 
     /// `Version.IncPatch()`; errors on overflow (Go panics).
@@ -302,7 +332,11 @@ impl Version {
 
     /// `Version.Compare(o)`: -1, 0 or 1 (metadata is ignored).
     pub fn compare(&self, o: &Version) -> i32 {
-        for (a, b) in [(self.major, o.major), (self.minor, o.minor), (self.patch, o.patch)] {
+        for (a, b) in [
+            (self.major, o.major),
+            (self.minor, o.minor),
+            (self.patch, o.patch),
+        ] {
             match a.cmp(&b) {
                 Ordering::Less => return -1,
                 Ordering::Greater => return 1,
@@ -418,7 +452,9 @@ impl Regexes {
             constraint: build(&format!(r"^{WS}*({OPS}){WS}*({CV}){WS}*$")),
             range: build(&format!(r"{WS}*({CV}){WS}+-{WS}+({CV}){WS}*")),
             find: build(&format!(r"({OPS}){WS}*({CV})")),
-            valid: build(&format!(r"^({WS}*({OPS}){WS}*({CV}){WS}*)((?:{WS}+|,{WS}*)({OPS}){WS}*({CV}){WS}*)*$")),
+            valid: build(&format!(
+                r"^({WS}*({OPS}){WS}*({CV}){WS}*)((?:{WS}+|,{WS}*)({OPS}){WS}*({CV}){WS}*)*$"
+            )),
         }
     }
 }
@@ -500,7 +536,15 @@ fn parse_constraint(re: &Regexes, c: &str) -> Result<Constraint, String> {
         ver = format!("{}{}.0{}", m(3), m(4), m(6));
     }
     let con = Version::parse(&ver).map_err(|_| String::from("constraint parser error"))?;
-    Ok(Constraint { con, orig: m(2).to_string(), origfunc: origfunc.to_string(), op, minor_dirty, dirty, patch_dirty })
+    Ok(Constraint {
+        con,
+        orig: m(2).to_string(),
+        origfunc: origfunc.to_string(),
+        op,
+        minor_dirty,
+        dirty,
+        patch_dirty,
+    })
 }
 
 fn q(v: &Version) -> String {
@@ -547,7 +591,11 @@ impl Constraint {
             Op::GreaterThan => {
                 let err = || Err(format!("{} is less than or equal to {orig}", q(v)));
                 if !c.dirty {
-                    return if v.compare(&c.con) == 1 { Ok(()) } else { err() };
+                    return if v.compare(&c.con) == 1 {
+                        Ok(())
+                    } else {
+                        err()
+                    };
                 }
                 if v.major > c.con.major {
                     Ok(())
@@ -578,9 +626,15 @@ impl Constraint {
             Op::LessThanEqual => {
                 let err = || Err(format!("{} is greater than {orig}", q(v)));
                 if !c.dirty {
-                    return if v.compare(&c.con) <= 0 { Ok(()) } else { err() };
+                    return if v.compare(&c.con) <= 0 {
+                        Ok(())
+                    } else {
+                        err()
+                    };
                 }
-                if v.major > c.con.major || (v.major == c.con.major && v.minor > c.con.minor && !c.minor_dirty) {
+                if v.major > c.con.major
+                    || (v.major == c.con.major && v.minor > c.con.minor && !c.minor_dirty)
+                {
                     return err();
                 }
                 Ok(())
@@ -604,10 +658,16 @@ impl Constraint {
                     if v.major == c.con.major {
                         return Ok(());
                     }
-                    return Err(format!("{} does not have same major version as {orig}", q(v)));
+                    return Err(format!(
+                        "{} does not have same major version as {orig}",
+                        q(v)
+                    ));
                 }
                 if c.con.major == 0 && v.major > 0 {
-                    return Err(format!("{} does not have same major version as {orig}", q(v)));
+                    return Err(format!(
+                        "{} does not have same major version as {orig}",
+                        q(v)
+                    ));
                 }
                 if c.con.minor > 0 || c.patch_dirty {
                     if v.minor == c.con.minor {
@@ -619,7 +679,10 @@ impl Constraint {
                     ));
                 }
                 if c.con.minor == 0 && v.minor > 0 {
-                    return Err(format!("{} does not have same minor version as {orig}", q(v)));
+                    return Err(format!(
+                        "{} does not have same minor version as {orig}",
+                        q(v)
+                    ));
                 }
                 if c.con.patch == v.patch {
                     return Ok(());
@@ -637,14 +700,25 @@ impl Constraint {
         if v.less_than(&c.con) {
             return Err(format!("{} is less than {orig}", q(v)));
         }
-        if c.con.major == 0 && c.con.minor == 0 && c.con.patch == 0 && !c.minor_dirty && !c.patch_dirty {
+        if c.con.major == 0
+            && c.con.minor == 0
+            && c.con.patch == 0
+            && !c.minor_dirty
+            && !c.patch_dirty
+        {
             return Ok(());
         }
         if v.major != c.con.major {
-            return Err(format!("{} does not have same major version as {orig}", q(v)));
+            return Err(format!(
+                "{} does not have same major version as {orig}",
+                q(v)
+            ));
         }
         if v.minor != c.con.minor && !c.minor_dirty {
-            return Err(format!("{} does not have same major and minor version as {orig}", q(v)));
+            return Err(format!(
+                "{} does not have same major and minor version as {orig}",
+                q(v)
+            ));
         }
         Ok(())
     }
@@ -664,7 +738,11 @@ fn rewrite_range(re: &Regexes, i: &str) -> String {
     let mut found: Vec<(String, String, String)> = Vec::new();
     for c in re.range.captures_iter(i) {
         let all = group(&c, i, 0).to_string();
-        found.push((all, group(&c, i, 1).to_string(), group(&c, i, 11).to_string()));
+        found.push((
+            all,
+            group(&c, i, 1).to_string(),
+            group(&c, i, 11).to_string(),
+        ));
     }
     for (all, a, b) in found {
         let t = format!(">= {a}, <= {b} ");
@@ -679,13 +757,17 @@ impl Constraints {
     /// `semver.NewConstraint(c)`.
     pub fn parse(c: &str) -> Result<Constraints, String> {
         if c.len() > MAX_CONSTRAINT_LEN {
-            return Err(format!("constraint string is too long (max {MAX_CONSTRAINT_LEN} bytes)"));
+            return Err(format!(
+                "constraint string is too long (max {MAX_CONSTRAINT_LEN} bytes)"
+            ));
         }
         let re = Regexes::new();
         let c = rewrite_range(&re, c);
         let ors: Vec<&str> = c.split("||").collect();
         if ors.len() > MAX_CONSTRAINT_GROUPS {
-            return Err(format!("too many constraint groups (max {MAX_CONSTRAINT_GROUPS})"));
+            return Err(format!(
+                "too many constraint groups (max {MAX_CONSTRAINT_GROUPS})"
+            ));
         }
         let mut or = Vec::with_capacity(ors.len());
         let mut has_pre = Vec::with_capacity(ors.len());
@@ -709,7 +791,11 @@ impl Constraints {
             or.push(result);
             has_pre.push(pre);
         }
-        Ok(Constraints { constraints: or, contains_pre: has_pre, include_prerelease: false })
+        Ok(Constraints {
+            constraints: or,
+            contains_pre: has_pre,
+            include_prerelease: false,
+        })
     }
 
     /// `Constraints.Check(v)`.
@@ -760,7 +846,12 @@ impl core::fmt::Display for Constraints {
         let groups: Vec<String> = self
             .constraints
             .iter()
-            .map(|g| g.iter().map(|c| format!("{}{}", c.origfunc, c.orig)).collect::<Vec<_>>().join(" "))
+            .map(|g| {
+                g.iter()
+                    .map(|c| format!("{}{}", c.origfunc, c.orig))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
             .collect();
         f.write_str(&groups.join(" || "))
     }
@@ -784,7 +875,10 @@ pub struct VersionObject {
 
 impl VersionObject {
     pub fn ptr(version: Version) -> Value {
-        Value::object(VersionObject { version, by_value: false })
+        Value::object(VersionObject {
+            version,
+            by_value: false,
+        })
     }
 }
 
@@ -792,26 +886,38 @@ fn version_arg(v: &Value) -> Result<&Version, FuncError> {
     match v {
         Value::Object(o) => match o.as_any().downcast_ref::<VersionObject>() {
             Some(vo) => Ok(&vo.version),
-            None => Err(FuncError::new("invalid memory address or nil pointer dereference")),
+            None => Err(FuncError::new(
+                "invalid memory address or nil pointer dereference",
+            )),
         },
-        _ => Err(FuncError::new("runtime error: invalid memory address or nil pointer dereference")),
+        _ => Err(FuncError::new(
+            "runtime error: invalid memory address or nil pointer dereference",
+        )),
     }
 }
 
 impl Object for VersionObject {
     fn type_name(&self) -> &str {
-        if self.by_value { "semver.Version" } else { VERSION_PTR_TYPE }
+        if self.by_value {
+            "semver.Version"
+        } else {
+            VERSION_PTR_TYPE
+        }
     }
     fn kind(&self) -> Kind {
-        if self.by_value { Kind::Struct } else { Kind::Ptr }
+        if self.by_value {
+            Kind::Struct
+        } else {
+            Kind::Ptr
+        }
     }
     fn method(&self, name: &str) -> Option<Sig> {
         const NONE: Sig = Sig::new(&[]);
         const VER: Sig = Sig::new(&[Ty::Object(VERSION_PTR_TYPE)]);
         const STR: Sig = Sig::new(&[Ty::String]);
         let value_method = match name {
-            "String" | "Major" | "Minor" | "Patch" | "Prerelease" | "Metadata" | "IncPatch" | "IncMinor"
-            | "IncMajor" | "MarshalJSON" | "MarshalText" | "Value" => Some(NONE),
+            "String" | "Major" | "Minor" | "Patch" | "Prerelease" | "Metadata" | "IncPatch"
+            | "IncMinor" | "IncMajor" | "MarshalJSON" | "MarshalText" | "Value" => Some(NONE),
             "SetPrerelease" | "SetMetadata" => Some(STR),
             _ => None,
         };
@@ -820,14 +926,21 @@ impl Object for VersionObject {
         }
         match name {
             "Original" => Some(NONE),
-            "LessThan" | "LessThanEqual" | "GreaterThan" | "GreaterThanEqual" | "Equal" | "Compare" => Some(VER),
+            "LessThan" | "LessThanEqual" | "GreaterThan" | "GreaterThanEqual" | "Equal"
+            | "Compare" => Some(VER),
             _ => None,
         }
     }
     fn call_method(&self, name: &str, args: &[Value]) -> Result<Value, FuncError> {
         let v = &self.version;
         let val = |r: Result<Version, String>| -> Result<Value, FuncError> {
-            r.map(|version| Value::object(VersionObject { version, by_value: true })).map_err(FuncError::new)
+            r.map(|version| {
+                Value::object(VersionObject {
+                    version,
+                    by_value: true,
+                })
+            })
+            .map_err(FuncError::new)
         };
         let s = |i: usize| args.get(i).and_then(Value::as_str).unwrap_or("");
         Ok(match name {
@@ -846,7 +959,8 @@ impl Object for VersionObject {
             "MarshalJSON" => Value::Bytes(strconv::quote(&v.to_string()).into_bytes().into()),
             "MarshalText" => Value::Bytes(v.to_string().into_bytes().into()),
             "Value" => Value::string(v.to_string()),
-            "LessThan" | "LessThanEqual" | "GreaterThan" | "GreaterThanEqual" | "Equal" | "Compare" => {
+            "LessThan" | "LessThanEqual" | "GreaterThan" | "GreaterThanEqual" | "Equal"
+            | "Compare" => {
                 let o = version_arg(args.first().unwrap_or(&Value::Nil))?;
                 let c = v.compare(o);
                 match name {
@@ -858,7 +972,12 @@ impl Object for VersionObject {
                     _ => Value::Int(c as i64),
                 }
             }
-            _ => return Err(FuncError::new(format!("can't call method {name} on {}", self.type_name()))),
+            _ => {
+                return Err(FuncError::new(format!(
+                    "can't call method {name} on {}",
+                    self.type_name()
+                )));
+            }
         })
     }
     fn format(&self, out: &mut String) {

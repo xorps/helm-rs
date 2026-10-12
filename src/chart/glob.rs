@@ -13,8 +13,15 @@ enum Node {
     Super,
     /// `?`: one non-separator.
     Single,
-    List { chars: Vec<char>, not: bool },
-    Range { lo: char, hi: char, not: bool },
+    List {
+        chars: Vec<char>,
+        not: bool,
+    },
+    Range {
+        lo: char,
+        hi: char,
+        not: bool,
+    },
     /// `{a,b}`: alternatives (each a pattern).
     AnyOf(Vec<Vec<Node>>),
 }
@@ -113,8 +120,11 @@ impl Lexer<'_> {
             }
             _ => {
                 self.unread();
-                let breakers: &[char] =
-                    if self.terms_level > 0 { &['?', '*', '[', '{', '}', ','] } else { &['?', '*', '[', '{'] };
+                let breakers: &[char] = if self.terms_level > 0 {
+                    &['?', '*', '[', '{', '}', ',']
+                } else {
+                    &['?', '*', '[', '{']
+                };
                 self.fetch_text(breakers);
             }
         }
@@ -205,7 +215,14 @@ struct Frame {
 impl Glob {
     /// `glob.Compile(pattern, '/')`.
     pub fn compile(pattern: &str) -> Result<Glob, &'static str> {
-        let mut lx = Lexer { data: pattern, pos: 0, terms_level: 0, tokens: Vec::new(), last_size: 0, err: None };
+        let mut lx = Lexer {
+            data: pattern,
+            pos: 0,
+            terms_level: 0,
+            tokens: Vec::new(),
+            last_size: 0,
+            err: None,
+        };
         // root pattern + stack of open AnyOf frames
         let mut root: Vec<Node> = Vec::new();
         let mut stack: Vec<Frame> = Vec::new();
@@ -226,7 +243,9 @@ impl Glob {
                     let node = parse_range(&mut lx)?;
                     cur(&mut root, &mut stack).push(node);
                 }
-                Tok::TermsOpen => stack.push(Frame { alts: alloc::vec![Vec::new()] }),
+                Tok::TermsOpen => stack.push(Frame {
+                    alts: alloc::vec![Vec::new()],
+                }),
                 Tok::Separator => match stack.last_mut() {
                     Some(f) => f.alts.push(Vec::new()),
                     None => return Err("unexpected token"),
@@ -252,7 +271,9 @@ impl Glob {
     pub fn matches(&self, s: &str) -> bool {
         let chars: Vec<char> = s.chars().collect();
         let mut budget = 1_000_000u32;
-        match_seq(&self.nodes, &chars, 0, &mut budget, &mut |p, _| p == chars.len())
+        match_seq(&self.nodes, &chars, 0, &mut budget, &mut |p, _| {
+            p == chars.len()
+        })
     }
 }
 
@@ -297,7 +318,10 @@ fn parse_range(lx: &mut Lexer<'_>) -> Result<Node, &'static str> {
                 return Ok(if is_range {
                     Node::Range { lo, hi, not }
                 } else {
-                    Node::List { chars: chars.chars().collect(), not }
+                    Node::List {
+                        chars: chars.chars().collect(),
+                        not,
+                    }
                 });
             }
             _ => {}

@@ -166,7 +166,10 @@ fn find_node(list: &ListNode, at: At, text: &str) -> Option<(String, Span)> {
                 .or_else(|| b.else_list.as_ref().and_then(|l| find_node(l, at, text))),
             Node::Range(b) => {
                 if at.kind == AtKind::Range && b.pos == at.pos {
-                    return Some((NodeDisplay { node: n, text }.to_string(), b.pipe.span.clone()));
+                    return Some((
+                        NodeDisplay { node: n, text }.to_string(),
+                        b.pipe.span.clone(),
+                    ));
                 }
                 find_in_pipe(&b.pipe, at)
                     .or_else(|| find_node(&b.list, at, text))
@@ -238,7 +241,18 @@ const RECURSION_MAX_NUMS: usize = 1000;
 
 impl<'s, 'e> State<'s, 'e> {
     pub fn new(ctx: &'s mut Ctx<'e>, set: Rc<Set>, name: Rc<str>, tree: Rc<Tree>, dot: Ev) -> Self {
-        State { ctx, set, name, tree, vars: vec![Var { name: Rc::from("$"), value: dot }], at: None, depth: 0 }
+        State {
+            ctx,
+            set,
+            name,
+            tree,
+            vars: vec![Var {
+                name: Rc::from("$"),
+                value: dot,
+            }],
+            at: None,
+            depth: 0,
+        }
     }
 
     // ---------------------------------------------------------------
@@ -256,7 +270,8 @@ impl<'s, 'e> State<'s, 'e> {
 
     /// Context string and span of the current node (error path only).
     fn at_info(&self, at: At) -> (String, Span) {
-        find_node(&self.tree.root, at, &self.tree.text).unwrap_or_else(|| (String::new(), at.pos..at.pos))
+        find_node(&self.tree.root, at, &self.tree.text)
+            .unwrap_or_else(|| (String::new(), at.pos..at.pos))
     }
 
     /// Go's `ErrorContext` location string `NAME:LINE:COL` (byte column,
@@ -284,7 +299,12 @@ impl<'s, 'e> State<'s, 'e> {
             Some(at) => {
                 let loc = self.go_location(at.pos);
                 let (context, _) = self.at_info(*at);
-                format!("template: {}: executing {} at <{}>: ", loc, go_quote(&self.name), context)
+                format!(
+                    "template: {}: executing {} at <{}>: ",
+                    loc,
+                    go_quote(&self.name),
+                    context
+                )
             }
         }
     }
@@ -297,7 +317,10 @@ impl<'s, 'e> State<'s, 'e> {
     #[cold]
     #[inline(never)]
     fn error(&self, msg: String, help: Option<String>) -> Flow {
-        let go = GoErr::Exec { msg: format!("{}{}", self.go_prefix(), msg), wrapped: None };
+        let go = GoErr::Exec {
+            msg: format!("{}{}", self.go_prefix(), msg),
+            wrapped: None,
+        };
         let mut diag = Error::new(ErrorKind::Exec, msg);
         if let Some(at) = self.at {
             diag.location = Some(self.location(self.at_info(at).1));
@@ -378,7 +401,13 @@ impl<'s, 'e> State<'s, 'e> {
         }
     }
 
-    fn walk_if_or_with(&mut self, is_with: bool, dot: &Ev, b: &BranchNode, out: &mut String) -> R<()> {
+    fn walk_if_or_with(
+        &mut self,
+        is_with: bool,
+        dot: &Ev,
+        b: &BranchNode,
+        out: &mut String,
+    ) -> R<()> {
         let mark = self.mark();
         let r = (|| {
             let val = self.eval_pipeline(dot, &b.pipe)?;
@@ -449,7 +478,10 @@ impl<'s, 'e> State<'s, 'e> {
         match &val {
             Ev::Val(v @ (Value::Int(_) | Value::Int64(_) | Value::Uint64(_))) => {
                 if decl.len() > 1 {
-                    let msg = format!("can't use {} to iterate over more than one variable", gofmt::format_value(v));
+                    let msg = format!(
+                        "can't use {} to iterate over more than one variable",
+                        gofmt::format_value(v)
+                    );
                     return self.errorf(msg);
                 }
                 let n: i128 = match v {
@@ -473,18 +505,32 @@ impl<'s, 'e> State<'s, 'e> {
                 let l = l.clone();
                 for (i, e) in l.iter().enumerate() {
                     ran = true;
-                    one(self, Ev::Val(Value::Int(i as i64)), elem(concrete, e.clone()), out)?;
+                    one(
+                        self,
+                        Ev::Val(Value::Int(i as i64)),
+                        elem(concrete, e.clone()),
+                        out,
+                    )?;
                 }
             }
             Ev::Val(Value::Bytes(b)) => {
                 let b = b.clone();
                 for (i, e) in b.iter().enumerate() {
                     ran = true;
-                    one(self, Ev::Val(Value::Int(i as i64)), Ev::Val(Value::Int(*e as i64)), out)?;
+                    one(
+                        self,
+                        Ev::Val(Value::Int(i as i64)),
+                        Ev::Val(Value::Int(*e as i64)),
+                        out,
+                    )?;
                 }
             }
             Ev::Val(Value::Map(m)) => {
-                let entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                let entries: Vec<(String, Value)> = m
+                    .borrow()
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
                 for (k, v) in entries {
                     ran = true;
                     one(self, Ev::Val(Value::string(k)), elem(concrete, v), out)?;
@@ -510,14 +556,19 @@ impl<'s, 'e> State<'s, 'e> {
             return self.errorf(msg);
         };
         if self.depth == MAX_EXEC_DEPTH {
-            return self.errorf(format!("exceeded maximum template depth ({MAX_EXEC_DEPTH})"));
+            return self.errorf(format!(
+                "exceeded maximum template depth ({MAX_EXEC_DEPTH})"
+            ));
         }
         let new_dot = match &t.pipe {
             Some(p) => self.eval_pipeline(dot, p)?,
             None => Ev::Invalid,
         };
         if self.ctx.depth >= self.ctx.max_depth {
-            return self.errorf(format!("exceeded maximum template depth ({})", self.ctx.max_depth));
+            return self.errorf(format!(
+                "exceeded maximum template depth ({})",
+                self.ctx.max_depth
+            ));
         }
         let call_site = self.location(t.span.clone());
         self.ctx.depth += 1;
@@ -526,7 +577,10 @@ impl<'s, 'e> State<'s, 'e> {
             set: self.set.clone(),
             name: Rc::from(t.name.as_str()),
             tree: tmpl.clone(),
-            vars: vec![Var { name: Rc::from("$"), value: new_dot.clone() }],
+            vars: vec![Var {
+                name: Rc::from("$"),
+                value: new_dot.clone(),
+            }],
             at: None,
             depth: self.depth + 1,
         };
@@ -534,7 +588,10 @@ impl<'s, 'e> State<'s, 'e> {
         self.ctx.depth -= 1;
         r.map_err(|f| match f {
             Flow::Fail(mut fail) => {
-                fail.diag.frames.push(Frame { location: call_site, call: format!("template {}", go_quote(&t.name)) });
+                fail.diag.frames.push(Frame {
+                    location: call_site,
+                    call: format!("template {}", go_quote(&t.name)),
+                });
                 Flow::Fail(fail)
             }
             other => other,
@@ -579,7 +636,9 @@ impl<'s, 'e> State<'s, 'e> {
         match first {
             Arg::Field(f) => return self.eval_field_node(dot, f, &cmd.args, fin),
             Arg::Chain(c) => return self.eval_chain_node(dot, c, &cmd.args, fin),
-            Arg::Identifier { pos, name, span } => return self.eval_function(dot, *pos, name, span, Some(cmd), &cmd.args, fin),
+            Arg::Identifier { pos, name, span } => {
+                return self.eval_function(dot, *pos, name, span, Some(cmd), &cmd.args, fin);
+            }
             Arg::Pipe(p) => {
                 self.not_a_function(&cmd.args, &fin)?;
                 return self.eval_pipeline(dot, p);
@@ -595,7 +654,10 @@ impl<'s, 'e> State<'s, 'e> {
             Arg::Nil { .. } => self.errorf("nil is not a command"),
             Arg::Number(n) => self.ideal_constant(n),
             Arg::String { text, .. } => Ok(Ev::Val(Value::String(text.clone()))),
-            _ => self.errorf(format!("can't evaluate command {}", go_quote(&first.to_string()))),
+            _ => self.errorf(format!(
+                "can't evaluate command {}",
+                go_quote(&first.to_string())
+            )),
         }
     }
 
@@ -605,7 +667,11 @@ impl<'s, 'e> State<'s, 'e> {
         if n.is_complex {
             return self.errorf(format!("complex constant {t} is not supported"));
         }
-        if n.is_float && !is_hex_int(t) && !t.starts_with('\'') && t.contains(['.', 'e', 'E', 'p', 'P']) {
+        if n.is_float
+            && !is_hex_int(t)
+            && !t.starts_with('\'')
+            && t.contains(['.', 'e', 'E', 'p', 'P'])
+        {
             return Ok(Ev::Val(Value::Float(n.float64)));
         }
         if n.is_int {
@@ -625,13 +691,22 @@ impl<'s, 'e> State<'s, 'e> {
     fn eval_chain_node(&mut self, dot: &Ev, c: &ChainNode, args: &[Arg], fin: Final) -> R<Ev> {
         self.set_at(c.pos, AtKind::Chain);
         if matches!(c.node, Arg::Nil { .. }) {
-            return self.errorf(format!("indirection through explicit nil in {}", Arg::Chain(Box::new(c.clone()))));
+            return self.errorf(format!(
+                "indirection through explicit nil in {}",
+                Arg::Chain(Box::new(c.clone()))
+            ));
         }
         let pipe = self.eval_arg(dot, None, &c.node)?;
         self.eval_field_chain(dot, pipe, FieldCtx::Chain(c), &c.field, args, fin)
     }
 
-    fn eval_variable_node(&mut self, dot: &Ev, v: &VariableNode, args: &[Arg], fin: Final) -> R<Ev> {
+    fn eval_variable_node(
+        &mut self,
+        dot: &Ev,
+        v: &VariableNode,
+        args: &[Arg],
+        fin: Final,
+    ) -> R<Ev> {
         self.set_at(v.pos, AtKind::Variable);
         let value = self.var_value(&v.ident[0].name)?;
         if v.ident.len() == 1 {
@@ -641,7 +716,15 @@ impl<'s, 'e> State<'s, 'e> {
         self.eval_field_chain(dot, value, FieldCtx::Var(v), &v.ident[1..], args, fin)
     }
 
-    fn eval_field_chain(&mut self, dot: &Ev, mut receiver: Ev, node: FieldCtx<'_>, ident: &[Ident], args: &[Arg], fin: Final) -> R<Ev> {
+    fn eval_field_chain(
+        &mut self,
+        dot: &Ev,
+        mut receiver: Ev,
+        node: FieldCtx<'_>,
+        ident: &[Ident],
+        args: &[Arg],
+        fin: Final,
+    ) -> R<Ev> {
         let n = ident.len();
         for i in 0..n - 1 {
             receiver = self.eval_field(dot, ident, i, &node, &[], None, receiver)?;
@@ -650,7 +733,16 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn eval_field(&mut self, dot: &Ev, ident: &[Ident], idx: usize, node: &FieldCtx<'_>, args: &[Arg], fin: Final, receiver: Ev) -> R<Ev> {
+    fn eval_field(
+        &mut self,
+        dot: &Ev,
+        ident: &[Ident],
+        idx: usize,
+        node: &FieldCtx<'_>,
+        args: &[Arg],
+        fin: Final,
+        receiver: Ev,
+    ) -> R<Ev> {
         let field_name: &str = &ident[idx].name;
         if !receiver.is_valid() {
             if self.ctx.strict {
@@ -676,7 +768,15 @@ impl<'s, 'e> State<'s, 'e> {
         {
             let call_args = if args.is_empty() { None } else { Some(args) };
             let name = field_name.to_string();
-            return self.eval_call(dot, CallTarget::Values(m.clone(), meth), None, node.at(), &name, call_args, fin);
+            return self.eval_call(
+                dot,
+                CallTarget::Values(m.clone(), meth),
+                None,
+                node.at(),
+                &name,
+                call_args,
+                fin,
+            );
         }
         if let Value::Object(o) = &value
             && let Some(sig) = o.method(field_name)
@@ -684,14 +784,24 @@ impl<'s, 'e> State<'s, 'e> {
             let o = o.clone();
             let name = field_name.to_string();
             let call_args = if args.is_empty() { None } else { Some(args) };
-            return self.eval_call(dot, CallTarget::Method(&*o, sig, &name), None, node.at(), &name, call_args, fin);
+            return self.eval_call(
+                dot,
+                CallTarget::Method(&*o, sig, &name),
+                None,
+                node.at(),
+                &name,
+                call_args,
+                fin,
+            );
         }
         let has_args = args.len() > 1 || fin.is_some();
         match &value {
             Value::Object(o) => {
                 if let Some(f) = o.field(field_name) {
                     if has_args {
-                        return self.errorf(format!("{field_name} has arguments but cannot be invoked as function"));
+                        return self.errorf(format!(
+                            "{field_name} has arguments but cannot be invoked as function"
+                        ));
                     }
                     return Ok(Ev::of(f));
                 }
@@ -700,7 +810,8 @@ impl<'s, 'e> State<'s, 'e> {
                     && let Value::Map(m) = &c.data
                 {
                     if has_args {
-                        return self.errorf(format!("{field_name} is not a method but has arguments"));
+                        return self
+                            .errorf(format!("{field_name} is not a method but has arguments"));
                     }
                     return Ok(match m.get(field_name) {
                         Some(v) => elem(c.concrete, v),
@@ -727,13 +838,24 @@ impl<'s, 'e> State<'s, 'e> {
             _ => {}
         }
         let msg = format!("can't evaluate field {field_name} in type {typ}");
-        let help = Some(format!("`{}` is a {}, not a map or object", node.prefix(ident, idx), value.type_name()));
+        let help = Some(format!(
+            "`{}` is a {}, not a map or object",
+            node.prefix(ident, idx),
+            value.type_name()
+        ));
         Err(self.error_at_segment(msg, help, node, ident, idx))
     }
 
     /// An error whose Go context is the current node, but whose diagnostic
     /// span is the failing `.field` segment.
-    fn error_at_segment(&self, msg: String, help: Option<String>, node: &FieldCtx<'_>, ident: &[Ident], idx: usize) -> Flow {
+    fn error_at_segment(
+        &self,
+        msg: String,
+        help: Option<String>,
+        node: &FieldCtx<'_>,
+        ident: &[Ident],
+        idx: usize,
+    ) -> Flow {
         let mut f = self.error(msg, help);
         if let Flow::Fail(fail) = &mut f {
             let start = ident[idx].start;
@@ -745,7 +867,16 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn eval_function(&mut self, dot: &Ev, pos: usize, name: &Rc<str>, span: &Span, cmd: Option<&CommandNode>, args: &[Arg], fin: Final) -> R<Ev> {
+    fn eval_function(
+        &mut self,
+        dot: &Ev,
+        pos: usize,
+        name: &Rc<str>,
+        span: &Span,
+        cmd: Option<&CommandNode>,
+        args: &[Arg],
+        fin: Final,
+    ) -> R<Ev> {
         self.set_at(pos, AtKind::Identifier);
         let target = if let Some(f) = self.ctx.funcs.get(name) {
             CallTarget::Func(f.clone())
@@ -757,8 +888,14 @@ impl<'s, 'e> State<'s, 'e> {
             return self.errorf(format!("{} is not a defined function", go_quote(name)));
         };
         let at = match cmd {
-            Some(c) => At { pos: c.pos, kind: AtKind::Command },
-            None => At { pos, kind: AtKind::Identifier },
+            Some(c) => At {
+                pos: c.pos,
+                kind: AtKind::Command,
+            },
+            None => At {
+                pos,
+                kind: AtKind::Identifier,
+            },
         };
         let _ = span;
         self.eval_call(dot, target, cmd, at, name, Some(args), fin)
@@ -822,10 +959,9 @@ impl<'s, 'e> State<'s, 'e> {
             }
         }
         if let Some(f) = fin {
-            let t = if sig.variadic.is_some() && num_in - 1 >= num_fixed {
-                sig.variadic.unwrap()
-            } else {
-                sig.param(num_in - 1)
+            let t = match sig.variadic {
+                Some(vt) if num_in > num_fixed => vt,
+                _ => sig.param(num_in - 1),
             };
             argv.push(self.validate_type(f, Some(t))?);
         }
@@ -877,16 +1013,26 @@ impl<'s, 'e> State<'s, 'e> {
                     name,
                     "slice" | "mustSlice" | "rest" | "mustRest" | "initial" | "mustInitial"
                 ) {
-                    vals.first().and_then(|v| v.as_object()).and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>()).map(|t| t.go_type)
+                    vals.first()
+                        .and_then(|v| v.as_object())
+                        .and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>())
+                        .map(|t| t.go_type)
                 } else {
                     None
                 };
-                let byte_func = matches!(name, "b64enc" | "b32enc" | "sha1sum" | "sha256sum" | "sha512sum" | "adler32sum");
+                let byte_func = matches!(
+                    name,
+                    "b64enc" | "b32enc" | "sha1sum" | "sha256sum" | "sha512sum" | "adler32sum"
+                );
                 for v in &mut vals {
                     if let Value::Object(o) = v
                         && let Some(b) = o.as_any().downcast_ref::<crate::value::GoBytesString>()
                     {
-                        *v = if byte_func { Value::Bytes(b.0.clone()) } else { o.to_data() };
+                        *v = if byte_func {
+                            Value::Bytes(b.0.clone())
+                        } else {
+                            o.to_data()
+                        };
                     }
                 }
                 if !keeps_objects {
@@ -898,17 +1044,26 @@ impl<'s, 'e> State<'s, 'e> {
                         }
                     }
                 }
-                let mut cc = CallCtx { env: &mut *self.ctx.env };
+                let mut cc = CallCtx {
+                    env: &mut *self.ctx.env,
+                };
                 let r = (f.imp)(&mut cc, &vals);
                 let r = match (r, keep_type) {
-                    (Ok(Value::List(l)), Some(t)) => Ok(Value::Object(Rc::new(crate::value::TypedList { go_type: t, items: l }))),
+                    (Ok(Value::List(l)), Some(t)) => {
+                        Ok(Value::Object(Rc::new(crate::value::TypedList {
+                            go_type: t,
+                            items: l,
+                        })))
+                    }
                     (r, _) => r,
                 };
                 r.map(Ev::of_result).map_err(CallErr::Plain)
             }
             CallTarget::Method(o, _, mname) => {
                 let vals = values(argv);
-                o.call_method(mname, &vals).map(Ev::of_result).map_err(CallErr::Plain)
+                o.call_method(mname, &vals)
+                    .map(Ev::of_result)
+                    .map_err(CallErr::Plain)
             }
             CallTarget::Helm(h) => {
                 let vals = values(argv);
@@ -925,19 +1080,35 @@ impl<'s, 'e> State<'s, 'e> {
         let prefix = self.go_prefix();
         match err {
             CallErr::Plain(e) => {
-                let inner = GoErr::Plain { msg: e.message.clone(), wrapped: None };
+                let inner = GoErr::Plain {
+                    msg: e.message.clone(),
+                    wrapped: None,
+                };
                 let msg = format!("error calling {name}: {}", e.message);
-                let go = GoErr::Exec { msg: format!("{prefix}{msg}"), wrapped: Some(Box::new(inner)) };
+                let go = GoErr::Exec {
+                    msg: format!("{prefix}{msg}"),
+                    wrapped: Some(Box::new(inner)),
+                };
                 let mut diag = Error::new(ErrorKind::Exec, msg);
                 diag.location = Some(self.location(call_span));
                 fail_flow(go, diag)
             }
             CallErr::Helm(he) => {
-                let HelmErr { go: inner, mut diag, frame } = *he;
+                let HelmErr {
+                    go: inner,
+                    mut diag,
+                    frame,
+                } = *he;
                 let msg = format!("error calling {name}: {}", inner.message());
-                let go = GoErr::Exec { msg: format!("{prefix}{msg}"), wrapped: Some(Box::new(inner)) };
+                let go = GoErr::Exec {
+                    msg: format!("{prefix}{msg}"),
+                    wrapped: Some(Box::new(inner)),
+                };
                 match frame {
-                    Some(call) => diag.frames.push(Frame { location: self.location(call_span), call }),
+                    Some(call) => diag.frames.push(Frame {
+                        location: self.location(call_span),
+                        call,
+                    }),
                     None => {
                         if diag.location.is_none() {
                             diag.location = Some(self.location(call_span));
@@ -972,18 +1143,29 @@ impl<'s, 'e> State<'s, 'e> {
                     return Ok(Ev::Iface(v));
                 }
                 if v.is_nil() {
-                    return self.errorf(format!("wrong type for value; expected {}; got interface {{}}", ty.go_name()));
+                    return self.errorf(format!(
+                        "wrong type for value; expected {}; got interface {{}}",
+                        ty.go_name()
+                    ));
                 }
                 if assignable(&v, ty) {
                     return Ok(Ev::Val(to_param_type(v, ty)));
                 }
-                self.errorf(format!("wrong type for value; expected {}; got {}", ty.go_name(), v.type_name()))
+                self.errorf(format!(
+                    "wrong type for value; expected {}; got {}",
+                    ty.go_name(),
+                    v.type_name()
+                ))
             }
             Ev::Val(v) => {
                 if ty == Ty::Any || assignable(&v, ty) {
                     return Ok(Ev::Val(to_param_type(v, ty)));
                 }
-                self.errorf(format!("wrong type for value; expected {}; got {}", ty.go_name(), v.type_name()))
+                self.errorf(format!(
+                    "wrong type for value; expected {}; got {}",
+                    ty.go_name(),
+                    v.type_name()
+                ))
             }
         }
     }
@@ -999,7 +1181,9 @@ impl<'s, 'e> State<'s, 'e> {
                     Some(PTy::Ty(Ty::Map)) => Ok(Ev::Val(Value::empty_map())),
                     Some(PTy::Ty(Ty::List | Ty::Strings)) => Ok(Ev::Val(Value::list(Vec::new()))),
                     Some(PTy::Ty(Ty::Bytes)) => Ok(Ev::Val(Value::Bytes(Rc::from(&[][..])))),
-                    Some(PTy::Ty(t)) => self.errorf(format!("cannot assign nil to {}", t.go_name())),
+                    Some(PTy::Ty(t)) => {
+                        self.errorf(format!("cannot assign nil to {}", t.go_name()))
+                    }
                     None => self.errorf("cannot assign nil to <nil>"),
                 };
             }
@@ -1016,7 +1200,15 @@ impl<'s, 'e> State<'s, 'e> {
                 return self.validate_type(r, typ);
             }
             Arg::Identifier { pos, name, span } => {
-                let r = self.eval_function(dot, *pos, name, span, None, core::slice::from_ref(n), None)?;
+                let r = self.eval_function(
+                    dot,
+                    *pos,
+                    name,
+                    span,
+                    None,
+                    core::slice::from_ref(n),
+                    None,
+                )?;
                 return self.validate_type(r, typ);
             }
             Arg::Chain(c) => {
@@ -1040,20 +1232,31 @@ impl<'s, 'e> State<'s, 'e> {
                 _ => self.errorf(format!("expected float; found {n}")),
             },
             Ty::Int | Ty::Int64 => match n {
-                Arg::Number(num) if num.is_int => {
-                    Ok(Ev::Val(if ty == Ty::Int { Value::Int(num.int64) } else { Value::Int64(num.int64) }))
-                }
+                Arg::Number(num) if num.is_int => Ok(Ev::Val(if ty == Ty::Int {
+                    Value::Int(num.int64)
+                } else {
+                    Value::Int64(num.int64)
+                })),
                 _ => self.errorf(format!("expected integer; found {n}")),
             },
             Ty::Uint64 | Ty::Uint32 => match n {
-                Arg::Number(num) if num.is_uint => Ok(Ev::Val(Value::Uint64(if ty == Ty::Uint32 { num.uint64 as u32 as u64 } else { num.uint64 }))),
+                Arg::Number(num) if num.is_uint => {
+                    Ok(Ev::Val(Value::Uint64(if ty == Ty::Uint32 {
+                        num.uint64 as u32 as u64
+                    } else {
+                        num.uint64
+                    })))
+                }
                 _ => self.errorf(format!("expected unsigned integer; found {n}")),
             },
             Ty::String => match n {
                 Arg::String { text, .. } => Ok(Ev::Val(Value::String(text.clone()))),
                 _ => self.errorf(format!("expected string; found {n}")),
             },
-            other => self.errorf(format!("can't handle {n} for arg of type {}", other.go_name())),
+            other => self.errorf(format!(
+                "can't handle {n} for arg of type {}",
+                other.go_name()
+            )),
         }
     }
 
@@ -1064,7 +1267,9 @@ impl<'s, 'e> State<'s, 'e> {
             Arg::Dot { .. } => Ok(dot.clone()),
             Arg::Number(num) => self.ideal_constant(num),
             Arg::String { text, .. } => Ok(Ev::Val(Value::String(text.clone()))),
-            _ => self.errorf(format!("can't handle assignment of {n} to empty interface argument")),
+            _ => self.errorf(format!(
+                "can't handle assignment of {n} to empty interface argument"
+            )),
         }
     }
 
@@ -1076,7 +1281,9 @@ impl<'s, 'e> State<'s, 'e> {
             Ev::Invalid => out.push_str("<no value>"),
             // An addressable struct field prints through a pointer-receiver
             // String() (Go's printableValue).
-            Ev::Iface(Value::Object(o)) | Ev::Val(Value::Object(o)) if o.stringer() == crate::value::Stringer::Pointer => {
+            Ev::Iface(Value::Object(o)) | Ev::Val(Value::Object(o))
+                if o.stringer() == crate::value::Stringer::Pointer =>
+            {
                 o.format(out)
             }
             Ev::Iface(v) | Ev::Val(v) => gofmt::write_value(out, v),
@@ -1108,7 +1315,11 @@ fn collection(o: &dyn crate::value::Object) -> Option<Coll> {
         });
     }
     if let Some(t) = any.downcast_ref::<crate::value::TypedList>() {
-        return Some(Coll { data: Value::List(t.items.clone()), concrete: t.go_type != "[]interface {}", missing: Ev::Invalid });
+        return Some(Coll {
+            data: Value::List(t.items.clone()),
+            concrete: t.go_type != "[]interface {}",
+            missing: Ev::Invalid,
+        });
     }
     let data = match o.to_data() {
         Value::Nil if o.kind() == Kind::Map => Value::empty_map(),
@@ -1117,7 +1328,11 @@ fn collection(o: &dyn crate::value::Object) -> Option<Coll> {
     };
     // Helm's own collection types: `engine.files` (map[string][]byte) and
     // `common.VersionSet` ([]string).
-    Some(Coll { data, concrete: true, missing: Ev::Val(Value::Bytes(Rc::from(&[][..]))) })
+    Some(Coll {
+        data,
+        concrete: true,
+        missing: Ev::Val(Value::Bytes(Rc::from(&[][..]))),
+    })
 }
 
 /// Returns the collection view of `v`, if it is a map/slice-kind object.
@@ -1136,7 +1351,11 @@ fn elem(concrete: bool, v: Value) -> Ev {
 impl Ev {
     /// A function's return value: nil becomes a nil interface.
     fn of_result(v: Value) -> Ev {
-        if v.is_nil() { Ev::Iface(Value::Nil) } else { Ev::Val(v) }
+        if v.is_nil() {
+            Ev::Iface(Value::Nil)
+        } else {
+            Ev::Val(v)
+        }
     }
 }
 
@@ -1170,9 +1389,18 @@ impl FieldCtx<'_> {
 
     fn at(&self) -> At {
         match self {
-            FieldCtx::Field(f) => At { pos: f.pos, kind: AtKind::Field },
-            FieldCtx::Chain(c) => At { pos: c.pos, kind: AtKind::Chain },
-            FieldCtx::Var(v) => At { pos: v.pos, kind: AtKind::Variable },
+            FieldCtx::Field(f) => At {
+                pos: f.pos,
+                kind: AtKind::Field,
+            },
+            FieldCtx::Chain(c) => At {
+                pos: c.pos,
+                kind: AtKind::Chain,
+            },
+            FieldCtx::Var(v) => At {
+                pos: v.pos,
+                kind: AtKind::Variable,
+            },
         }
     }
 }
@@ -1186,7 +1414,9 @@ fn is_hex_int(s: &str) -> bool {
 /// `map[string]interface{}` parameter converts it to the unnamed type.
 fn to_param_type(v: Value, ty: Ty) -> Value {
     match (ty, v) {
-        (Ty::Map, Value::Map(m)) if m.kind() != MapKind::Plain => Value::Map(m.with_kind(MapKind::Plain)),
+        (Ty::Map, Value::Map(m)) if m.kind() != MapKind::Plain => {
+            Value::Map(m.with_kind(MapKind::Plain))
+        }
         (_, v) => v,
     }
 }
@@ -1240,7 +1470,11 @@ struct CallSig {
 
 impl CallSig {
     fn param(&self, i: usize) -> PTy {
-        if i < self.fixed.len() { self.fixed[i] } else { self.variadic.unwrap_or(PTy::Ty(Ty::Any)) }
+        if i < self.fixed.len() {
+            self.fixed[i]
+        } else {
+            self.variadic.unwrap_or(PTy::Ty(Ty::Any))
+        }
     }
 }
 
@@ -1258,8 +1492,14 @@ impl CallTarget<'_> {
             CallTarget::Builtin(b) => b.sig(),
             CallTarget::Helm(h) => h.sig(),
             CallTarget::Values(_, m) => m.sig(),
-            CallTarget::Func(f) => CallSig { fixed: f.sig.params.iter().map(|t| PTy::Ty(*t)).collect(), variadic: f.sig.variadic.map(PTy::Ty) },
-            CallTarget::Method(_, s, _) => CallSig { fixed: s.params.iter().map(|t| PTy::Ty(*t)).collect(), variadic: s.variadic.map(PTy::Ty) },
+            CallTarget::Func(f) => CallSig {
+                fixed: f.sig.params.iter().map(|t| PTy::Ty(*t)).collect(),
+                variadic: f.sig.variadic.map(PTy::Ty),
+            },
+            CallTarget::Method(_, s, _) => CallSig {
+                fixed: s.params.iter().map(|t| PTy::Ty(*t)).collect(),
+                variadic: s.variadic.map(PTy::Ty),
+            },
         }
     }
 }
@@ -1345,10 +1585,19 @@ impl Builtin {
         use PTy::*;
         let any = Ty(crate::func::Ty::Any);
         let (fixed, variadic): (Vec<PTy>, Option<PTy>) = match self {
-            Builtin::And | Builtin::Or | Builtin::Index | Builtin::Slice | Builtin::Eq | Builtin::Call => (vec![Rv], Some(Rv)),
+            Builtin::And
+            | Builtin::Or
+            | Builtin::Index
+            | Builtin::Slice
+            | Builtin::Eq
+            | Builtin::Call => (vec![Rv], Some(Rv)),
             Builtin::Not | Builtin::Len => (vec![Rv], None),
-            Builtin::Ne | Builtin::Lt | Builtin::Le | Builtin::Gt | Builtin::Ge => (vec![Rv, Rv], None),
-            Builtin::Print | Builtin::Println | Builtin::Html | Builtin::Js | Builtin::Urlquery => (vec![], Some(any)),
+            Builtin::Ne | Builtin::Lt | Builtin::Le | Builtin::Gt | Builtin::Ge => {
+                (vec![Rv, Rv], None)
+            }
+            Builtin::Print | Builtin::Println | Builtin::Html | Builtin::Js | Builtin::Urlquery => {
+                (vec![], Some(any))
+            }
             Builtin::Printf => (vec![Ty(crate::func::Ty::String)], Some(any)),
         };
         CallSig { fixed, variadic }
@@ -1371,13 +1620,18 @@ impl State<'_, '_> {
                     return Err(plain("len of nil pointer".into()));
                 }
                 match item {
-                    Ev::Invalid => Err(plain("reflect: call of reflect.Value.Type on zero Value".into())),
+                    Ev::Invalid => Err(plain(
+                        "reflect: call of reflect.Value.Type on zero Value".into(),
+                    )),
                     Ev::Val(Value::String(s)) => Ok(Ev::Val(Value::Int(s.len() as i64))),
                     Ev::Val(Value::List(l)) => Ok(Ev::Val(Value::Int(l.len() as i64))),
                     Ev::Val(Value::Bytes(b)) => Ok(Ev::Val(Value::Int(b.len() as i64))),
                     Ev::Val(Value::Map(m)) => Ok(Ev::Val(Value::Int(m.len() as i64))),
                     Ev::Val(Value::Object(o)) if o.as_any().is::<crate::value::GoBytesString>() => {
-                        let b = o.as_any().downcast_ref::<crate::value::GoBytesString>().map_or(0, |b| b.0.len());
+                        let b = o
+                            .as_any()
+                            .downcast_ref::<crate::value::GoBytesString>()
+                            .map_or(0, |b| b.0.len());
                         Ok(Ev::Val(Value::Int(b as i64)))
                     }
                     other => Err(plain(format!("len of type {}", other.type_string()))),
@@ -1390,17 +1644,32 @@ impl State<'_, '_> {
             Builtin::Printf => {
                 let fmt = argv[0].value();
                 let fmt = fmt.as_str().unwrap_or("");
-                Ok(Ev::Val(Value::string(gofmt::sprintf(fmt, &values(&argv[1..])))))
+                Ok(Ev::Val(Value::string(gofmt::sprintf(
+                    fmt,
+                    &values(&argv[1..]),
+                ))))
             }
             Builtin::Html => Ok(Ev::Val(Value::string(html_escape(&eval_args(argv))))),
             Builtin::Js => Ok(Ev::Val(Value::string(js_escape(&eval_args(argv))))),
             Builtin::Urlquery => Ok(Ev::Val(Value::string(query_escape(&eval_args(argv))))),
-            Builtin::Eq => builtin_eq(&argv[0], &argv[1..]).map(|b| Ev::Val(Value::Bool(b))).map_err(plain),
-            Builtin::Ne => builtin_eq(&argv[0], &argv[1..2]).map(|b| Ev::Val(Value::Bool(!b))).map_err(plain),
-            Builtin::Lt => builtin_lt(&argv[0], &argv[1]).map(|b| Ev::Val(Value::Bool(b))).map_err(plain),
-            Builtin::Le => builtin_le(&argv[0], &argv[1]).map(|b| Ev::Val(Value::Bool(b))).map_err(plain),
-            Builtin::Gt => builtin_le(&argv[0], &argv[1]).map(|b| Ev::Val(Value::Bool(!b))).map_err(plain),
-            Builtin::Ge => builtin_lt(&argv[0], &argv[1]).map(|b| Ev::Val(Value::Bool(!b))).map_err(plain),
+            Builtin::Eq => builtin_eq(&argv[0], &argv[1..])
+                .map(|b| Ev::Val(Value::Bool(b)))
+                .map_err(plain),
+            Builtin::Ne => builtin_eq(&argv[0], &argv[1..2])
+                .map(|b| Ev::Val(Value::Bool(!b)))
+                .map_err(plain),
+            Builtin::Lt => builtin_lt(&argv[0], &argv[1])
+                .map(|b| Ev::Val(Value::Bool(b)))
+                .map_err(plain),
+            Builtin::Le => builtin_le(&argv[0], &argv[1])
+                .map(|b| Ev::Val(Value::Bool(b)))
+                .map_err(plain),
+            Builtin::Gt => builtin_le(&argv[0], &argv[1])
+                .map(|b| Ev::Val(Value::Bool(!b)))
+                .map_err(plain),
+            Builtin::Ge => builtin_lt(&argv[0], &argv[1])
+                .map(|b| Ev::Val(Value::Bool(!b)))
+                .map_err(plain),
             Builtin::Call => builtin_call("", argv),
         }
     }
@@ -1448,7 +1717,10 @@ fn eval_args(argv: &[Ev]) -> String {
 /// The integer value of an int-kind named type (`time.Duration`).
 fn obj_int(v: &Ev) -> Option<i64> {
     match v {
-        Ev::Val(Value::Object(o)) => o.as_any().downcast_ref::<crate::funcs::duration::Duration>().map(|d| d.0),
+        Ev::Val(Value::Object(o)) => o
+            .as_any()
+            .downcast_ref::<crate::funcs::duration::Duration>()
+            .map(|d| d.0),
         _ => None,
     }
 }
@@ -1459,7 +1731,12 @@ fn index_arg(index: &Ev, cap: usize) -> Result<usize, String> {
         Ev::Val(Value::Int(i)) | Ev::Val(Value::Int64(i)) => *i,
         Ev::Val(Value::Uint64(u)) => *u as i64,
         Ev::Invalid => return Err("cannot index slice/array with nil".into()),
-        other => return Err(format!("cannot index slice/array with type {}", other.type_string())),
+        other => {
+            return Err(format!(
+                "cannot index slice/array with type {}",
+                other.type_string()
+            ));
+        }
     };
     if x < 0 || x as u64 > cap as u64 {
         return Err(format!("index out of range: {x}"));
@@ -1508,7 +1785,12 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
                 let key = match &index {
                     Ev::Invalid => return Err("value is nil; should be of type string".into()),
                     Ev::Val(Value::String(s)) => s.clone(),
-                    other => return Err(format!("value has type {}; should be string", other.type_string())),
+                    other => {
+                        return Err(format!(
+                            "value has type {}; should be string",
+                            other.type_string()
+                        ));
+                    }
                 };
                 match m.get(&key) {
                     Some(v) => elem(concrete, v),
@@ -1631,20 +1913,27 @@ fn builtin_eq(arg1: &Ev, arg2: &[Ev]) -> Result<bool, String> {
     for arg in arg2 {
         let arg = arg.clone().indirect_iface();
         let k2 = basic_kind(&arg);
-        let truth;
-        if k1 != k2 {
-            truth = match (k1, k2) {
-                (BasicKind::Int, BasicKind::Uint) => as_i(&arg1) >= 0 && as_i(&arg1) as u64 == as_u(&arg),
-                (BasicKind::Uint, BasicKind::Int) => as_i(&arg) >= 0 && as_u(&arg1) == as_i(&arg) as u64,
+        let truth = if k1 != k2 {
+            match (k1, k2) {
+                (BasicKind::Int, BasicKind::Uint) => {
+                    as_i(&arg1) >= 0 && as_i(&arg1) as u64 == as_u(&arg)
+                }
+                (BasicKind::Uint, BasicKind::Int) => {
+                    as_i(&arg) >= 0 && as_u(&arg1) == as_i(&arg) as u64
+                }
                 _ => {
                     if arg1.is_valid() && arg.is_valid() {
-                        return Err(format!("incompatible types for comparison: {} and {}", arg1.type_string(), arg.type_string()));
+                        return Err(format!(
+                            "incompatible types for comparison: {} and {}",
+                            arg1.type_string(),
+                            arg.type_string()
+                        ));
                     }
                     false
                 }
-            };
+            }
         } else {
-            truth = match k1 {
+            match k1 {
                 BasicKind::Bool => as_b(&arg1) == as_b(&arg),
                 BasicKind::Float => as_f(&arg1) == as_f(&arg),
                 BasicKind::Int => as_i(&arg1) == as_i(&arg),
@@ -1652,11 +1941,17 @@ fn builtin_eq(arg1: &Ev, arg2: &[Ev]) -> Result<bool, String> {
                 BasicKind::Uint => as_u(&arg1) == as_u(&arg),
                 BasicKind::Invalid => {
                     // canCompare: same kind or either invalid.
-                    let can = go_kind(&arg1) == go_kind(&arg) || !arg1.is_valid() || !arg.is_valid();
+                    let can =
+                        go_kind(&arg1) == go_kind(&arg) || !arg1.is_valid() || !arg.is_valid();
                     if !can {
                         return Err(gofmt::sprintf(
                             "non-comparable types %s: %v, %s: %v",
-                            &[arg1.value(), Value::string(arg1.type_string()), Value::string(arg.type_string()), arg.value()],
+                            &[
+                                arg1.value(),
+                                Value::string(arg1.type_string()),
+                                Value::string(arg.type_string()),
+                                arg.value(),
+                            ],
                         ));
                     }
                     if !arg1.is_valid() || !arg.is_valid() {
@@ -1664,22 +1959,32 @@ fn builtin_eq(arg1: &Ev, arg2: &[Ev]) -> Result<bool, String> {
                     } else {
                         match &arg {
                             Ev::Val(Value::Map(_) | Value::List(_) | Value::Bytes(_)) => {
-                                return Err(gofmt::sprintf("non-comparable type %s: %v", &[arg.value(), Value::string(arg.type_string())]));
+                                return Err(gofmt::sprintf(
+                                    "non-comparable type %s: %v",
+                                    &[arg.value(), Value::string(arg.type_string())],
+                                ));
                             }
-                            Ev::Val(Value::Object(o)) if matches!(o.kind(), Kind::Map | Kind::Slice) => {
-                                return Err(gofmt::sprintf("non-comparable type %s: %v", &[arg.value(), Value::string(arg.type_string())]));
+                            Ev::Val(Value::Object(o))
+                                if matches!(o.kind(), Kind::Map | Kind::Slice) =>
+                            {
+                                return Err(gofmt::sprintf(
+                                    "non-comparable type %s: %v",
+                                    &[arg.value(), Value::string(arg.type_string())],
+                                ));
                             }
                             _ => match (&arg1, &arg) {
                                 (Ev::Val(Value::Object(a)), Ev::Val(Value::Object(b))) => {
-                                    Rc::ptr_eq(a, b) || gofmt::format_value(&arg1.value()) == gofmt::format_value(&arg.value())
+                                    Rc::ptr_eq(a, b)
+                                        || gofmt::format_value(&arg1.value())
+                                            == gofmt::format_value(&arg.value())
                                 }
                                 _ => false,
                             },
                         }
                     }
                 }
-            };
-        }
+            }
+        };
         if truth {
             return Ok(true);
         }
@@ -1701,9 +2006,17 @@ fn builtin_lt(arg1: &Ev, arg2: &Ev) -> Result<bool, String> {
     }
     if k1 != k2 {
         return match (k1, k2) {
-            (BasicKind::Int, BasicKind::Uint) => Ok(as_i(&arg1) < 0 || (as_i(&arg1) as u64) < as_u(&arg2)),
-            (BasicKind::Uint, BasicKind::Int) => Ok(as_i(&arg2) >= 0 && as_u(&arg1) < as_i(&arg2) as u64),
-            _ => Err(format!("incompatible types for comparison: {} and {}", arg1.type_string(), arg2.type_string())),
+            (BasicKind::Int, BasicKind::Uint) => {
+                Ok(as_i(&arg1) < 0 || (as_i(&arg1) as u64) < as_u(&arg2))
+            }
+            (BasicKind::Uint, BasicKind::Int) => {
+                Ok(as_i(&arg2) >= 0 && as_u(&arg1) < as_i(&arg2) as u64)
+            }
+            _ => Err(format!(
+                "incompatible types for comparison: {} and {}",
+                arg1.type_string(),
+                arg2.type_string()
+            )),
         };
     }
     Ok(match k1 {
@@ -1774,7 +2087,9 @@ pub(crate) fn query_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             b' ' => out.push('+'),
             _ => out.push_str(&format!("%{b:02X}")),
         }
@@ -1816,7 +2131,10 @@ impl HelmFn {
             HelmFn::Fail | HelmFn::GetHostByName => t(&[String]),
             HelmFn::Lookup => t(&[String, String, String, String]),
         };
-        CallSig { fixed, variadic: None }
+        CallSig {
+            fixed,
+            variadic: None,
+        }
     }
 }
 
@@ -1828,11 +2146,13 @@ impl State<'_, '_> {
         match h {
             HelmFn::Include => {
                 let name = args[0].as_str().unwrap_or("");
-                self.include(name, args[1].clone()).map(|out| Ev::Val(Value::string(out)))
+                self.include(name, args[1].clone())
+                    .map(|out| Ev::Val(Value::string(out)))
             }
             HelmFn::Tpl => {
                 let text = args[0].as_str().unwrap_or("");
-                self.tpl(text, args[1].clone()).map(|out| Ev::Val(Value::string(out)))
+                self.tpl(text, args[1].clone())
+                    .map(|out| Ev::Val(Value::string(out)))
             }
             _ => self.call_helm_other(h, args),
         }
@@ -1868,20 +2188,31 @@ impl State<'_, '_> {
             }
             HelmFn::Lookup => {
                 let (a, b, c, d) = (s(0), s(1), s(2), s(3));
-                self.ctx.env.lookup(&a, &b, &c, &d).map(Ev::of_result).map_err(CallErr::Plain)
+                self.ctx
+                    .env
+                    .lookup(&a, &b, &c, &d)
+                    .map(Ev::of_result)
+                    .map_err(CallErr::Plain)
             }
             HelmFn::GetHostByName => {
                 if !self.ctx.enable_dns {
                     return Ok(Ev::Val(Value::str("")));
                 }
                 let name = s(0);
-                self.ctx.env.get_host_by_name(&name).map(|v| Ev::Val(Value::string(v))).map_err(CallErr::Plain)
+                self.ctx
+                    .env
+                    .get_host_by_name(&name)
+                    .map(|v| Ev::Val(Value::string(v)))
+                    .map_err(CallErr::Plain)
             }
         }
     }
 
     fn fail_error(&self, msg: &str, kind: ErrorKind, _what: &str) -> CallErr {
-        let go = GoErr::Plain { msg: format!("{WARN_START}{msg}{WARN_END}"), wrapped: None };
+        let go = GoErr::Plain {
+            msg: format!("{WARN_START}{msg}{WARN_END}"),
+            wrapped: None,
+        };
         let diag = Error::new(kind, msg.to_string());
         helm_err(go, diag, None)
     }
@@ -1916,7 +2247,13 @@ impl State<'_, '_> {
         let dot = Ev::of(data);
         let mut out = String::new();
         let r = {
-            let mut sub = State::new(&mut *self.ctx, self.set.clone(), Rc::from(name), tree.clone(), dot.clone());
+            let mut sub = State::new(
+                &mut *self.ctx,
+                self.set.clone(),
+                Rc::from(name),
+                tree.clone(),
+                dot.clone(),
+            );
             sub.walk_list(&dot, &tree.root, &mut out)
         };
         self.ctx.depth -= 1;
@@ -1931,40 +2268,74 @@ impl State<'_, '_> {
     fn tpl(&mut self, text: &str, vals: Value) -> Result<String, CallErr> {
         let source: Rc<str> = Rc::from(text);
         let funcs = self.ctx.funcs;
-        let has = |n: &str| funcs.contains(n) || Builtin::from_name(n).is_some() || HelmFn::from_name(n).is_some();
+        let has = |n: &str| {
+            funcs.contains(n) || Builtin::from_name(n).is_some() || HelmFn::from_name(n).is_some()
+        };
         let trees = match super::parse::parse("gotpl", source.clone(), &has) {
             Ok(t) => t,
             Err(pe) => {
-                let inner = GoErr::Plain { msg: pe.go_message.clone(), wrapped: None };
-                let msg = format!("cannot parse template {}: {}", go_quote(text), pe.go_message);
-                let go = GoErr::Plain { msg, wrapped: Some(Box::new(inner)) };
+                let inner = GoErr::Plain {
+                    msg: pe.go_message.clone(),
+                    wrapped: None,
+                };
+                let msg = format!(
+                    "cannot parse template {}: {}",
+                    go_quote(text),
+                    pe.go_message
+                );
+                let go = GoErr::Plain {
+                    msg,
+                    wrapped: Some(Box::new(inner)),
+                };
                 let diag = Error::new(ErrorKind::Parse, pe.message.clone())
-                    .at(Location::from_span("gotpl", source.clone(), pe.span.clone()))
+                    .at(Location::from_span(
+                        "gotpl",
+                        source.clone(),
+                        pe.span.clone(),
+                    ))
                     .with_help("in the template string passed to `tpl`".to_string());
                 return Err(helm_err(go, diag, Some("tpl".into())));
             }
         };
         let main = trees.get("gotpl").cloned();
         let child = Rc::new(Set::child(self.set.clone(), trees));
-        let Some(main) = main else { return Ok(String::new()) };
+        let Some(main) = main else {
+            return Ok(String::new());
+        };
         if self.ctx.depth >= self.ctx.max_depth {
             let msg = format!("exceeded maximum template depth ({})", self.ctx.max_depth);
-            let go = GoErr::Plain { msg: msg.clone(), wrapped: None };
+            let go = GoErr::Plain {
+                msg: msg.clone(),
+                wrapped: None,
+            };
             return Err(helm_err(go, Error::new(ErrorKind::Exec, msg), None));
         }
         self.ctx.depth += 1;
         let dot = Ev::of(vals);
         let mut out = String::new();
         let r = {
-            let mut sub = State::new(&mut *self.ctx, child, Rc::from("gotpl"), main.clone(), dot.clone());
+            let mut sub = State::new(
+                &mut *self.ctx,
+                child,
+                Rc::from("gotpl"),
+                main.clone(),
+                dot.clone(),
+            );
             sub.walk_list(&dot, &main.root, &mut out)
         };
         self.ctx.depth -= 1;
         match r {
             Ok(()) | Err(Flow::Break) | Err(Flow::Continue) => Ok(out.replace("<no value>", "")),
             Err(Flow::Fail(f)) => {
-                let msg = format!("error during tpl function execution for {}: {}", go_quote(text), f.go.message());
-                let go = GoErr::Plain { msg, wrapped: Some(Box::new(f.go)) };
+                let msg = format!(
+                    "error during tpl function execution for {}: {}",
+                    go_quote(text),
+                    f.go.message()
+                );
+                let go = GoErr::Plain {
+                    msg,
+                    wrapped: Some(Box::new(f.go)),
+                };
                 Err(helm_err(go, f.diag, Some("tpl".into())))
             }
         }
@@ -1974,9 +2345,17 @@ impl State<'_, '_> {
 #[cold]
 #[inline(never)]
 fn recursion_error(name: &str) -> CallErr {
-    let inner = GoErr::Plain { msg: "unable to execute template".into(), wrapped: None };
-    let msg = format!("rendering template has a nested reference name: {name}: unable to execute template");
-    let go = GoErr::Plain { msg: msg.clone(), wrapped: Some(Box::new(inner)) };
+    let inner = GoErr::Plain {
+        msg: "unable to execute template".into(),
+        wrapped: None,
+    };
+    let msg = format!(
+        "rendering template has a nested reference name: {name}: unable to execute template"
+    );
+    let go = GoErr::Plain {
+        msg: msg.clone(),
+        wrapped: Some(Box::new(inner)),
+    };
     let diag = Error::new(ErrorKind::Exec, msg);
     helm_err(go, diag, None)
 }
@@ -1986,17 +2365,24 @@ fn recursion_error(name: &str) -> CallErr {
 fn include_error(name: &str, e: ExecTemplateErr) -> CallErr {
     match e {
         ExecTemplateErr::NotFound(go) => {
-            let diag = Error::new(ErrorKind::Exec, go.message()).with_help(format!("no template named {} is defined", go_quote(name)));
+            let diag = Error::new(ErrorKind::Exec, go.message())
+                .with_help(format!("no template named {} is defined", go_quote(name)));
             helm_err(go, diag, None)
         }
-        ExecTemplateErr::Fail(f) => helm_err(f.go, f.diag, Some(format!("include {}", go_quote(name)))),
+        ExecTemplateErr::Fail(f) => {
+            helm_err(f.go, f.diag, Some(format!("include {}", go_quote(name))))
+        }
     }
 }
 
 #[cold]
 #[inline(never)]
 fn not_found_error(name: &str) -> ExecTemplateErr {
-    let msg = format!("template: no template {} associated with template {}", go_quote(name), go_quote("gotpl"));
+    let msg = format!(
+        "template: no template {} associated with template {}",
+        go_quote(name),
+        go_quote("gotpl")
+    );
     ExecTemplateErr::NotFound(GoErr::Plain { msg, wrapped: None })
 }
 
@@ -2004,8 +2390,14 @@ fn not_found_error(name: &str) -> ExecTemplateErr {
 #[inline(never)]
 fn depth_error(name: &str, max: usize) -> ExecTemplateErr {
     let msg = format!("exceeded maximum template depth ({max})");
-    let go = GoErr::Exec { msg: format!("template: {name}: {msg}"), wrapped: None };
-    ExecTemplateErr::Fail(Box::new(Fail { go, diag: Error::new(ErrorKind::Exec, msg) }))
+    let go = GoErr::Exec {
+        msg: format!("template: {name}: {msg}"),
+        wrapped: None,
+    };
+    ExecTemplateErr::Fail(Box::new(Fail {
+        go,
+        diag: Error::new(ErrorKind::Exec, msg),
+    }))
 }
 
 enum ExecTemplateErr {
@@ -2014,10 +2406,21 @@ enum ExecTemplateErr {
 }
 
 /// Entry point used by the engine: executes `tree` (named `name`) with `dot`.
-pub(crate) fn execute(ctx: &mut Ctx<'_>, set: Rc<Set>, file: &TemplateFile, dot: Value) -> Result<String, Box<Fail>> {
+pub(crate) fn execute(
+    ctx: &mut Ctx<'_>,
+    set: Rc<Set>,
+    file: &TemplateFile,
+    dot: Value,
+) -> Result<String, Box<Fail>> {
     let dot = Ev::of(dot);
     let mut out = String::new();
-    let mut st = State::new(ctx, set, Rc::from(file.name.as_str()), file.tree.clone(), dot.clone());
+    let mut st = State::new(
+        ctx,
+        set,
+        Rc::from(file.name.as_str()),
+        file.tree.clone(),
+        dot.clone(),
+    );
     match st.walk_list(&dot, &file.tree.root, &mut out) {
         Ok(()) | Err(Flow::Break) | Err(Flow::Continue) => Ok(out),
         Err(Flow::Fail(f)) => Err(f),
@@ -2052,13 +2455,17 @@ impl ValuesMethod {
             ValuesMethod::Table | ValuesMethod::PathValue => vec![PTy::Ty(Ty::String)],
             ValuesMethod::Encode => vec![PTy::Ty(Ty::Object("io.Writer"))],
         };
-        CallSig { fixed, variadic: None }
+        CallSig {
+            fixed,
+            variadic: None,
+        }
     }
 
     fn call(self, m: &MapRef, args: &[Value]) -> Result<Ev, FuncError> {
         match self {
             ValuesMethod::Yaml => {
-                let s = crate::yaml::to_string(&Value::Map(m.clone())).map_err(|e| FuncError::new(e.message))?;
+                let s = crate::yaml::to_string(&Value::Map(m.clone()))
+                    .map_err(|e| FuncError::new(e.message))?;
                 Ok(Ev::Val(Value::string(s)))
             }
             ValuesMethod::AsMap => {
@@ -2086,13 +2493,16 @@ impl ValuesMethod {
                     };
                 }
                 let key = parts[parts.len() - 1];
-                let table = values_table(m, &parts[..parts.len() - 1].join(".")).map_err(|_| no_value(key))?;
+                let table = values_table(m, &parts[..parts.len() - 1].join("."))
+                    .map_err(|_| no_value(key))?;
                 match table.get(key) {
                     Some(v) if !is_table(&v) => Ok(Ev::of_result(v)),
                     _ => Err(no_value(key)),
                 }
             }
-            ValuesMethod::Encode => Err(FuncError::new("runtime error: invalid memory address or nil pointer dereference")),
+            ValuesMethod::Encode => Err(FuncError::new(
+                "runtime error: invalid memory address or nil pointer dereference",
+            )),
         }
     }
 }

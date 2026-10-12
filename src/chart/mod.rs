@@ -37,7 +37,8 @@ use crate::template::{Engine, Renderable};
 use crate::value::{Map, MapKind, MapRef, Value};
 
 pub use capabilities::{
-    BuildInfo, CapabilitiesObject, DEFAULT_API_VERSIONS, DEFAULT_KUBE_VERSION, KubeVersion, VersionSet,
+    BuildInfo, CapabilitiesObject, DEFAULT_API_VERSIONS, DEFAULT_KUBE_VERSION, KubeVersion,
+    VersionSet,
 };
 pub use coalesce::{coalesce_tables, coalesce_values, merge_tables, merge_values};
 pub use dependencies::{is_compatible_range, process_dependencies};
@@ -110,7 +111,10 @@ impl Chart {
         P: Into<String>,
         D: Into<Vec<u8>>,
     {
-        let files = files.into_iter().map(|(p, d)| (p.into(), d.into())).collect();
+        let files = files
+            .into_iter()
+            .map(|(p, d)| (p.into(), d.into()))
+            .collect();
         loader::load_dir_files(files, yaml)
     }
 
@@ -153,8 +157,9 @@ impl Chart {
     fn crd_objects_rec(&self, full_path: &str, out: &mut Vec<(String, File)>) {
         for f in &self.files {
             let e = gostr::ext(&f.name);
-            let manifest_ext =
-                e.eq_ignore_ascii_case(".yaml") || e.eq_ignore_ascii_case(".yml") || e.eq_ignore_ascii_case(".json");
+            let manifest_ext = e.eq_ignore_ascii_case(".yaml")
+                || e.eq_ignore_ascii_case(".yml")
+                || e.eq_ignore_ascii_case(".json");
             if f.name.starts_with("crds/") && manifest_ext {
                 out.push((gostr::join(&[full_path, &f.name]), f.clone()));
             }
@@ -225,7 +230,10 @@ impl Capabilities {
     /// --kube-version` on an unparsable version.
     pub fn to_object(&self) -> Result<CapabilitiesObject, Error> {
         let kv = KubeVersion::parse(&self.kube_version).map_err(|e| {
-            Error::new(ErrorKind::Chart, alloc::format!("invalid kube version '{}': {e}", self.kube_version))
+            Error::new(
+                ErrorKind::Chart,
+                alloc::format!("invalid kube version '{}': {e}", self.kube_version),
+            )
         })?;
         Ok(CapabilitiesObject {
             kube_version: Rc::new(kv),
@@ -287,7 +295,9 @@ pub fn to_render_values(
         if let Err(e) = schema::validate_chart(chart, &vals) {
             return Err(Error::new(
                 ErrorKind::Values,
-                alloc::format!("values don't meet the specifications of the schema(s) in the following chart(s):\n{e}"),
+                alloc::format!(
+                    "values don't meet the specifications of the schema(s) in the following chart(s):\n{e}"
+                ),
             ));
         }
     }
@@ -302,7 +312,13 @@ pub fn renderables(chart: &Chart, top: &MapRef) -> Vec<Renderable> {
     out
 }
 
-fn rec_all_tpls(c: &Chart, out: &mut Vec<Renderable>, vals: &MapRef, is_root: bool, full_path: &str) -> MapRef {
+fn rec_all_tpls(
+    c: &Chart,
+    out: &mut Vec<Renderable>,
+    vals: &MapRef,
+    is_root: bool,
+    full_path: &str,
+) -> MapRef {
     let sub_charts = MapRef::new(Map::new());
     let meta = c.metadata.as_map();
     if let Value::Map(m) = &meta {
@@ -365,7 +381,10 @@ pub fn render(
     opts: &RenderOptions,
     env: &mut dyn Env,
 ) -> Result<BTreeMap<String, String>, Error> {
-    let engine = Engine { strict: opts.strict, ..Engine::default() };
+    let engine = Engine {
+        strict: opts.strict,
+        ..Engine::default()
+    };
     render_with_engine(&engine, chart, values, opts, env)
 }
 
@@ -393,8 +412,16 @@ fn with_debug_hint(e: Error) -> Error {
 }
 
 /// Produces exactly what `helm template` prints to stdout.
-pub fn template(chart: &Chart, values: &Value, opts: &RenderOptions, env: &mut dyn Env) -> Result<String, Error> {
-    let engine = Engine { strict: opts.strict, ..Engine::default() };
+pub fn template(
+    chart: &Chart,
+    values: &Value,
+    opts: &RenderOptions,
+    env: &mut dyn Env,
+) -> Result<String, Error> {
+    let engine = Engine {
+        strict: opts.strict,
+        ..Engine::default()
+    };
     template_with(&engine, chart, values, opts, env, crate::yaml::from_str)
 }
 
@@ -411,9 +438,19 @@ pub fn template_with(
     let caps = opts.capabilities.to_object()?;
     match chart.metadata.chart_type.as_str() {
         "" | "application" => {}
-        t => return Err(Error::new(ErrorKind::Chart, alloc::format!("{t} charts are not installable"))),
+        t => {
+            return Err(Error::new(
+                ErrorKind::Chart,
+                alloc::format!("{t} charts are not installable"),
+            ));
+        }
     }
-    if let Some(reqs) = chart.metadata.dependencies.as_ref().filter(|r| !r.is_empty()) {
+    if let Some(reqs) = chart
+        .metadata
+        .dependencies
+        .as_ref()
+        .filter(|r| !r.is_empty())
+    {
         let missing: Vec<&str> = reqs
             .iter()
             .filter(|r| !chart.dependencies.iter().any(|d| d.name() == r.name))
@@ -430,10 +467,13 @@ pub fn template_with(
         }
     }
     let mut c = chart.clone();
-    process_dependencies(&mut c, &user_values(values)).map_err(|e| e.context("chart dependencies processing failed"))?;
+    process_dependencies(&mut c, &user_values(values))
+        .map_err(|e| e.context("chart dependencies processing failed"))?;
     let top = to_render_values(&c, values, opts, &caps)?;
     check_kube_version(&c, &caps).map_err(with_debug_hint)?;
-    let files = engine.render(env, renderables(&c, &top)).map_err(with_debug_hint)?;
+    let files = engine
+        .render(env, renderables(&c, &top))
+        .map_err(with_debug_hint)?;
     template_output(&c, files, opts, yaml).map_err(with_debug_hint)
 }
 
@@ -452,11 +492,18 @@ pub fn template_output(
     let mut b = String::new();
     if opts.include_crds {
         for (name, f) in chart.crd_objects() {
-            b.push_str(&alloc::format!("---\n# Source: {name}\n{}\n", String::from_utf8_lossy(&f.data)));
+            b.push_str(&alloc::format!(
+                "---\n# Source: {name}\n{}\n",
+                String::from_utf8_lossy(&f.data)
+            ));
         }
     }
     for m in &manifests {
-        b.push_str(&alloc::format!("---\n# Source: {}\n{}\n", m.name, m.content));
+        b.push_str(&alloc::format!(
+            "---\n# Source: {}\n{}\n",
+            m.name,
+            m.content
+        ));
     }
     let mut out = String::from(b.trim());
     out.push('\n');
@@ -464,7 +511,11 @@ pub fn template_output(
         if opts.skip_tests && h.events.iter().any(|e| e == "test") {
             continue;
         }
-        out.push_str(&alloc::format!("---\n# Source: {}\n{}\n", h.path, h.manifest));
+        out.push_str(&alloc::format!(
+            "---\n# Source: {}\n{}\n",
+            h.path,
+            h.manifest
+        ));
     }
     Ok(out)
 }

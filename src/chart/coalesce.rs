@@ -13,11 +13,18 @@ use super::values::is_table;
 const GLOBAL_KEY: &str = "global";
 
 fn concat_prefix(a: &str, b: &str) -> String {
-    if a.is_empty() { b.into() } else { alloc::format!("{a}.{b}") }
+    if a.is_empty() {
+        b.into()
+    } else {
+        alloc::format!("{a}.{b}")
+    }
 }
 
 fn entries(m: &MapRef) -> Vec<(String, Value)> {
-    m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    m.borrow()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
 }
 
 /// `CoalesceValues(chart, vals)`: user values over chart defaults, nulls
@@ -131,7 +138,11 @@ fn coalesce_chart_values(c: &Chart, v: &MapRef, prefix: &str, merge: bool) {
 }
 
 fn child_chart_merge_true(c: &Chart, key: &str, merge: bool) -> bool {
-    if c.dependencies.iter().any(|s| s.name() == key) { true } else { merge }
+    if c.dependencies.iter().any(|s| s.name() == key) {
+        true
+    } else {
+        merge
+    }
 }
 
 /// `CoalesceTables(dst, src)`: `dst` is authoritative.
@@ -147,8 +158,12 @@ pub fn merge_tables(dst: &MapRef, src: &MapRef) -> MapRef {
 }
 
 fn coalesce_tables_full_key(dst: &MapRef, src: &MapRef, prefix: &str, merge: bool) {
-    let src_original_non_nil: Vec<String> =
-        src.borrow().iter().filter(|(_, v)| !v.is_nil()).map(|(k, _)| k.clone()).collect();
+    let src_original_non_nil: Vec<String> = src
+        .borrow()
+        .iter()
+        .filter(|(_, v)| !v.is_nil())
+        .map(|(k, _)| k.clone())
+        .collect();
     for (key, val) in entries(dst) {
         if val.is_nil() {
             src.insert(key, Value::Nil);

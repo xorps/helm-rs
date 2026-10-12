@@ -15,12 +15,20 @@ struct Batch {
 
 /// How text/template prints a pipeline result.
 fn print_result(v: &Value) -> String {
-    if v.is_nil() { String::new() } else { render_value(v) }
+    if v.is_nil() {
+        String::new()
+    } else {
+        render_value(v)
+    }
 }
 
 impl Batch {
     fn new() -> Batch {
-        Batch { funcs: helm_rs::funcs::sprig(), exprs: Vec::new(), ours: Vec::new() }
+        Batch {
+            funcs: helm_rs::funcs::sprig(),
+            exprs: Vec::new(),
+            ours: Vec::new(),
+        }
     }
     fn add(&mut self, name: &str, args: Vec<Arg>) {
         let mut e = String::from(name);
@@ -42,7 +50,9 @@ impl Batch {
         let mut bad = Vec::new();
         for chunk in (0..self.exprs.len()).collect::<Vec<_>>().chunks(500) {
             let (a, b) = (chunk[0], chunk[chunk.len() - 1] + 1);
-            let Some(helm) = helm_eval_many(&self.exprs[a..b], "") else { return };
+            let Some(helm) = helm_eval_many(&self.exprs[a..b], "") else {
+                return;
+            };
             bad.extend(compare(&self.exprs[a..b], &self.ours[a..b], &helm));
         }
         report(name, self.exprs.len(), &bad);
@@ -128,10 +138,41 @@ fn string_functions() {
     let mut t = Batch::new();
     for &x in SAMPLE_STRINGS {
         for f in [
-            "trim", "upper", "lower", "title", "untitle", "nospace", "initials", "swapcase", "snakecase", "camelcase",
-            "kebabcase", "quote", "squote", "sha1sum", "sha256sum", "sha512sum", "adler32sum", "toString", "b64enc",
-            "b32enc", "b64dec", "b32dec", "base", "dir", "clean", "ext", "isAbs", "osBase", "regexQuoteMeta", "atoi",
-            "int", "int64", "float64", "toDecimal", "toStrings",
+            "trim",
+            "upper",
+            "lower",
+            "title",
+            "untitle",
+            "nospace",
+            "initials",
+            "swapcase",
+            "snakecase",
+            "camelcase",
+            "kebabcase",
+            "quote",
+            "squote",
+            "sha1sum",
+            "sha256sum",
+            "sha512sum",
+            "adler32sum",
+            "toString",
+            "b64enc",
+            "b32enc",
+            "b64dec",
+            "b32dec",
+            "base",
+            "dir",
+            "clean",
+            "ext",
+            "isAbs",
+            "osBase",
+            "regexQuoteMeta",
+            "atoi",
+            "int",
+            "int64",
+            "float64",
+            "toDecimal",
+            "toStrings",
         ] {
             t.add(f, vec![s(x)]);
         }
@@ -147,10 +188,29 @@ fn string_functions() {
             t.add("splitn", vec![s(" "), i(n), s(x)]);
             t.add("splitn", vec![s(""), i(n), s(x)]);
         }
-        for (a, bb) in [(0i64, 4i64), (0, 7), (5, 7), (5, 10), (10, 20), (-1, 10), (3, 4)] {
+        for (a, bb) in [
+            (0i64, 4i64),
+            (0, 7),
+            (5, 7),
+            (5, 10),
+            (10, 20),
+            (-1, 10),
+            (3, 4),
+        ] {
             t.add("abbrevboth", vec![i(a), i(bb), s(x)]);
         }
-        for (a, bb) in [(0i64, 0i64), (0, 3), (1, 2), (2, 1), (-1, 2), (1, -1), (0, 100), (-1, -1), (3, 3), (50, 60)] {
+        for (a, bb) in [
+            (0i64, 0i64),
+            (0, 3),
+            (1, 2),
+            (2, 1),
+            (-1, 2),
+            (1, -1),
+            (0, 100),
+            (-1, -1),
+            (3, 3),
+            (50, 60),
+        ] {
             t.add("substr", vec![i(a), i(bb), s(x)]);
         }
         for sep in ["", " ", ",", "o", "ll"] {
@@ -173,16 +233,25 @@ fn string_functions() {
         t.add("regexFind", vec![s("[A-Z][a-z]*"), s(x)]);
         t.add("regexFindAll", vec![s("[a-z]"), s(x), i(-1)]);
         t.add("regexFindAll", vec![s("o*"), s(x), i(3)]);
-        t.add("regexReplaceAll", vec![s("(\\w)(\\w*)"), s(x), s("$2$1-${1}x$$")]);
+        t.add(
+            "regexReplaceAll",
+            vec![s("(\\w)(\\w*)"), s(x), s("$2$1-${1}x$$")],
+        );
         t.add("regexReplaceAllLiteral", vec![s("\\s+"), s(x), s("$1")]);
         t.add("regexSplit", vec![s("[ ,.]+"), s(x), i(-1)]);
         t.add("regexSplit", vec![s(""), s(x), i(3)]);
     }
     t.add("hello", vec![]);
-    t.add("sortAlpha", vec![l(vec![s("b"), s("a"), s("C"), i(1), nil()])]);
+    t.add(
+        "sortAlpha",
+        vec![l(vec![s("b"), s("a"), s("C"), i(1), nil()])],
+    );
     t.add("sortAlpha", vec![s("x")]);
     t.add("sortAlpha", vec![nil()]);
-    t.add("toStrings", vec![l(vec![i(1), fl(2.5), nil(), b(true), s("x")])]);
+    t.add(
+        "toStrings",
+        vec![l(vec![i(1), fl(2.5), nil(), b(true), s("x")])],
+    );
     t.add("toStrings", vec![i(5)]);
     t.add("toStrings", vec![nil()]);
     t.add("repeat", vec![i(-1), s("x")]);
@@ -227,14 +296,31 @@ fn numeric_functions() {
         b(true),
         nil(),
         i64a(-3),
-        Arg::new(Value::Uint64(u64::MAX), "(semver \"18446744073709551615.0.0\").Major"),
+        Arg::new(
+            Value::Uint64(u64::MAX),
+            "(semver \"18446744073709551615.0.0\").Major",
+        ),
     ];
     for x in &nums {
-        for f in ["int", "int64", "float64", "add1", "add1f", "floor", "ceil", "toDecimal", "empty", "toString"] {
+        for f in [
+            "int",
+            "int64",
+            "float64",
+            "add1",
+            "add1f",
+            "floor",
+            "ceil",
+            "toDecimal",
+            "empty",
+            "toString",
+        ] {
             t.add(f, vec![x.clone()]);
         }
         for y in &nums {
-            for f in ["add", "sub", "mul", "div", "mod", "max", "min", "maxf", "minf", "addf", "subf", "mulf", "divf"] {
+            for f in [
+                "add", "sub", "mul", "div", "mod", "max", "min", "maxf", "minf", "addf", "subf",
+                "mulf", "divf",
+            ] {
                 t.add(f, vec![x.clone(), y.clone()]);
             }
         }
@@ -267,7 +353,17 @@ fn numeric_functions() {
     }
     t.add("seq", vec![]);
     t.add("seq", vec![i(1), i(2), i(3), i(4)]);
-    for x in ["12", "-12", "+5", "", "-", "1.5", "99999999999999999999", "-99999999999999999999", "0x10"] {
+    for x in [
+        "12",
+        "-12",
+        "+5",
+        "",
+        "-",
+        "1.5",
+        "99999999999999999999",
+        "-99999999999999999999",
+        "0x10",
+    ] {
         t.add("atoi", vec![s(x)]);
     }
     t.run("numeric_functions");
@@ -298,7 +394,16 @@ fn defaults_and_reflection() {
         Arg::new(Value::Nil, "(mustToDuration \"1s\")").with_ours_value(),
     ];
     for x in &vals {
-        for f in ["empty", "typeOf", "kindOf", "toString", "deepCopy", "toJson", "toPrettyJson", "toRawJson"] {
+        for f in [
+            "empty",
+            "typeOf",
+            "kindOf",
+            "toString",
+            "deepCopy",
+            "toJson",
+            "toPrettyJson",
+            "toRawJson",
+        ] {
             if f.contains("Json") {
                 continue; // JSON is implemented by another module.
             }
@@ -310,10 +415,20 @@ fn defaults_and_reflection() {
         t.add("coalesce", vec![nil(), x.clone(), s("z")]);
         t.add("all", vec![i(1), x.clone()]);
         t.add("any", vec![i(0), x.clone()]);
-        for k in ["int", "string", "map", "slice", "invalid", "float64", "ptr", "struct", "int64"] {
+        for k in [
+            "int", "string", "map", "slice", "invalid", "float64", "ptr", "struct", "int64",
+        ] {
             t.add("kindIs", vec![s(k), x.clone()]);
         }
-        for ty in ["int", "string", "[]interface {}", "map[string]interface {}", "semver.Version", "*semver.Version", "<nil>"] {
+        for ty in [
+            "int",
+            "string",
+            "[]interface {}",
+            "map[string]interface {}",
+            "semver.Version",
+            "*semver.Version",
+            "<nil>",
+        ] {
             t.add("typeIs", vec![s(ty), x.clone()]);
             t.add("typeIsLike", vec![s(ty), x.clone()]);
         }
@@ -334,8 +449,22 @@ fn list_functions() {
         l(vec![]),
         l(vec![i(1)]),
         l(vec![i(1), i(2), i(3), i(4), i(5)]),
-        l(vec![s("a"), nil(), i(0), s(""), l(vec![]), s("a"), i(1), fl(1.0), i(1)]),
-        l(vec![d(vec![("a", i(1))]), d(vec![("a", i(1))]), d(vec![("a", i(2))])]),
+        l(vec![
+            s("a"),
+            nil(),
+            i(0),
+            s(""),
+            l(vec![]),
+            s("a"),
+            i(1),
+            fl(1.0),
+            i(1),
+        ]),
+        l(vec![
+            d(vec![("a", i(1))]),
+            d(vec![("a", i(1))]),
+            d(vec![("a", i(2))]),
+        ]),
         s("notalist"),
         i(5),
         nil(),
@@ -343,8 +472,20 @@ fn list_functions() {
     ];
     for x in &lists {
         for f in [
-            "first", "mustFirst", "last", "rest", "initial", "reverse", "compact", "uniq", "mustUniq", "mustReverse",
-            "mustRest", "mustLast", "mustInitial", "mustCompact",
+            "first",
+            "mustFirst",
+            "last",
+            "rest",
+            "initial",
+            "reverse",
+            "compact",
+            "uniq",
+            "mustUniq",
+            "mustReverse",
+            "mustRest",
+            "mustLast",
+            "mustInitial",
+            "mustCompact",
         ] {
             t.add(f, vec![x.clone()]);
         }
@@ -378,17 +519,30 @@ fn list_functions() {
 #[test]
 fn dict_functions() {
     let mut t = Batch::new();
-    let dd = || d(vec![("a", i(1)), ("b", d(vec![("c", s("x")), ("e", l(vec![i(1)]))])), ("n", nil()), ("z", s(""))]);
+    let dd = || {
+        d(vec![
+            ("a", i(1)),
+            ("b", d(vec![("c", s("x")), ("e", l(vec![i(1)]))])),
+            ("n", nil()),
+            ("z", s("")),
+        ])
+    };
     t.add("dict", vec![]);
     t.add("dict", vec![s("a")]);
-    t.add("dict", vec![s("a"), i(1), i(2), s("x"), nil(), b(true), s("a"), s("dup")]);
+    t.add(
+        "dict",
+        vec![s("a"), i(1), i(2), s("x"), nil(), b(true), s("a"), s("dup")],
+    );
     t.add("dict", vec![l(vec![i(1)]), i(1), fl(1.5), i(2)]);
     for k in ["a", "b", "n", "missing", ""] {
         t.add("get", vec![dd(), s(k)]);
         t.add("hasKey", vec![dd(), s(k)]);
         t.add("set", vec![dd(), s(k), s("new")]);
         t.add("unset", vec![dd(), s(k)]);
-        t.add("pluck", vec![s(k), dd(), d(vec![(k, s("second"))]), d(vec![])]);
+        t.add(
+            "pluck",
+            vec![s(k), dd(), d(vec![(k, s("second"))]), d(vec![])],
+        );
         t.add("pick", vec![dd(), s(k), s("a")]);
         t.add("omit", vec![dd(), s(k), s("a")]);
         t.add("dig", vec![s(k), s("default"), dd()]);
@@ -399,18 +553,31 @@ fn dict_functions() {
     t.add("dig", vec![s("a"), s("d"), s("notamap")]);
     t.add("dig", vec![i(1), s("d"), dd()]);
     t.add("keys", vec![d(vec![("q", i(1))]), d(vec![("a", i(2))])]);
-    t.add_raw("sortAlpha (keys (dict \"b\" 1 \"a\" 2) (dict \"c\" 1))", Ok("[a b c]".into()));
+    t.add_raw(
+        "sortAlpha (keys (dict \"b\" 1 \"a\" 2) (dict \"c\" 1))",
+        Ok("[a b c]".into()),
+    );
     t.add("keys", vec![]);
     t.add("values", vec![d(vec![("k", s("v"))])]);
     let srcs: Vec<Arg> = vec![
         d(vec![]),
         d(vec![("a", i(2)), ("new", s("n"))]),
         d(vec![("a", i(0)), ("z", s("filled")), ("n", s("was nil"))]),
-        d(vec![("b", d(vec![("c", s("y")), ("d", s("added")), ("e", l(vec![i(2), i(3)]))]))]),
+        d(vec![(
+            "b",
+            d(vec![
+                ("c", s("y")),
+                ("d", s("added")),
+                ("e", l(vec![i(2), i(3)])),
+            ]),
+        )]),
         d(vec![("b", s("scalar")), ("a", nil())]),
         d(vec![("b", l(vec![])), ("e", l(vec![i(9)]))]),
         d(vec![("b", d(vec![]))]),
-        d(vec![("a", d(vec![("x", i(1))])), ("z", d(vec![("x", i(1))]))]),
+        d(vec![
+            ("a", d(vec![("x", i(1))])),
+            ("z", d(vec![("x", i(1))])),
+        ]),
         d(vec![("z", l(vec![i(1)])), ("a", l(vec![]))]),
     ];
     for f in ["merge", "mergeOverwrite", "mustMerge", "mustMergeOverwrite"] {
@@ -430,21 +597,105 @@ fn dict_functions() {
 fn semver_functions() {
     let mut t = Batch::new();
     let versions = [
-        "1.2.3", "v1.2.3", "1.2", "1", "v1", "1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-0", "1.2.3+build", "1.2.3-beta+exp.sha",
-        "01.2.3", "1.02.3", "1.2.3-01", "1.2.3-", "1.2.3+", "1.2.3.4", "x.y.z", "", "v", "1.2.3-a..b", "1.2.3+a..b",
-        "99999999999999999999.0.0", "1.21.0-0", "1.21.0", "1.20.15", "0.0.1", "0.1.0", "2.0.0-rc.1", "1.2.3-alpha.beta.10",
-        "1.2.3-alpha.beta.9", "1.2.3-x-y-z.-", "1.2.3+b.0001",
+        "1.2.3",
+        "v1.2.3",
+        "1.2",
+        "1",
+        "v1",
+        "1.2.3-alpha",
+        "1.2.3-alpha.1",
+        "1.2.3-0",
+        "1.2.3+build",
+        "1.2.3-beta+exp.sha",
+        "01.2.3",
+        "1.02.3",
+        "1.2.3-01",
+        "1.2.3-",
+        "1.2.3+",
+        "1.2.3.4",
+        "x.y.z",
+        "",
+        "v",
+        "1.2.3-a..b",
+        "1.2.3+a..b",
+        "99999999999999999999.0.0",
+        "1.21.0-0",
+        "1.21.0",
+        "1.20.15",
+        "0.0.1",
+        "0.1.0",
+        "2.0.0-rc.1",
+        "1.2.3-alpha.beta.10",
+        "1.2.3-alpha.beta.9",
+        "1.2.3-x-y-z.-",
+        "1.2.3+b.0001",
     ];
     let constraints = [
-        ">=1.2.3", ">1.2", "<2", "<=1.2.3", "=1.2.3", "1.2.3", "!=1.2.3", "~1.2.3", "~1.2", "~1", "^1.2.3", "^0.2.3",
-        "^0.0.3", "^0", "^0.0", "1.2.x", "1.x", "*", "x", ">=1.21.0-0", ">=1.21.0", ">= 1.2, < 2.0", ">=1.2 <2.0",
-        "1.2 - 1.4.5", "1.2.3 - 2", ">1 || <0.5", "~>1.2", "=>1.2", "=<1.2", "", " ", ">=a", "1.2.3-alpha", ">1.2.3-alpha",
-        "!=1.2", "!=1.2.x", "<1.2.x", ">1.2.x", "<=1.x", ">1.x", "~0", "~0.0", "^1.x", ">=1.2.3,<1.3", "1 || 2 || 3",
-        "|| 1", ">= 1.2.3 ||", "1.2.3 -", "v1.2.3", ">=v1.2", "1.2.*", "1.X", ">1.2.3+build",
+        ">=1.2.3",
+        ">1.2",
+        "<2",
+        "<=1.2.3",
+        "=1.2.3",
+        "1.2.3",
+        "!=1.2.3",
+        "~1.2.3",
+        "~1.2",
+        "~1",
+        "^1.2.3",
+        "^0.2.3",
+        "^0.0.3",
+        "^0",
+        "^0.0",
+        "1.2.x",
+        "1.x",
+        "*",
+        "x",
+        ">=1.21.0-0",
+        ">=1.21.0",
+        ">= 1.2, < 2.0",
+        ">=1.2 <2.0",
+        "1.2 - 1.4.5",
+        "1.2.3 - 2",
+        ">1 || <0.5",
+        "~>1.2",
+        "=>1.2",
+        "=<1.2",
+        "",
+        " ",
+        ">=a",
+        "1.2.3-alpha",
+        ">1.2.3-alpha",
+        "!=1.2",
+        "!=1.2.x",
+        "<1.2.x",
+        ">1.2.x",
+        "<=1.x",
+        ">1.x",
+        "~0",
+        "~0.0",
+        "^1.x",
+        ">=1.2.3,<1.3",
+        "1 || 2 || 3",
+        "|| 1",
+        ">= 1.2.3 ||",
+        "1.2.3 -",
+        "v1.2.3",
+        ">=v1.2",
+        "1.2.*",
+        "1.X",
+        ">1.2.3+build",
     ];
     for v in versions {
         t.add("semver", vec![s(v)]);
-        for f in ["Major", "Minor", "Patch", "Prerelease", "Metadata", "Original", "String"] {
+        for f in [
+            "Major",
+            "Minor",
+            "Patch",
+            "Prerelease",
+            "Metadata",
+            "Original",
+            "String",
+        ] {
             let expr = format!("(semver {}).{f}", lit(v));
             let ours = match helm_rs::semver::Version::parse(v) {
                 Ok(ver) => Ok(match f {
@@ -472,8 +723,20 @@ fn semver_random() {
     let mut rng = Rng::new(4242);
     let mut t = Batch::new();
     let parts = ["0", "1", "2", "10", "x", "*", "X", "01"];
-    let pres = ["", "-0", "-alpha", "-alpha.1", "-1", "-beta.2", "-rc.10", "-0.3.7", "-x.7.z.92"];
-    let ops = ["", "=", "!=", ">", "<", ">=", "=>", "<=", "=<", "~", "~>", "^"];
+    let pres = [
+        "",
+        "-0",
+        "-alpha",
+        "-alpha.1",
+        "-1",
+        "-beta.2",
+        "-rc.10",
+        "-0.3.7",
+        "-x.7.z.92",
+    ];
+    let ops = [
+        "", "=", "!=", ">", "<", ">=", "=>", "<=", "=<", "~", "~>", "^",
+    ];
     let gen_ver = |rng: &mut Rng, wild: bool| -> String {
         let n = rng.range(1, 3);
         let mut v = String::new();
@@ -484,7 +747,11 @@ fn semver_random() {
             if k > 0 {
                 v.push('.');
             }
-            let p = if wild { *rng.pick(&parts) } else { *rng.pick(&parts[..4]) };
+            let p = if wild {
+                *rng.pick(&parts)
+            } else {
+                *rng.pick(&parts[..4])
+            };
             v.push_str(p);
         }
         if rng.chance(1, 3) {
@@ -508,7 +775,11 @@ fn semver_random() {
                     c.push_str(if rng.chance(1, 2) { ", " } else { " " });
                 }
                 if rng.chance(1, 10) {
-                    c.push_str(&format!("{} - {}", gen_ver(&mut rng, true), gen_ver(&mut rng, true)));
+                    c.push_str(&format!(
+                        "{} - {}",
+                        gen_ver(&mut rng, true),
+                        gen_ver(&mut rng, true)
+                    ));
                 } else {
                     c.push_str(rng.pick(&ops));
                     if rng.chance(1, 4) {
@@ -528,16 +799,115 @@ fn semver_random() {
 fn regex_functions() {
     let mut t = Batch::new();
     let patterns = [
-        "a+", "^a", "a$", "(?i)hello", "\\d+", "\\D", "\\s+", "\\w+", "\\W", "\\bfoo\\b", "[[:alpha:]]+", "[^a-z]",
-        "(a)(b)?", "(?P<first>\\w+) (?P<last>\\w+)", "(?<x>.)", "a*?", "a{2,3}", "a{2}", "a{,3}", "x{1001}", "(a{1000}){2}",
-        "\\pL+", "\\p{Greek}", "\\PL", "\\p{^Greek}", "\\p{greek}", "\\p{Foo}", "[\\d\\s]", "[\\D]", "(?i)[^k]", "(?s).",
-        "(?m)^x$", "(?U)a+", "a**", "a+*", "*a", "(", ")", "[a", "[z-a]", "\\", "\\Z", "\\C", "\\Q.*\\E", "\\x41", "\\x{263a}",
-        "\\101", "\\8", "(?x)a", "(?i-i)A", "(?-)", "(?P<>a)", "(?P<a!>a)", "a|*", "()", "(|a)", "x|", "^*", "$+", "\\b*",
-        "[]a]", "[a-]", "[-a]", "[\\-]", "[\\]]", "[[:word:]]", "[[:foo:]]", "\\pN", "\\p", "\\p{", "[\\p{Lu}]", ".*",
-        "", "é+", "(?i)é", "(?i)ſ", "(?i)k", "[[:^digit:]]", "a{1001}", "a{1000}", "(?:a)", "(?i:A)b", "\\.", "\\<", "\\>",
-        "\\&", "\\ ", "\\_", "\\v\\f\\a", "[\\a]", "\\z", "\\A", "(a|ab)(c|bcd)(d*)", "a\\E", "\\Qab", "x*?y+?z??",
+        "a+",
+        "^a",
+        "a$",
+        "(?i)hello",
+        "\\d+",
+        "\\D",
+        "\\s+",
+        "\\w+",
+        "\\W",
+        "\\bfoo\\b",
+        "[[:alpha:]]+",
+        "[^a-z]",
+        "(a)(b)?",
+        "(?P<first>\\w+) (?P<last>\\w+)",
+        "(?<x>.)",
+        "a*?",
+        "a{2,3}",
+        "a{2}",
+        "a{,3}",
+        "x{1001}",
+        "(a{1000}){2}",
+        "\\pL+",
+        "\\p{Greek}",
+        "\\PL",
+        "\\p{^Greek}",
+        "\\p{greek}",
+        "\\p{Foo}",
+        "[\\d\\s]",
+        "[\\D]",
+        "(?i)[^k]",
+        "(?s).",
+        "(?m)^x$",
+        "(?U)a+",
+        "a**",
+        "a+*",
+        "*a",
+        "(",
+        ")",
+        "[a",
+        "[z-a]",
+        "\\",
+        "\\Z",
+        "\\C",
+        "\\Q.*\\E",
+        "\\x41",
+        "\\x{263a}",
+        "\\101",
+        "\\8",
+        "(?x)a",
+        "(?i-i)A",
+        "(?-)",
+        "(?P<>a)",
+        "(?P<a!>a)",
+        "a|*",
+        "()",
+        "(|a)",
+        "x|",
+        "^*",
+        "$+",
+        "\\b*",
+        "[]a]",
+        "[a-]",
+        "[-a]",
+        "[\\-]",
+        "[\\]]",
+        "[[:word:]]",
+        "[[:foo:]]",
+        "\\pN",
+        "\\p",
+        "\\p{",
+        "[\\p{Lu}]",
+        ".*",
+        "",
+        "é+",
+        "(?i)é",
+        "(?i)ſ",
+        "(?i)k",
+        "[[:^digit:]]",
+        "a{1001}",
+        "a{1000}",
+        "(?:a)",
+        "(?i:A)b",
+        "\\.",
+        "\\<",
+        "\\>",
+        "\\&",
+        "\\ ",
+        "\\_",
+        "\\v\\f\\a",
+        "[\\a]",
+        "\\z",
+        "\\A",
+        "(a|ab)(c|bcd)(d*)",
+        "a\\E",
+        "\\Qab",
+        "x*?y+?z??",
     ];
-    let inputs = ["", "a", "aaa", "hello world foo", "Hello HELLO", "foo123bar 456", "ab\nax\nx", "k K \u{212a}", "Ω αβγ", "abcd"];
+    let inputs = [
+        "",
+        "a",
+        "aaa",
+        "hello world foo",
+        "Hello HELLO",
+        "foo123bar 456",
+        "ab\nax\nx",
+        "k K \u{212a}",
+        "Ω αβγ",
+        "abcd",
+    ];
     for p in patterns {
         t.add("regexMatch", vec![s(p), s("aa")]);
         t.add("mustRegexMatch", vec![s(p), s("hello")]);
@@ -545,7 +915,10 @@ fn regex_functions() {
         for x in inputs {
             t.add("mustRegexFindAll", vec![s(p), s(x), i(-1)]);
             t.add("mustRegexFind", vec![s(p), s(x)]);
-            t.add("mustRegexReplaceAll", vec![s(p), s(x), s("<$0|$1|${first}|$last|$2x|$$>")]);
+            t.add(
+                "mustRegexReplaceAll",
+                vec![s(p), s(x), s("<$0|$1|${first}|$last|$2x|$$>")],
+            );
             t.add("mustRegexReplaceAllLiteral", vec![s(p), s(x), s("[$1]")]);
             t.add("mustRegexSplit", vec![s(p), s(x), i(-1)]);
             t.add("mustRegexSplit", vec![s(p), s(x), i(2)]);
@@ -561,8 +934,26 @@ fn regex_functions() {
 
 fn rand_regex(rng: &mut Rng, depth: u32) -> String {
     let atoms = [
-        "a", "b", "ab", ".", "\\d", "\\w", "\\s", "[a-c]", "[^a]", "x", "é", "\\.", "(?i)a", "\\b", "^", "$", "[[:digit:]]",
-        "\\pL", "k", "\\x41",
+        "a",
+        "b",
+        "ab",
+        ".",
+        "\\d",
+        "\\w",
+        "\\s",
+        "[a-c]",
+        "[^a]",
+        "x",
+        "é",
+        "\\.",
+        "(?i)a",
+        "\\b",
+        "^",
+        "$",
+        "[[:digit:]]",
+        "\\pL",
+        "k",
+        "\\x41",
     ];
     let mut s = String::new();
     let n = rng.range(1, 4);
@@ -611,7 +1002,22 @@ fn strings_random() {
     let mut t = Batch::new();
     for _ in 0..1500 {
         let x = rand_string(&mut rng, 6);
-        for f in ["snakecase", "kebabcase", "camelcase", "title", "untitle", "swapcase", "initials", "nospace", "upper", "lower", "trim", "quote", "b64enc", "b32enc"] {
+        for f in [
+            "snakecase",
+            "kebabcase",
+            "camelcase",
+            "title",
+            "untitle",
+            "swapcase",
+            "initials",
+            "nospace",
+            "upper",
+            "lower",
+            "trim",
+            "quote",
+            "b64enc",
+            "b32enc",
+        ] {
             t.add(f, vec![s(&x)]);
         }
         let n = rng.range(-3, 12);
@@ -619,7 +1025,10 @@ fn strings_random() {
         t.add("abbrev", vec![i(n), s(&x)]);
         t.add("wrap", vec![i(n), s(&x)]);
         t.add("wrapWith", vec![i(n), s("|"), s(&x)]);
-        t.add("substr", vec![i(rng.range(-1, 5)), i(rng.range(-1, 12)), s(&x)]);
+        t.add(
+            "substr",
+            vec![i(rng.range(-1, 5)), i(rng.range(-1, 12)), s(&x)],
+        );
         t.add("b64dec", vec![s(&x)]);
         t.add("b32dec", vec![s(&x)]);
         t.add("clean", vec![s(&x)]);
@@ -633,11 +1042,42 @@ fn strings_random() {
 #[test]
 fn printf_like_and_misc() {
     let mut t = Batch::new();
-    for x in ["1h", "1h2m3.5s", "-1.5h", "300ms", "1us", "1µs", "2.5", " 10 ", "", "abc", "1d", "9999999999h", ".5s", "1.s", "0", "+3m"] {
+    for x in [
+        "1h",
+        "1h2m3.5s",
+        "-1.5h",
+        "300ms",
+        "1us",
+        "1µs",
+        "2.5",
+        " 10 ",
+        "",
+        "abc",
+        "1d",
+        "9999999999h",
+        ".5s",
+        "1.s",
+        "0",
+        "+3m",
+    ] {
         t.add("duration", vec![s(x)]);
         t.add("durationRound", vec![s(x)]);
     }
-    for n in [0i64, 1, 59, 60, 61, 3600, 86400, 86401, 2_592_000, 31_536_000, 31_536_001, -61, i64::MAX / 2] {
+    for n in [
+        0i64,
+        1,
+        59,
+        60,
+        61,
+        3600,
+        86400,
+        86401,
+        2_592_000,
+        31_536_000,
+        31_536_001,
+        -61,
+        i64::MAX / 2,
+    ] {
         t.add("duration", vec![i64a(n)]);
         t.add("duration", vec![i(n)]);
         t.add("durationRound", vec![i64a(n.wrapping_mul(1_000_000_000))]);
@@ -679,11 +1119,25 @@ fn url_functions() {
         t.add("urlParse", vec![s(u)]);
     }
     let joins = vec![
-        d(vec![("scheme", s("https")), ("host", s("example.com")), ("path", s("/a b")), ("query", s("x=1")), ("fragment", s("f g"))]),
+        d(vec![
+            ("scheme", s("https")),
+            ("host", s("example.com")),
+            ("path", s("/a b")),
+            ("query", s("x=1")),
+            ("fragment", s("f g")),
+        ]),
         d(vec![("host", s("h")), ("path", s("rel"))]),
         d(vec![("scheme", s("mailto")), ("opaque", s("joe@x.com"))]),
-        d(vec![("scheme", s("http")), ("host", s("h")), ("userinfo", s("user:pa ss"))]),
-        d(vec![("scheme", s("http")), ("host", s("h")), ("userinfo", s("user"))]),
+        d(vec![
+            ("scheme", s("http")),
+            ("host", s("h")),
+            ("userinfo", s("user:pa ss")),
+        ]),
+        d(vec![
+            ("scheme", s("http")),
+            ("host", s("h")),
+            ("userinfo", s("user")),
+        ]),
         d(vec![("path", s("a:b"))]),
         d(vec![("scheme", s("http")), ("path", s("//x"))]),
         d(vec![("host", i(5))]),
@@ -699,19 +1153,59 @@ fn url_functions() {
 #[test]
 fn crypto_deterministic() {
     let mut t = Batch::new();
-    for (pt, pw) in [("", "pw"), ("hello", "secret"), ("x", ""), ("long text here", "a-very-long-password-longer-than-32-bytes!!")] {
+    for (pt, pw) in [
+        ("", "pw"),
+        ("hello", "secret"),
+        ("x", ""),
+        (
+            "long text here",
+            "a-very-long-password-longer-than-32-bytes!!",
+        ),
+    ] {
         // decryptAES(encryptAES) round trip through Helm.
-        let expr = format!("decryptAES {} (encryptAES {} {})", lit(pw), lit(pw), lit(pt));
+        let expr = format!(
+            "decryptAES {} (encryptAES {} {})",
+            lit(pw),
+            lit(pw),
+            lit(pt)
+        );
         t.add_raw(&expr, Ok(pt.to_string()));
     }
-    for bad in ["", "AAAA", "AAAAAAAAAAAAAAAAAAAAAA==", "!!!!", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="] {
+    for bad in [
+        "",
+        "AAAA",
+        "AAAAAAAAAAAAAAAAAAAAAA==",
+        "!!!!",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    ] {
         t.add("decryptAES", vec![s("pw"), s(bad)]);
     }
-    for (c, ty, pw, user, site) in [(1u64, "long", "pass", "user", "example.com"), (3, "maximum", "", "", ""), (0, "pin", "é", "ü", "x"), (7, "nope", "a", "b", "c")] {
-        let expr = format!("derivePassword {c} {} {} {} {}", lit(ty), lit(pw), lit(user), lit(site));
+    for (c, ty, pw, user, site) in [
+        (1u64, "long", "pass", "user", "example.com"),
+        (3, "maximum", "", "", ""),
+        (0, "pin", "é", "ü", "x"),
+        (7, "nope", "a", "b", "c"),
+    ] {
+        let expr = format!(
+            "derivePassword {c} {} {} {} {}",
+            lit(ty),
+            lit(pw),
+            lit(user),
+            lit(site)
+        );
         let funcs = helm_rs::funcs::sprig();
-        let ours = call(&funcs, "derivePassword", &[Value::Uint64(c), Value::str(ty), Value::str(pw), Value::str(user), Value::str(site)])
-            .map(|v| render_value(&v));
+        let ours = call(
+            &funcs,
+            "derivePassword",
+            &[
+                Value::Uint64(c),
+                Value::str(ty),
+                Value::str(pw),
+                Value::str(user),
+                Value::str(site),
+            ],
+        )
+        .map(|v| render_value(&v));
         t.add_raw(&expr, ours);
     }
     t.add("htpasswd", vec![s("bad:user"), s("pw")]);
@@ -723,16 +1217,18 @@ fn url_random() {
     let mut rng = Rng::new(1234);
     let mut t = Batch::new();
     let pieces = [
-        "http", "https", "ftp", "mailto", ":", "//", "/", "?", "#", "@", "[", "]", "::1", "%", "%20", "%2F", "%zz", "a", "b",
-        "host", ".", "..", "8080", ":80", "user", "pass", " ", "+", "=", "&", "é", "~", "*", ";", ",", "!", "$", "'",
-        "(", ")", "%25", "1.2.3.4", "x-y", "_",
+        "http", "https", "ftp", "mailto", ":", "//", "/", "?", "#", "@", "[", "]", "::1", "%",
+        "%20", "%2F", "%zz", "a", "b", "host", ".", "..", "8080", ":80", "user", "pass", " ", "+",
+        "=", "&", "é", "~", "*", ";", ",", "!", "$", "'", "(", ")", "%25", "1.2.3.4", "x-y", "_",
     ];
     for _ in 0..3000 {
         let n = rng.range(0, 8);
         let u: String = (0..n).map(|_| *rng.pick(&pieces)).collect();
         t.add("urlParse", vec![s(&u)]);
     }
-    let keys = ["scheme", "host", "path", "query", "opaque", "fragment", "userinfo"];
+    let keys = [
+        "scheme", "host", "path", "query", "opaque", "fragment", "userinfo",
+    ];
     for _ in 0..1000 {
         let mut items = Vec::new();
         for k in keys {
@@ -794,10 +1290,35 @@ fn numeric_random() {
                 _ => i64a(rand_int(rng)),
             }
         };
-        let f = *rng.pick(&["add", "sub", "mul", "div", "mod", "max", "min", "maxf", "minf", "addf", "subf", "mulf", "divf", "round", "floor", "ceil", "int", "int64", "float64", "add1", "add1f", "toDecimal"]);
+        let f = *rng.pick(&[
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "mod",
+            "max",
+            "min",
+            "maxf",
+            "minf",
+            "addf",
+            "subf",
+            "mulf",
+            "divf",
+            "round",
+            "floor",
+            "ceil",
+            "int",
+            "int64",
+            "float64",
+            "add1",
+            "add1f",
+            "toDecimal",
+        ]);
         let args = match f {
             "round" => vec![num(&mut rng), i(rng.range(-3, 5))],
-            "floor" | "ceil" | "int" | "int64" | "float64" | "add1" | "add1f" | "toDecimal" => vec![num(&mut rng)],
+            "floor" | "ceil" | "int" | "int64" | "float64" | "add1" | "add1f" | "toDecimal" => {
+                vec![num(&mut rng)]
+            }
             "sub" | "div" | "mod" => vec![num(&mut rng), num(&mut rng)],
             _ => (0..rng.range(1, 4)).map(|_| num(&mut rng)).collect(),
         };
@@ -840,16 +1361,21 @@ fn json_pretty_and_raw_postprocessing() {
         exprs.push(format!("toPrettyJson {v}"));
         exprs.push(format!("toRawJson {v}"));
     }
-    let Some(out) = helm_eval_many(&exprs, "") else { return };
+    let Some(out) = helm_eval_many(&exprs, "") else {
+        return;
+    };
     let mut compared = 0;
     let mut bad = Vec::new();
     for (k, v) in values.iter().enumerate() {
-        let (Ok(compact), Ok(pretty), Ok(raw)) = (&out[3 * k], &out[3 * k + 1], &out[3 * k + 2]) else {
+        let (Ok(compact), Ok(pretty), Ok(raw)) = (&out[3 * k], &out[3 * k + 1], &out[3 * k + 2])
+        else {
             continue; // e.g. NaN cannot be marshaled (toRawJson panics)
         };
         let p = helm_rs::funcs::sprig::json_indent(compact);
         if &p != pretty {
-            bad.push(format!("toPrettyJson {v}\n   ours: {p:?}\n   helm: {pretty:?}"));
+            bad.push(format!(
+                "toPrettyJson {v}\n   ours: {p:?}\n   helm: {pretty:?}"
+            ));
         }
         compared += 1;
         let r = helm_rs::funcs::sprig::unescape_html(compact);
@@ -864,34 +1390,77 @@ fn json_pretty_and_raw_postprocessing() {
 #[test]
 fn semver_methods() {
     let mut t = Batch::new();
-    for v in ["1.2.3", "v1.2.3-beta.1+meta", "0.0.0", "v2", "18446744073709551615.18446744073709551615.18446744073709551615"] {
-        for m in ["IncMajor", "IncMinor", "IncPatch", "String", "Original", "Prerelease", "Metadata", "Major"] {
+    for v in [
+        "1.2.3",
+        "v1.2.3-beta.1+meta",
+        "0.0.0",
+        "v2",
+        "18446744073709551615.18446744073709551615.18446744073709551615",
+    ] {
+        for m in [
+            "IncMajor",
+            "IncMinor",
+            "IncPatch",
+            "String",
+            "Original",
+            "Prerelease",
+            "Metadata",
+            "Major",
+        ] {
             let expr = format!("(semver {}).{m}", lit(v));
             let funcs = helm_rs::funcs::sprig();
             let ver = call(&funcs, "semver", &[Value::str(v)]).unwrap();
-            let ours = ver.as_object().unwrap().call_method(m, &[]).map(|r| render_value(&r)).map_err(|e| e.message);
+            let ours = ver
+                .as_object()
+                .unwrap()
+                .call_method(m, &[])
+                .map(|r| render_value(&r))
+                .map_err(|e| e.message);
             t.add_raw(&expr, ours);
         }
         for p in ["rc.1", "", "01", "a..b"] {
             let expr = format!("(semver {}).SetPrerelease {}", lit(v), lit(p));
             let funcs = helm_rs::funcs::sprig();
             let ver = call(&funcs, "semver", &[Value::str(v)]).unwrap();
-            let ours = ver.as_object().unwrap().call_method("SetPrerelease", &[Value::str(p)]).map(|r| render_value(&r)).map_err(|e| e.message);
+            let ours = ver
+                .as_object()
+                .unwrap()
+                .call_method("SetPrerelease", &[Value::str(p)])
+                .map(|r| render_value(&r))
+                .map_err(|e| e.message);
             t.add_raw(&expr, ours);
         }
         for w in ["1.2.3", "1.2.4-0", "0.9"] {
-            for m in ["LessThan", "GreaterThan", "Equal", "Compare", "LessThanEqual", "GreaterThanEqual"] {
+            for m in [
+                "LessThan",
+                "GreaterThan",
+                "Equal",
+                "Compare",
+                "LessThanEqual",
+                "GreaterThanEqual",
+            ] {
                 let expr = format!("(semver {}).{m} (semver {})", lit(v), lit(w));
                 let funcs = helm_rs::funcs::sprig();
                 let a = call(&funcs, "semver", &[Value::str(v)]).unwrap();
                 let b = call(&funcs, "semver", &[Value::str(w)]).unwrap();
-                let ours = a.as_object().unwrap().call_method(m, &[b]).map(|r| render_value(&r)).map_err(|e| e.message);
+                let ours = a
+                    .as_object()
+                    .unwrap()
+                    .call_method(m, &[b])
+                    .map(|r| render_value(&r))
+                    .map_err(|e| e.message);
                 t.add_raw(&expr, ours);
             }
         }
-        t.add("typeOf", vec![Arg::new(Value::Nil, &*format!("(semver {})", lit(v))).with_ours_value()]);
+        t.add(
+            "typeOf",
+            vec![Arg::new(Value::Nil, &*format!("(semver {})", lit(v))).with_ours_value()],
+        );
     }
-    t.add_raw("typeOf (semver \"1.2.3\").IncMajor", Ok("semver.Version".into()));
+    t.add_raw(
+        "typeOf (semver \"1.2.3\").IncMajor",
+        Ok("semver.Version".into()),
+    );
     t.run("semver_methods");
 }
 

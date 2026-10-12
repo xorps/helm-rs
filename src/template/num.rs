@@ -79,7 +79,10 @@ pub fn parse_uint0(s0: &str) -> Result<u64, NumErr> {
         if d >= base {
             return Err(NumErr::Syntax);
         }
-        n = match n.checked_mul(base as u64).and_then(|n| n.checked_add(d as u64)) {
+        n = match n
+            .checked_mul(base as u64)
+            .and_then(|n| n.checked_add(d as u64))
+        {
             Some(n) => n,
             None => {
                 // Keep scanning for syntax errors first? Go returns range error
@@ -117,7 +120,11 @@ pub fn parse_int0(s: &str) -> Result<i64, NumErr> {
     if neg && un > cutoff {
         return Err(NumErr::Range);
     }
-    Ok(if neg { (un as i64).wrapping_neg() } else { un as i64 })
+    Ok(if neg {
+        (un as i64).wrapping_neg()
+    } else {
+        un as i64
+    })
 }
 
 /// `strconv.ParseFloat(s, 64)`.
@@ -134,7 +141,11 @@ pub fn parse_float(s: &str) -> Result<f64, NumErr> {
     };
     let lb = body.to_ascii_lowercase();
     if lb == "inf" || lb == "infinity" {
-        return Ok(if neg { f64::NEG_INFINITY } else { f64::INFINITY });
+        return Ok(if neg {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        });
     }
     if lb == "nan" && body.len() == s.len() {
         return Ok(f64::NAN);

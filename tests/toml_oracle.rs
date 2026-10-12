@@ -13,7 +13,13 @@ fn probe(name: &str) -> String {
 
 fn probe_rust(input: &str) -> String {
     let m = enc::from_toml(input);
-    format!("J:{}\nT:{}\nY:{}\nP:{}", enc::to_json(&m), enc::to_toml(&m), enc::to_yaml(&m), enc::to_yaml_pretty(&m))
+    format!(
+        "J:{}\nT:{}\nY:{}\nP:{}",
+        enc::to_json(&m),
+        enc::to_toml(&m),
+        enc::to_yaml(&m),
+        enc::to_yaml_pretty(&m)
+    )
 }
 
 fn yaml_to_toml_probe(name: &str) -> String {
@@ -137,7 +143,9 @@ fn set_utc() {
 fn from_toml_corpus_matches_helm() {
     set_utc();
     let inputs = corpus();
-    let Some(m) = diff_inputs(&inputs, &probe, &probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &probe, &probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
@@ -164,9 +172,14 @@ fn to_toml_of_yaml_values_matches_helm() {
     .iter()
     .map(|s| s.to_string())
     .collect();
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(1000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1000);
     inputs.extend((0..n).map(|_| gen_doc(&mut r)));
-    let Some(m) = diff_inputs(&inputs, &yaml_to_toml_probe, &yaml_to_toml_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &yaml_to_toml_probe, &yaml_to_toml_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
@@ -175,13 +188,18 @@ fn mutated_toml_matches_helm() {
     set_utc();
     let mut r = Rng::new(3);
     let base = corpus();
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(2000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2000);
     let inputs: Vec<String> = (0..n)
         .map(|_| {
             let i = r.below(base.len());
             mutate(&mut r, &base[i])
         })
         .collect();
-    let Some(m) = diff_inputs(&inputs, &probe, &probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &probe, &probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }

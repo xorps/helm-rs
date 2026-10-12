@@ -28,7 +28,10 @@ use common::{Opts, oracle, rust};
 
 /// `now` is fixed to the epoch in the oracle, as in `DeterministicEnv`.
 fn opts() -> Opts {
-    Opts { fixed_time: true, ..Opts::default() }
+    Opts {
+        fixed_time: true,
+        ..Opts::default()
+    }
 }
 
 #[test]
@@ -43,10 +46,18 @@ fn render_matches_oracle() {
         let values = c.values_yaml();
         let helm = o.render_chart(&c.tgz_path(), &values, &opts());
         let ours = rust::render_tgz(&c.tgz_bytes(), &values, &opts());
-        let res = compare_render(&helm, || Some(o.render_chart(&c.tgz_path(), &values, &opts())), &ours);
+        let res = compare_render(
+            &helm,
+            || Some(o.render_chart(&c.tgz_path(), &values, &opts())),
+            &ours,
+        );
         record(&mut failures, c, &values, res);
     }
-    finish("chart::render vs oracle engine.Render", charts.len(), failures);
+    finish(
+        "chart::render vs oracle engine.Render",
+        charts.len(),
+        failures,
+    );
 }
 
 #[test]
@@ -65,7 +76,11 @@ fn template_matches_helm_binary() {
         let values = c.values_yaml();
         let bin = helm_template(&helm, &c.tgz_path(), &values, &plain);
         let ours = rust::template_tgz(&c.tgz_bytes(), &values, &plain);
-        let res = compare_template(&bin, || Some(o.template_chart(&c.tgz_path(), &values, &plain)), &ours);
+        let res = compare_template(
+            &bin,
+            || Some(o.template_chart(&c.tgz_path(), &values, &plain)),
+            &ours,
+        );
         record(&mut failures, c, &values, res);
     }
     finish("chart::template vs helm template", charts.len(), failures);
@@ -76,7 +91,10 @@ fn record(failures: &mut Vec<String>, c: &ChartEntry, values: &str, res: Option<
         None => eprintln!("  ok    {} {}", c.name, c.version),
         Some(m) => {
             eprintln!("  FAIL  {} {} ({:?})", c.name, c.version, m.kind);
-            let mut s = format!("=== {} {} ({}): {:?}\n{}", c.name, c.version, c.file, m.kind, m.report);
+            let mut s = format!(
+                "=== {} {} ({}): {:?}\n{}",
+                c.name, c.version, c.file, m.kind, m.report
+            );
             match &c.values {
                 Some(p) => {
                     let _ = write!(s, "\nvalues ({p}):\n{values}");
@@ -96,5 +114,8 @@ fn finish(what: &str, total: usize, failures: Vec<String>) {
     for f in &failures {
         eprintln!("\n{f}");
     }
-    panic!("{what}: {} of {total} charts differ (see above)", failures.len());
+    panic!(
+        "{what}: {} of {total} charts differ (see above)",
+        failures.len()
+    );
 }

@@ -277,7 +277,12 @@ impl Rules {
         } else {
             (Kind::Base, rule)
         };
-        self.patterns.push(Pattern { rule: rule.into(), kind, negate, must_dir });
+        self.patterns.push(Pattern {
+            rule: rule.into(),
+            kind,
+            negate,
+            must_dir,
+        });
         Ok(())
     }
 
@@ -369,7 +374,10 @@ mod tests {
         assert!(r.ignore("docs/a.md", false));
         assert!(r.ignore("templates/.hidden", false));
         assert!(!r.ignore("templates/x.yaml", false));
-        assert_eq!(Rules::parse(b"a/**").unwrap_err(), "double-star (**) syntax is not supported");
+        assert_eq!(
+            Rules::parse(b"a/**").unwrap_err(),
+            "double-star (**) syntax is not supported"
+        );
         assert_eq!(Rules::parse(b"[").unwrap_err(), "syntax error in pattern");
     }
 }

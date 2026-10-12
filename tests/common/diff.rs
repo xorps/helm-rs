@@ -39,7 +39,8 @@ pub fn diff<T: PartialEq>(a: &[T], b: &[T]) -> Vec<Op> {
         pre += 1;
     }
     let mut suf = 0;
-    while suf < a.len() - pre && suf < b.len() - pre && a[a.len() - 1 - suf] == b[b.len() - 1 - suf] {
+    while suf < a.len() - pre && suf < b.len() - pre && a[a.len() - 1 - suf] == b[b.len() - 1 - suf]
+    {
         suf += 1;
     }
     let (am, bm) = (&a[pre..a.len() - suf], &b[pre..b.len() - suf]);
@@ -74,7 +75,11 @@ fn myers<T: PartialEq>(a: &[T], b: &[T], max_d: usize) -> Option<Vec<Op>> {
         let mut k = -d;
         while k <= d {
             let idx = (k + off) as usize;
-            let mut x = if k == -d || (k != d && v[idx - 1] < v[idx + 1]) { v[idx + 1] } else { v[idx - 1] + 1 };
+            let mut x = if k == -d || (k != d && v[idx - 1] < v[idx + 1]) {
+                v[idx + 1]
+            } else {
+                v[idx - 1] + 1
+            };
             let mut y = x - k;
             while x < n && y < m && a[x as usize] == b[y as usize] {
                 x += 1;
@@ -95,7 +100,12 @@ fn myers<T: PartialEq>(a: &[T], b: &[T], max_d: usize) -> Option<Vec<Op>> {
     for d in (0..=d_end).rev() {
         let v = &trace[d as usize];
         let k = x - y;
-        let prev_k = if k == -d || (k != d && v[(k - 1 + off) as usize] < v[(k + 1 + off) as usize]) { k + 1 } else { k - 1 };
+        let prev_k = if k == -d || (k != d && v[(k - 1 + off) as usize] < v[(k + 1 + off) as usize])
+        {
+            k + 1
+        } else {
+            k - 1
+        };
         let prev_x = v[(prev_k + off) as usize];
         let prev_y = prev_x - prev_k;
         while x > prev_x && y > prev_y {
@@ -130,7 +140,12 @@ pub fn unified(a_name: &str, a: &str, b_name: &str, b: &str, max_lines: usize) -
     let mut out = format!("--- {a_name}\n+++ {b_name}\n");
     const CTX: usize = 3;
     // Group into hunks.
-    let changed: Vec<usize> = ops.iter().enumerate().filter(|(_, o)| !matches!(o, Op::Eq(..))).map(|(i, _)| i).collect();
+    let changed: Vec<usize> = ops
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| !matches!(o, Op::Eq(..)))
+        .map(|(i, _)| i)
+        .collect();
     let mut hunks: Vec<(usize, usize)> = Vec::new();
     for &c in &changed {
         let (s, e) = (c.saturating_sub(CTX), (c + CTX + 1).min(ops.len()));
@@ -161,7 +176,14 @@ pub fn unified(a_name: &str, a: &str, b_name: &str, b: &str, max_lines: usize) -
                 }
             }
         }
-        let _ = writeln!(out, "@@ -{},{} +{},{} @@", a0.map_or(0, |x| x + 1), ac, b0.map_or(0, |x| x + 1), bc);
+        let _ = writeln!(
+            out,
+            "@@ -{},{} +{},{} @@",
+            a0.map_or(0, |x| x + 1),
+            ac,
+            b0.map_or(0, |x| x + 1),
+            bc
+        );
         written += 1;
         for op in &ops[s..e] {
             if written >= max_lines {
@@ -185,7 +207,10 @@ pub fn unified(a_name: &str, a: &str, b_name: &str, b: &str, max_lines: usize) -
 /// nondeterministic lines when `a` and `b` are two renders of the same input.
 pub fn volatile_lines(a: &str, b: &str) -> BTreeSet<usize> {
     let (al, bl) = (lines(a), lines(b));
-    diff(&al, &bl).into_iter().filter_map(|o| if let Op::Del(i) = o { Some(i) } else { None }).collect()
+    diff(&al, &bl)
+        .into_iter()
+        .filter_map(|o| if let Op::Del(i) = o { Some(i) } else { None })
+        .collect()
 }
 
 /// Whether `actual` equals `expected` except on `volatile` lines of
@@ -196,7 +221,8 @@ pub fn eq_modulo_volatile(expected: &str, volatile: &BTreeSet<usize>, actual: &s
         return true;
     }
     // Go pointer addresses differ between runs (and we print a fixed one).
-    if super::compare::normalize_addresses(expected) == super::compare::normalize_addresses(actual) {
+    if super::compare::normalize_addresses(expected) == super::compare::normalize_addresses(actual)
+    {
         return true;
     }
     if volatile.is_empty() {
@@ -249,26 +275,49 @@ pub fn compare_files(
     }
     let mut ndiff = 0;
     for (name, exp) in expected {
-        let Some(act) = actual.get(name) else { continue };
-        let vol = expected_again.and_then(|o| o.get(name)).map(|e2| volatile_lines(exp, e2)).unwrap_or_default();
+        let Some(act) = actual.get(name) else {
+            continue;
+        };
+        let vol = expected_again
+            .and_then(|o| o.get(name))
+            .map(|e2| volatile_lines(exp, e2))
+            .unwrap_or_default();
         if eq_modulo_volatile(exp, &vol, act) {
             continue;
         }
         ndiff += 1;
         if ndiff == 1 {
             let _ = writeln!(report, "first differing file: {name}");
-            report.push_str(&unified(&format!("{exp_label}/{name}"), exp, &format!("{act_label}/{name}"), act, 80));
+            report.push_str(&unified(
+                &format!("{exp_label}/{name}"),
+                exp,
+                &format!("{act_label}/{name}"),
+                act,
+                80,
+            ));
         }
     }
     if ndiff > 1 {
         let _ = writeln!(report, "({} more differing files)", ndiff - 1);
     }
-    if report.is_empty() { None } else { Some(report) }
+    if report.is_empty() {
+        None
+    } else {
+        Some(report)
+    }
 }
 
 /// Whole-text comparison modulo volatile lines, with a unified diff report.
-pub fn compare_text(expected: &str, expected_again: Option<&str>, actual: &str, exp_label: &str, act_label: &str) -> Option<String> {
-    let vol = expected_again.map(|e2| volatile_lines(expected, e2)).unwrap_or_default();
+pub fn compare_text(
+    expected: &str,
+    expected_again: Option<&str>,
+    actual: &str,
+    exp_label: &str,
+    act_label: &str,
+) -> Option<String> {
+    let vol = expected_again
+        .map(|e2| volatile_lines(expected, e2))
+        .unwrap_or_default();
     if eq_modulo_volatile(expected, &vol, actual) {
         return None;
     }
@@ -297,11 +346,15 @@ impl std::fmt::Display for ErrLoc {
 /// one is the innermost).
 pub fn error_locations(msg: &str) -> Vec<ErrLoc> {
     let mut out = Vec::new();
-    for tok in msg.split(|c: char| c.is_whitespace() || matches!(c, '(' | ')' | '"' | '<' | '>' | ',' | '[' | ']')) {
+    for tok in msg.split(|c: char| {
+        c.is_whitespace() || matches!(c, '(' | ')' | '"' | '<' | '>' | ',' | '[' | ']')
+    }) {
         let tok = tok.trim_end_matches(':');
         let parts: Vec<&str> = tok.rsplitn(3, ':').collect();
         let (name, line, col) = match parts.as_slice() {
-            [c, l, n] if c.parse::<u32>().is_ok() && l.parse::<u32>().is_ok() => (*n, l.parse().unwrap(), Some(c.parse().unwrap())),
+            [c, l, n] if c.parse::<u32>().is_ok() && l.parse::<u32>().is_ok() => {
+                (*n, l.parse().unwrap(), Some(c.parse().unwrap()))
+            }
             [l, rest @ ..] if l.parse::<u32>().is_ok() && !rest.is_empty() => {
                 // `name:line` -- rest is reversed [name-tail, name-head?]
                 let name_len = tok.len() - l.len() - 1;
@@ -310,7 +363,11 @@ pub fn error_locations(msg: &str) -> Vec<ErrLoc> {
             _ => continue,
         };
         if name.contains('/') && !name.contains("://") {
-            out.push(ErrLoc { name: name.to_string(), line, col });
+            out.push(ErrLoc {
+                name: name.to_string(),
+                line,
+                col,
+            });
         }
     }
     out
@@ -318,5 +375,7 @@ pub fn error_locations(msg: &str) -> Vec<ErrLoc> {
 
 /// Removes the hint `helm template` appends to render errors.
 pub fn strip_cli_hint(msg: &str) -> &str {
-    msg.trim_end().trim_end_matches("Use --debug flag to render out invalid YAML").trim_end()
+    msg.trim_end()
+        .trim_end_matches("Use --debug flag to render out invalid YAML")
+        .trim_end()
 }

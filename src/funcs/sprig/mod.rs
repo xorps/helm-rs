@@ -142,7 +142,8 @@ pub(crate) fn kind_name(v: &Value) -> &'static str {
     v.kind().name()
 }
 
-pub(crate) const NIL_DEREF: &str = "runtime error: invalid memory address or nil pointer dereference";
+pub(crate) const NIL_DEREF: &str =
+    "runtime error: invalid memory address or nil pointer dereference";
 
 /// Elements of a slice-kinded value, as `reflect.Value.Index(i).Interface()`.
 pub(crate) fn slice_items(v: &Value) -> Option<Vec<Value>> {
@@ -164,7 +165,10 @@ fn deep_equal_depth(a: &Value, b: &Value, depth: usize) -> bool {
     }
     match (a, b) {
         (Value::List(x), Value::List(y)) => {
-            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| deep_equal_depth(p, q, depth + 1))
+            x.len() == y.len()
+                && x.iter()
+                    .zip(y.iter())
+                    .all(|(p, q)| deep_equal_depth(p, q, depth + 1))
         }
         (Value::Map(x), Value::Map(y)) => {
             if x.ptr_eq(y) {
@@ -172,7 +176,8 @@ fn deep_equal_depth(a: &Value, b: &Value, depth: usize) -> bool {
             }
             let (x, y) = (x.borrow(), y.borrow());
             x.len() == y.len()
-                && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| deep_equal_depth(v, w, depth + 1)))
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| deep_equal_depth(v, w, depth + 1)))
         }
         (Value::Object(x), Value::Object(y)) => {
             if alloc::rc::Rc::ptr_eq(x, y) {
@@ -182,8 +187,10 @@ fn deep_equal_depth(a: &Value, b: &Value, depth: usize) -> bool {
                 return false;
             }
             if let (Some(p), Some(q)) = (
-                x.as_any().downcast_ref::<crate::funcs::duration::Duration>(),
-                y.as_any().downcast_ref::<crate::funcs::duration::Duration>(),
+                x.as_any()
+                    .downcast_ref::<crate::funcs::duration::Duration>(),
+                y.as_any()
+                    .downcast_ref::<crate::funcs::duration::Duration>(),
             ) {
                 return p == q;
             }
@@ -193,7 +200,10 @@ fn deep_equal_depth(a: &Value, b: &Value, depth: usize) -> bool {
             ) {
                 return p.version == q.version;
             }
-            if let (Some(p), Some(q)) = (x.as_any().downcast_ref::<time::Time>(), y.as_any().downcast_ref::<time::Time>()) {
+            if let (Some(p), Some(q)) = (
+                x.as_any().downcast_ref::<time::Time>(),
+                y.as_any().downcast_ref::<time::Time>(),
+            ) {
                 return p == q;
             }
             false

@@ -34,12 +34,16 @@ pub fn to_yaml(v: &Value) -> String {
 
 /// `mustToYaml`.
 pub fn must_to_yaml(v: &Value) -> Result<String, FuncError> {
-    yaml::to_string(v).map(trim_newline).map_err(|e| FuncError::new(e.message))
+    yaml::to_string(v)
+        .map(trim_newline)
+        .map_err(|e| FuncError::new(e.message))
 }
 
 /// `toYamlPretty`: errors yield the empty string.
 pub fn to_yaml_pretty(v: &Value) -> String {
-    yaml::to_string_pretty(v).map(trim_newline).unwrap_or_default()
+    yaml::to_string_pretty(v)
+        .map(trim_newline)
+        .unwrap_or_default()
 }
 
 /// `fromYaml`: a map; on error the map holds the message under `Error`.
@@ -111,12 +115,18 @@ pub fn from_toml(s: &str) -> Value {
 /// Registers Helm's encoding functions.
 pub fn register(f: &mut FuncMap) {
     f.add("toYaml", ANY, |a| Ok(Value::string(to_yaml(&arg(a)))));
-    f.add("mustToYaml", ANY, |a| must_to_yaml(&arg(a)).map(Value::string));
-    f.add("toYamlPretty", ANY, |a| Ok(Value::string(to_yaml_pretty(&arg(a)))));
+    f.add("mustToYaml", ANY, |a| {
+        must_to_yaml(&arg(a)).map(Value::string)
+    });
+    f.add("toYamlPretty", ANY, |a| {
+        Ok(Value::string(to_yaml_pretty(&arg(a))))
+    });
     f.add("fromYaml", STRING, |a| Ok(from_yaml(arg_str(a))));
     f.add("fromYamlArray", STRING, |a| Ok(from_yaml_array(arg_str(a))));
     f.add("toJson", ANY, |a| Ok(Value::string(to_json(&arg(a)))));
-    f.add("mustToJson", ANY, |a| must_to_json(&arg(a)).map(Value::string));
+    f.add("mustToJson", ANY, |a| {
+        must_to_json(&arg(a)).map(Value::string)
+    });
     f.add("fromJson", STRING, |a| Ok(from_json(arg_str(a))));
     f.add("fromJsonArray", STRING, |a| Ok(from_json_array(arg_str(a))));
     f.add("toToml", ANY, |a| {

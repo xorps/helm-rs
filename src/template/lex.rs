@@ -255,7 +255,13 @@ impl<'a> Lexer<'a> {
     }
 
     fn errorf(&mut self, msg: String) -> Option<State> {
-        self.item = Some(Item { typ: ItemType::Error, pos: self.start, val: msg, line: self.start_line, end: self.pos });
+        self.item = Some(Item {
+            typ: ItemType::Error,
+            pos: self.start,
+            val: msg,
+            line: self.start_line,
+            end: self.pos,
+        });
         self.start = 0;
         self.pos = 0;
         self.limit = 0;
@@ -264,8 +270,18 @@ impl<'a> Lexer<'a> {
 
     /// Returns the next item.
     pub fn next_item(&mut self) -> Item {
-        self.item = Some(Item { typ: ItemType::Eof, pos: self.pos, val: "EOF".into(), line: self.start_line, end: self.pos });
-        let mut state = if self.inside_action { State::InsideAction } else { State::Text };
+        self.item = Some(Item {
+            typ: ItemType::Eof,
+            pos: self.pos,
+            val: "EOF".into(),
+            line: self.start_line,
+            end: self.pos,
+        });
+        let mut state = if self.inside_action {
+            State::InsideAction
+        } else {
+            State::Text
+        };
         loop {
             let next = match state {
                 State::Text => self.lex_text(),
@@ -444,7 +460,10 @@ impl<'a> Lexer<'a> {
                 self.emit(ItemType::RightParen)
             }
             _ if (c as u32) <= 0x7f && is_ascii_print(c) => self.emit(ItemType::Char),
-            _ => self.errorf(format!("unrecognized character in action: {}", go_sharp_u(c))),
+            _ => self.errorf(format!(
+                "unrecognized character in action: {}",
+                go_sharp_u(c)
+            )),
         }
     }
 
@@ -480,7 +499,9 @@ impl<'a> Lexer<'a> {
                 return self.errorf(format!("bad character {}", go_sharp_u_rune(r)));
             }
             if let Some(kw) = keyword(word) {
-                if (kw == ItemType::Break && !self.break_ok) || (kw == ItemType::Continue && !self.continue_ok) {
+                if (kw == ItemType::Break && !self.break_ok)
+                    || (kw == ItemType::Continue && !self.continue_ok)
+                {
                     return self.emit(ItemType::Identifier);
                 }
                 return self.emit(kw);
@@ -562,13 +583,19 @@ impl<'a> Lexer<'a> {
     fn lex_number(&mut self) -> Option<State> {
         if !self.scan_number() {
             let s = String::from(&self.input[self.start..self.pos]);
-            return self.errorf(format!("bad number syntax: {}", crate::template::quote::go_quote(&s)));
+            return self.errorf(format!(
+                "bad number syntax: {}",
+                crate::template::quote::go_quote(&s)
+            ));
         }
         let sign = self.peek();
         if sign == '+' as i32 || sign == '-' as i32 {
             if !self.scan_number() || self.input.as_bytes()[self.pos - 1] != b'i' {
                 let s = String::from(&self.input[self.start..self.pos]);
-                return self.errorf(format!("bad number syntax: {}", crate::template::quote::go_quote(&s)));
+                return self.errorf(format!(
+                    "bad number syntax: {}",
+                    crate::template::quote::go_quote(&s)
+                ));
             }
             return self.emit(ItemType::Complex);
         }

@@ -7,7 +7,12 @@
 //! [`crate::Env::now`]; its abbreviation is `UTC` when the offset is zero and
 //! empty (printed as `+hhmm`) otherwise.
 
-#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::collapsible_match,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -34,7 +39,14 @@ impl Location {
     fn name_offset(&self) -> (String, i32) {
         match self {
             Location::Utc => ("UTC".into(), 0),
-            Location::Local(off) => (if *off == 0 { "UTC".into() } else { String::new() }, *off),
+            Location::Local(off) => (
+                if *off == 0 {
+                    "UTC".into()
+                } else {
+                    String::new()
+                },
+                *off,
+            ),
             Location::Fixed(n, o) => (n.clone(), *o),
         }
     }
@@ -58,9 +70,27 @@ pub struct Time {
     pub loc: Location,
 }
 
-pub const LONG_DAY_NAMES: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+pub const LONG_DAY_NAMES: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 pub const LONG_MONTH_NAMES: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
     "December",
 ];
 
@@ -138,16 +168,33 @@ fn days_from_civil_wide(y: i128, m: i128, d: i128) -> i128 {
 impl Time {
     /// The zero `time.Time{}` (0001-01-01 00:00:00 UTC).
     pub fn zero() -> Time {
-        Time { unix: -UNIX_TO_INTERNAL, nsec: 0, loc: Location::Utc }
+        Time {
+            unix: -UNIX_TO_INTERNAL,
+            nsec: 0,
+            loc: Location::Utc,
+        }
     }
 
     /// `time.Unix(sec, 0)` in `loc`.
     pub fn from_unix(sec: i64, loc: Location) -> Time {
-        Time { unix: sec, nsec: 0, loc }
+        Time {
+            unix: sec,
+            nsec: 0,
+            loc,
+        }
     }
 
     /// `time.Date(...)` (normalizing out-of-range fields, like Go).
-    pub fn date(year: i64, month: i64, day: i64, hour: i64, min: i64, sec: i64, nsec: i64, loc: Location) -> Time {
+    pub fn date(
+        year: i64,
+        month: i64,
+        day: i64,
+        hour: i64,
+        min: i64,
+        sec: i64,
+        nsec: i64,
+        loc: Location,
+    ) -> Time {
         let (year, m) = norm(year as i128, month as i128 - 1, 12);
         let month = m + 1;
         let (sec, nsec) = norm(sec as i128, nsec as i128, 1_000_000_000);
@@ -160,7 +207,11 @@ impl Time {
         let unix = days * 86400 + hour * 3600 + min * 60 + sec;
         let (_, off) = loc.name_offset();
         let unix = (unix - off as i128).clamp(i64::MIN as i128 / 2, i64::MAX as i128 / 2) as i64;
-        Time { unix, nsec: nsec as u32, loc }
+        Time {
+            unix,
+            nsec: nsec as u32,
+            loc,
+        }
     }
 
     fn local_secs(&self) -> i64 {
@@ -191,7 +242,11 @@ impl Time {
     }
 
     pub fn in_loc(&self, loc: Location) -> Time {
-        Time { unix: self.unix, nsec: self.nsec, loc }
+        Time {
+            unix: self.unix,
+            nsec: self.nsec,
+            loc,
+        }
     }
 
     /// `t.Add(d)`.
@@ -205,7 +260,11 @@ impl Time {
             dsec -= 1;
             nsec += 1_000_000_000;
         }
-        Time { unix: self.unix.wrapping_add(dsec), nsec: nsec as u32, loc: self.loc.clone() }
+        Time {
+            unix: self.unix.wrapping_add(dsec),
+            nsec: nsec as u32,
+            loc: self.loc.clone(),
+        }
     }
 
     fn total_nanos(&self) -> i128 {
@@ -225,7 +284,8 @@ impl Time {
     }
 
     fn rem(&self, d: Duration) -> i64 {
-        let total = (self.unix as i128 + UNIX_TO_INTERNAL as i128) * 1_000_000_000 + self.nsec as i128;
+        let total =
+            (self.unix as i128 + UNIX_TO_INTERNAL as i128) * 1_000_000_000 + self.nsec as i128;
         total.rem_euclid(d.0 as i128) as i64
     }
 
@@ -250,7 +310,8 @@ impl Time {
 
     /// `t.Format(layout)`.
     pub fn format(&self, layout: &str) -> String {
-        if layout == "2006-01-02T15:04:05Z07:00" || layout == "2006-01-02T15:04:05.999999999Z07:00" {
+        if layout == "2006-01-02T15:04:05Z07:00" || layout == "2006-01-02T15:04:05.999999999Z07:00"
+        {
             return self.format_rfc3339(layout.len() > 25);
         }
         let (name, offset) = self.loc.name_offset();
@@ -269,12 +330,20 @@ impl Time {
             match std & STD_MASK {
                 STD_YEAR => append_int(&mut b, year.abs() % 100, 2),
                 STD_LONG_YEAR => append_int(&mut b, year, 4),
-                STD_MONTH => b.extend_from_slice(&LONG_MONTH_NAMES[(month - 1) as usize].as_bytes()[..3]),
-                STD_LONG_MONTH => b.extend_from_slice(LONG_MONTH_NAMES[(month - 1) as usize].as_bytes()),
+                STD_MONTH => {
+                    b.extend_from_slice(&LONG_MONTH_NAMES[(month - 1) as usize].as_bytes()[..3])
+                }
+                STD_LONG_MONTH => {
+                    b.extend_from_slice(LONG_MONTH_NAMES[(month - 1) as usize].as_bytes())
+                }
                 STD_NUM_MONTH => append_int(&mut b, month, 0),
                 STD_ZERO_MONTH => append_int(&mut b, month, 2),
-                STD_WEEK_DAY => b.extend_from_slice(&LONG_DAY_NAMES[self.weekday() as usize].as_bytes()[..3]),
-                STD_LONG_WEEK_DAY => b.extend_from_slice(LONG_DAY_NAMES[self.weekday() as usize].as_bytes()),
+                STD_WEEK_DAY => {
+                    b.extend_from_slice(&LONG_DAY_NAMES[self.weekday() as usize].as_bytes()[..3])
+                }
+                STD_LONG_WEEK_DAY => {
+                    b.extend_from_slice(LONG_DAY_NAMES[self.weekday() as usize].as_bytes())
+                }
                 STD_DAY => append_int(&mut b, day, 0),
                 STD_UNDER_DAY => {
                     if day < 10 {
@@ -295,16 +364,25 @@ impl Time {
                 STD_ZERO_YEAR_DAY => append_int(&mut b, yday, 3),
                 STD_HOUR => append_int(&mut b, hour, 2),
                 STD_HOUR12 => append_int(&mut b, if hour % 12 == 0 { 12 } else { hour % 12 }, 0),
-                STD_ZERO_HOUR12 => append_int(&mut b, if hour % 12 == 0 { 12 } else { hour % 12 }, 2),
+                STD_ZERO_HOUR12 => {
+                    append_int(&mut b, if hour % 12 == 0 { 12 } else { hour % 12 }, 2)
+                }
                 STD_MINUTE => append_int(&mut b, min, 0),
                 STD_ZERO_MINUTE => append_int(&mut b, min, 2),
                 STD_SECOND => append_int(&mut b, sec, 0),
                 STD_ZERO_SECOND => append_int(&mut b, sec, 2),
                 STD_PM => b.extend_from_slice(if hour >= 12 { b"PM" } else { b"AM" }),
                 STD_PM_LOWER => b.extend_from_slice(if hour >= 12 { b"pm" } else { b"am" }),
-                s @ (STD_ISO8601_TZ | STD_ISO8601_COLON_TZ | STD_ISO8601_SECONDS_TZ | STD_ISO8601_SHORT_TZ
-                | STD_ISO8601_COLON_SECONDS_TZ | STD_NUM_TZ | STD_NUM_COLON_TZ | STD_NUM_SECONDS_TZ
-                | STD_NUM_SHORT_TZ | STD_NUM_COLON_SECONDS_TZ) => {
+                s @ (STD_ISO8601_TZ
+                | STD_ISO8601_COLON_TZ
+                | STD_ISO8601_SECONDS_TZ
+                | STD_ISO8601_SHORT_TZ
+                | STD_ISO8601_COLON_SECONDS_TZ
+                | STD_NUM_TZ
+                | STD_NUM_COLON_TZ
+                | STD_NUM_SECONDS_TZ
+                | STD_NUM_SHORT_TZ
+                | STD_NUM_COLON_SECONDS_TZ) => {
                     let iso = matches!(
                         s,
                         STD_ISO8601_TZ
@@ -327,13 +405,25 @@ impl Time {
                         b.push(b'+');
                     }
                     append_int(&mut b, zone / 60, 2);
-                    if matches!(s, STD_ISO8601_COLON_TZ | STD_NUM_COLON_TZ | STD_ISO8601_COLON_SECONDS_TZ | STD_NUM_COLON_SECONDS_TZ) {
+                    if matches!(
+                        s,
+                        STD_ISO8601_COLON_TZ
+                            | STD_NUM_COLON_TZ
+                            | STD_ISO8601_COLON_SECONDS_TZ
+                            | STD_NUM_COLON_SECONDS_TZ
+                    ) {
                         b.push(b':');
                     }
                     if s != STD_NUM_SHORT_TZ && s != STD_ISO8601_SHORT_TZ {
                         append_int(&mut b, zone % 60, 2);
                     }
-                    if matches!(s, STD_ISO8601_SECONDS_TZ | STD_NUM_SECONDS_TZ | STD_NUM_COLON_SECONDS_TZ | STD_ISO8601_COLON_SECONDS_TZ) {
+                    if matches!(
+                        s,
+                        STD_ISO8601_SECONDS_TZ
+                            | STD_NUM_SECONDS_TZ
+                            | STD_NUM_COLON_SECONDS_TZ
+                            | STD_ISO8601_COLON_SECONDS_TZ
+                    ) {
                         if s == STD_NUM_COLON_SECONDS_TZ || s == STD_ISO8601_COLON_SECONDS_TZ {
                             b.push(b':');
                         }
@@ -379,7 +469,11 @@ impl Time {
         b.push(b':');
         append_int(&mut b, sec, 2);
         if nanos {
-            append_nano(&mut b, self.nsec as i64, std_frac_second(STD_FRAC_SECOND9, 9, b'.'));
+            append_nano(
+                &mut b,
+                self.nsec as i64,
+                std_frac_second(STD_FRAC_SECOND9, 9, b'.'),
+            );
         }
         if offset == 0 {
             b.push(b'Z');
@@ -471,11 +565,22 @@ const STD_NUM_COLON_SECONDS_TZ: i64 = 33;
 const STD_FRAC_SECOND0: i64 = 34;
 const STD_FRAC_SECOND9: i64 = 35;
 
-const STD0X: [i64; 6] = [STD_ZERO_MONTH, STD_ZERO_DAY, STD_ZERO_HOUR12, STD_ZERO_MINUTE, STD_ZERO_SECOND, STD_YEAR];
+const STD0X: [i64; 6] = [
+    STD_ZERO_MONTH,
+    STD_ZERO_DAY,
+    STD_ZERO_HOUR12,
+    STD_ZERO_MINUTE,
+    STD_ZERO_SECOND,
+    STD_YEAR,
+];
 
 fn std_frac_second(code: i64, n: i64, c: u8) -> i64 {
     let v = code | ((n & 0xfff) << STD_ARG_SHIFT);
-    if c == b'.' { v } else { v | (1 << STD_SEPARATOR_SHIFT) }
+    if c == b'.' {
+        v
+    } else {
+        v | (1 << STD_SEPARATOR_SHIFT)
+    }
 }
 
 fn digits_len(std: i64) -> i64 {
@@ -525,7 +630,11 @@ fn next_std_chunk(layout: &str) -> (&str, i64, &str) {
             }
             b'0' => {
                 if n >= i + 2 && (b'1'..=b'6').contains(&l[i + 1]) {
-                    return (&layout[..i], STD0X[(l[i + 1] - b'1') as usize], &layout[i + 2..]);
+                    return (
+                        &layout[..i],
+                        STD0X[(l[i + 1] - b'1') as usize],
+                        &layout[i + 2..],
+                    );
                 }
                 if n >= i + 3 && l[i + 1] == b'0' && l[i + 2] == b'2' {
                     return (&layout[..i], STD_ZERO_YEAR_DAY, &layout[i + 3..]);
@@ -601,7 +710,11 @@ fn next_std_chunk(layout: &str) -> (&str, i64, &str) {
                         j += 1;
                     }
                     if !is_digit_at(l, j) {
-                        let code = if l[i + 1] == b'9' { STD_FRAC_SECOND9 } else { STD_FRAC_SECOND0 };
+                        let code = if l[i + 1] == b'9' {
+                            STD_FRAC_SECOND9
+                        } else {
+                            STD_FRAC_SECOND0
+                        };
                         let std = std_frac_second(code, (j - (i + 1)) as i64, c);
                         return (&layout[..i], std, &layout[j..]);
                     }
@@ -640,7 +753,11 @@ fn append_nano(b: &mut Vec<u8>, nanosec: i64, std: i64) {
     if trim && (n == 0 || nanosec == 0) {
         return;
     }
-    let dot = if (std >> STD_SEPARATOR_SHIFT) == 0 { b'.' } else { b',' };
+    let dot = if (std >> STD_SEPARATOR_SHIFT) == 0 {
+        b'.'
+    } else {
+        b','
+    };
     b.push(dot);
     let start = b.len();
     append_int(b, nanosec, 9);
@@ -661,7 +778,13 @@ fn append_nano(b: &mut Vec<u8>, nanosec: i64, std: i64) {
 // Parsing
 // ---------------------------------------------------------------------------
 
-fn parse_error(layout: &str, value: &str, layout_elem: &str, value_elem: &str, message: &str) -> String {
+fn parse_error(
+    layout: &str,
+    value: &str,
+    layout_elem: &str,
+    value_elem: &str,
+    message: &str,
+) -> String {
     if message.is_empty() {
         format!(
             "parsing time {} as {}: cannot parse {} as {}",
@@ -913,14 +1036,23 @@ fn parse_rfc3339(s: &str, local: &Location) -> Option<Time> {
         }
         t.unix -= zone_offset;
         let (_, local_off) = local.name_offset();
-        t.loc = if local_off as i64 == zone_offset { local.clone() } else { Location::Fixed(String::new(), zone_offset as i32) };
+        t.loc = if local_off as i64 == zone_offset {
+            local.clone()
+        } else {
+            Location::Fixed(String::new(), zone_offset as i32)
+        };
     }
     Some(t)
 }
 
 /// `time.ParseInLocation(layout, value, loc)` (`time.Parse` uses UTC as the
 /// default location and `local` for zone lookups).
-pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, local: &Location) -> Result<Time, String> {
+pub fn parse_in_location(
+    layout: &str,
+    value: &str,
+    default_loc: &Location,
+    local: &Location,
+) -> Result<Time, String> {
     if layout == "2006-01-02T15:04:05Z07:00" || layout == "2006-01-02T15:04:05.999999999Z07:00" {
         if let Some(t) = parse_rfc3339(value, local) {
             return Ok(t);
@@ -945,7 +1077,13 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
         };
         if std == 0 {
             if !value.is_empty() {
-                return Err(parse_error(alayout, avalue, "", value, &format!(": extra text: {}", time_quote(value))));
+                return Err(parse_error(
+                    alayout,
+                    avalue,
+                    "",
+                    value,
+                    &format!(": extra text: {}", time_quote(value)),
+                ));
             }
             break;
         }
@@ -966,7 +1104,10 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                 }
             }
             STD_LONG_YEAR => {
-                if value.len() < 4 || !is_digit_at(value.as_bytes(), 0) || !value.is_char_boundary(4) {
+                if value.len() < 4
+                    || !is_digit_at(value.as_bytes(), 0)
+                    || !value.is_char_boundary(4)
+                {
                     err = true;
                 } else {
                     let p = &value[..4];
@@ -977,16 +1118,18 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                     }
                 }
             }
-            STD_MONTH | STD_LONG_MONTH => match lookup(&LONG_MONTH_NAMES, value, std & STD_MASK == STD_MONTH) {
-                Ok((m, rest)) => {
-                    month = m + 1;
-                    value = rest;
+            STD_MONTH | STD_LONG_MONTH => {
+                match lookup(&LONG_MONTH_NAMES, value, std & STD_MASK == STD_MONTH) {
+                    Ok((m, rest)) => {
+                        month = m + 1;
+                        value = rest;
+                    }
+                    Err(_) => {
+                        month = 0;
+                        err = true;
+                    }
                 }
-                Err(_) => {
-                    month = 0;
-                    err = true;
-                }
-            },
+            }
             STD_NUM_MONTH | STD_ZERO_MONTH => match getnum(value, std == STD_ZERO_MONTH) {
                 Ok((m, rest)) => {
                     month = m;
@@ -1000,10 +1143,12 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                     err = true;
                 }
             },
-            STD_WEEK_DAY | STD_LONG_WEEK_DAY => match lookup(&LONG_DAY_NAMES, value, std & STD_MASK == STD_WEEK_DAY) {
-                Ok((_, rest)) => value = rest,
-                Err(_) => err = true,
-            },
+            STD_WEEK_DAY | STD_LONG_WEEK_DAY => {
+                match lookup(&LONG_DAY_NAMES, value, std & STD_MASK == STD_WEEK_DAY) {
+                    Ok((_, rest)) => value = rest,
+                    Err(_) => err = true,
+                }
+            }
             STD_DAY | STD_UNDER_DAY | STD_ZERO_DAY => {
                 if std == STD_UNDER_DAY && value.starts_with(' ') {
                     value = &value[1..];
@@ -1083,7 +1228,10 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                         range_err = "second";
                     } else {
                         let vb = value.as_bytes();
-                        if vb.len() >= 2 && (vb[0] == b'.' || vb[0] == b',') && vb[1].is_ascii_digit() {
+                        if vb.len() >= 2
+                            && (vb[0] == b'.' || vb[0] == b',')
+                            && vb[1].is_ascii_digit()
+                        {
                             let (_, nstd, _) = next_std_chunk(layout);
                             let nstd = nstd & STD_MASK;
                             if nstd != STD_FRAC_SECOND0 && nstd != STD_FRAC_SECOND9 {
@@ -1114,7 +1262,11 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                 } else {
                     let p = &value[..2];
                     value = &value[2..];
-                    let (pm, am) = if std == STD_PM { ("PM", "AM") } else { ("pm", "am") };
+                    let (pm, am) = if std == STD_PM {
+                        ("PM", "AM")
+                    } else {
+                        ("pm", "am")
+                    };
                     if p == pm {
                         pm_set = true;
                     } else if p == am {
@@ -1124,12 +1276,23 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                     }
                 }
             }
-            s @ (STD_ISO8601_TZ | STD_ISO8601_SHORT_TZ | STD_ISO8601_COLON_TZ | STD_ISO8601_SECONDS_TZ
-            | STD_ISO8601_COLON_SECONDS_TZ | STD_NUM_TZ | STD_NUM_SHORT_TZ | STD_NUM_COLON_TZ
-            | STD_NUM_SECONDS_TZ | STD_NUM_COLON_SECONDS_TZ) => {
+            s @ (STD_ISO8601_TZ
+            | STD_ISO8601_SHORT_TZ
+            | STD_ISO8601_COLON_TZ
+            | STD_ISO8601_SECONDS_TZ
+            | STD_ISO8601_COLON_SECONDS_TZ
+            | STD_NUM_TZ
+            | STD_NUM_SHORT_TZ
+            | STD_NUM_COLON_TZ
+            | STD_NUM_SECONDS_TZ
+            | STD_NUM_COLON_SECONDS_TZ) => {
                 let iso = matches!(
                     s,
-                    STD_ISO8601_TZ | STD_ISO8601_SHORT_TZ | STD_ISO8601_COLON_TZ | STD_ISO8601_SECONDS_TZ | STD_ISO8601_COLON_SECONDS_TZ
+                    STD_ISO8601_TZ
+                        | STD_ISO8601_SHORT_TZ
+                        | STD_ISO8601_COLON_TZ
+                        | STD_ISO8601_SECONDS_TZ
+                        | STD_ISO8601_COLON_SECONDS_TZ
                 );
                 if iso && value.starts_with('Z') {
                     value = &value[1..];
@@ -1144,15 +1307,24 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                                 Some((&vb[0..1], &vb[1..3], &vb[4..6], b"00", 6))
                             }
                         } else if s == STD_NUM_SHORT_TZ || s == STD_ISO8601_SHORT_TZ {
-                            if vb.len() < 3 { None } else { Some((&vb[0..1], &vb[1..3], b"00", b"00", 3)) }
-                        } else if s == STD_ISO8601_COLON_SECONDS_TZ || s == STD_NUM_COLON_SECONDS_TZ {
+                            if vb.len() < 3 {
+                                None
+                            } else {
+                                Some((&vb[0..1], &vb[1..3], b"00", b"00", 3))
+                            }
+                        } else if s == STD_ISO8601_COLON_SECONDS_TZ || s == STD_NUM_COLON_SECONDS_TZ
+                        {
                             if vb.len() < 9 || vb[3] != b':' || vb[6] != b':' {
                                 None
                             } else {
                                 Some((&vb[0..1], &vb[1..3], &vb[4..6], &vb[7..9], 9))
                             }
                         } else if s == STD_ISO8601_SECONDS_TZ || s == STD_NUM_SECONDS_TZ {
-                            if vb.len() < 7 { None } else { Some((&vb[0..1], &vb[1..3], &vb[3..5], &vb[5..7], 7)) }
+                            if vb.len() < 7 {
+                                None
+                            } else {
+                                Some((&vb[0..1], &vb[1..3], &vb[3..5], &vb[5..7], 7))
+                            }
                         } else if vb.len() < 5 {
                             None
                         } else {
@@ -1166,7 +1338,10 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
                             } else {
                                 value = &value[n..];
                                 let num = |x: &[u8]| -> Option<i64> {
-                                    if x.len() == 2 && x[0].is_ascii_digit() && x[1].is_ascii_digit() {
+                                    if x.len() == 2
+                                        && x[0].is_ascii_digit()
+                                        && x[1].is_ascii_digit()
+                                    {
                                         Some(((x[0] - b'0') * 10 + (x[1] - b'0')) as i64)
                                     } else {
                                         None
@@ -1260,7 +1435,13 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
             _ => {}
         }
         if !range_err.is_empty() {
-            return Err(parse_error(alayout, avalue, stdstr, value, &format!(": {range_err} out of range")));
+            return Err(parse_error(
+                alayout,
+                avalue,
+                stdstr,
+                value,
+                &format!(": {range_err} out of range"),
+            ));
         }
         if err {
             return Err(parse_error(alayout, avalue, stdstr, hold, ""));
@@ -1283,7 +1464,13 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
             }
         }
         if !(1..=365).contains(&yday) {
-            return Err(parse_error(alayout, avalue, "", value, ": day-of-year out of range"));
+            return Err(parse_error(
+                alayout,
+                avalue,
+                "",
+                value,
+                ": day-of-year out of range",
+            ));
         }
         if m == 0 {
             m = (yday - 1) / 31 + 1;
@@ -1293,11 +1480,23 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
             d = yday - DAYS_BEFORE[(m - 1) as usize];
         }
         if month >= 0 && month != m {
-            return Err(parse_error(alayout, avalue, "", value, ": day-of-year does not match month"));
+            return Err(parse_error(
+                alayout,
+                avalue,
+                "",
+                value,
+                ": day-of-year does not match month",
+            ));
         }
         month = m;
         if day >= 0 && day != d {
-            return Err(parse_error(alayout, avalue, "", value, ": day-of-year does not match day"));
+            return Err(parse_error(
+                alayout,
+                avalue,
+                "",
+                value,
+                ": day-of-year does not match day",
+            ));
         }
         day = d;
     } else {
@@ -1309,7 +1508,13 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
         }
     }
     if day < 1 || day > days_in(month, year) {
-        return Err(parse_error(alayout, avalue, "", value, ": day out of range"));
+        return Err(parse_error(
+            alayout,
+            avalue,
+            "",
+            value,
+            ": day out of range",
+        ));
     }
     if let Some(z) = z {
         return Ok(Time::date(year, month, day, hour, min, sec, nsec, z));
@@ -1340,7 +1545,16 @@ pub fn parse_in_location(layout: &str, value: &str, default_loc: &Location, loca
         t.loc = Location::Fixed(zone_name, offset as i32);
         return Ok(t);
     }
-    Ok(Time::date(year, month, day, hour, min, sec, nsec, default_loc.clone()))
+    Ok(Time::date(
+        year,
+        month,
+        day,
+        hour,
+        min,
+        sec,
+        nsec,
+        default_loc.clone(),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1441,9 +1655,9 @@ impl Object for Time {
     fn method(&self, name: &str) -> Option<Sig> {
         const NONE: Sig = Sig::new(&[]);
         Some(match name {
-            "Year" | "Month" | "Day" | "Hour" | "Minute" | "Second" | "Nanosecond" | "YearDay" | "Weekday" | "Unix"
-            | "UnixNano" | "UnixMilli" | "UnixMicro" | "UTC" | "Local" | "IsZero" | "String" | "GoString"
-            | "MarshalJSON" | "MarshalText" => NONE,
+            "Year" | "Month" | "Day" | "Hour" | "Minute" | "Second" | "Nanosecond" | "YearDay"
+            | "Weekday" | "Unix" | "UnixNano" | "UnixMilli" | "UnixMicro" | "UTC" | "Local"
+            | "IsZero" | "String" | "GoString" | "MarshalJSON" | "MarshalText" => NONE,
             "Format" => Sig::new(&[Ty::String]),
             "Add" | "Truncate" | "Round" => Sig::new(&[Ty::Int64]),
             "AddDate" => Sig::new(&[Ty::Int, Ty::Int, Ty::Int]),
@@ -1473,9 +1687,21 @@ impl Object for Time {
             "YearDay" => Value::Int(self.yday()),
             "Weekday" => Value::object(Weekday(self.weekday())),
             "Unix" => Value::Int64(self.unix),
-            "UnixNano" => Value::Int64(self.unix.wrapping_mul(1_000_000_000).wrapping_add(self.nsec as i64)),
-            "UnixMilli" => Value::Int64(self.unix.wrapping_mul(1000).wrapping_add(self.nsec as i64 / 1_000_000)),
-            "UnixMicro" => Value::Int64(self.unix.wrapping_mul(1_000_000).wrapping_add(self.nsec as i64 / 1000)),
+            "UnixNano" => Value::Int64(
+                self.unix
+                    .wrapping_mul(1_000_000_000)
+                    .wrapping_add(self.nsec as i64),
+            ),
+            "UnixMilli" => Value::Int64(
+                self.unix
+                    .wrapping_mul(1000)
+                    .wrapping_add(self.nsec as i64 / 1_000_000),
+            ),
+            "UnixMicro" => Value::Int64(
+                self.unix
+                    .wrapping_mul(1_000_000)
+                    .wrapping_add(self.nsec as i64 / 1000),
+            ),
             "UTC" => Value::object(self.in_loc(Location::Utc)),
             "Local" => {
                 let off = match &self.loc {
@@ -1489,10 +1715,16 @@ impl Object for Time {
             "GoString" => Value::string(self.go_syntax()),
             "MarshalJSON" | "MarshalText" => {
                 let s = self.format("2006-01-02T15:04:05.999999999Z07:00");
-                let s = if name == "MarshalJSON" { format!("\"{s}\"") } else { s };
+                let s = if name == "MarshalJSON" {
+                    format!("\"{s}\"")
+                } else {
+                    s
+                };
                 Value::Bytes(s.into_bytes().into())
             }
-            "Format" => Value::string(self.format(args.first().and_then(Value::as_str).unwrap_or(""))),
+            "Format" => {
+                Value::string(self.format(args.first().and_then(Value::as_str).unwrap_or("")))
+            }
             "Add" => Value::object(self.add(Duration(int_arg(0)))),
             "Truncate" => Value::object(self.truncate(Duration(int_arg(0)))),
             "Round" => Value::object(self.round(Duration(int_arg(0)))),
@@ -1515,7 +1747,11 @@ impl Object for Time {
                 core::cmp::Ordering::Equal => 0,
                 core::cmp::Ordering::Greater => 1,
             }),
-            _ => return Err(FuncError::new(format!("can't call method {name} on time.Time"))),
+            _ => {
+                return Err(FuncError::new(format!(
+                    "can't call method {name} on time.Time"
+                )));
+            }
         })
     }
     fn format(&self, out: &mut String) {

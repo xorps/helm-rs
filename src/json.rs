@@ -80,10 +80,17 @@ pub(crate) fn append_string(out: &mut String, s: &str, escape_html: bool) {
 /// Go's float encoder for `float64`.
 pub(crate) fn format_json_float(f: f64) -> Result<String, JsonError> {
     if f.is_nan() || f.is_infinite() {
-        return Err(JsonError::new(format!("json: unsupported value: {}", format_float(f, b'g', false)), 0));
+        return Err(JsonError::new(
+            format!("json: unsupported value: {}", format_float(f, b'g', false)),
+            0,
+        ));
     }
     let abs = f.abs();
-    let fmt = if abs != 0.0 && !(1e-6..1e21).contains(&abs) { b'e' } else { b'f' };
+    let fmt = if abs != 0.0 && !(1e-6..1e21).contains(&abs) {
+        b'e'
+    } else {
+        b'f'
+    };
     let mut s = format_float(f, fmt, false);
     if fmt == b'e' {
         // clean up e-09 to e-9
@@ -141,10 +148,16 @@ impl Encoder {
             let period = n - s;
             let idx = s + (START_DETECTING_CYCLES_AFTER - s) % period;
             let ty = self.path[idx].go_type();
-            return Err(JsonError::new(format!("json: unsupported value: encountered a cycle via {ty}"), 0));
+            return Err(JsonError::new(
+                format!("json: unsupported value: encountered a cycle via {ty}"),
+                0,
+            ));
         }
         if self.path.len() + self.objects >= MAX_DEPTH {
-            return Err(JsonError::new(format!("json: unsupported value: exceeded max depth of {MAX_DEPTH}"), 0));
+            return Err(JsonError::new(
+                format!("json: unsupported value: exceeded max depth of {MAX_DEPTH}"),
+                0,
+            ));
         }
         self.path.push(match v {
             Value::Map(m) => PathEnt::Map(m.clone()),
@@ -178,7 +191,10 @@ impl Encoder {
 
     #[inline(never)]
     fn map_entries(m: &MapRef) -> Vec<(String, Value)> {
-        m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        m.borrow()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     #[inline(never)]
@@ -264,7 +280,12 @@ impl Encoder {
 }
 
 fn marshal(v: &Value, escape_html: bool) -> Result<String, JsonError> {
-    let mut e = Encoder { out: String::new(), escape_html, path: Vec::new(), objects: 0 };
+    let mut e = Encoder {
+        out: String::new(),
+        escape_html,
+        path: Vec::new(),
+        objects: 0,
+    };
     e.encode(v).map_err(|e| *e)?;
     Ok(e.out)
 }
@@ -395,16 +416,25 @@ fn first_char_len(b: &[u8]) -> usize {
 fn invalid_char(b: &[u8], at: usize, where_: &str) -> SynErr {
     let rest = &b[at.min(b.len())..];
     let n = first_char_len(rest);
-    SynErr::Text(format!("invalid character {} {}", quote_rune(&rest[..n]), where_), at)
+    SynErr::Text(
+        format!("invalid character {} {}", quote_rune(&rest[..n]), where_),
+        at,
+    )
 }
 
 fn needs_escape(s: &str) -> bool {
-    s.chars().any(|r| r == '`' || r == '\u{FFFD}' || r.is_whitespace() || !crate::yaml::isprint::is_print(r))
+    s.chars().any(|r| {
+        r == '`' || r == '\u{FFFD}' || r.is_whitespace() || !crate::yaml::isprint::is_print(r)
+    })
 }
 
 fn invalid_escape(what: &[u8], at: usize) -> SynErr {
     let s = crate::yaml::strconv::go_lossy_utf8(what);
-    let label = if what.len() > 6 { "surrogate pair" } else { "escape sequence" };
+    let label = if what.len() > 6 {
+        "surrogate pair"
+    } else {
+        "escape sequence"
+    };
     let shown = if s.chars().count() == 1 {
         quote_rune(s.as_bytes())
     } else if needs_escape(&s) {
@@ -442,7 +472,11 @@ fn has_escaped_utf16_prefix(b: &[u8], lower_surrogate_half: bool) -> bool {
         if i == 2 && lower_surrogate_half && c != b'd' && c != b'D' {
             return false;
         }
-        if i == 3 && lower_surrogate_half && !(b'c'..=b'f').contains(&c) && !(b'C'..=b'F').contains(&c) {
+        if i == 3
+            && lower_surrogate_half
+            && !(b'c'..=b'f').contains(&c)
+            && !(b'C'..=b'F').contains(&c)
+        {
             return false;
         }
         if (2..6).contains(&i) && !is_hex(c) {
@@ -496,7 +530,11 @@ fn consume_string(b: &[u8], pos: usize) -> Result<usize, SynErr> {
             continue;
         }
         if c < b' ' {
-            return Err(invalid_char(b, n, "in string (expecting non-control character)"));
+            return Err(invalid_char(
+                b,
+                n,
+                "in string (expecting non-control character)",
+            ));
         }
         n += 1;
     }
@@ -614,7 +652,13 @@ fn consume_object(b: &[u8], pos: usize, depth: usize) -> Result<usize, SynErr> {
         match b[pos] {
             b',' => pos += 1,
             b'}' => return Ok(pos + 1),
-            _ => return Err(invalid_char(b, pos, "after object value (expecting ',' or '}')")),
+            _ => {
+                return Err(invalid_char(
+                    b,
+                    pos,
+                    "after object value (expecting ',' or '}')",
+                ));
+            }
         }
     }
 }
@@ -641,7 +685,13 @@ fn consume_array(b: &[u8], pos: usize, depth: usize) -> Result<usize, SynErr> {
         match b[pos] {
             b',' => pos += 1,
             b']' => return Ok(pos + 1),
-            _ => return Err(invalid_char(b, pos, "after array element (expecting ',' or ']')")),
+            _ => {
+                return Err(invalid_char(
+                    b,
+                    pos,
+                    "after array element (expecting ',' or ']')",
+                ));
+            }
         }
     }
 }
@@ -660,7 +710,10 @@ fn legacy_syntax_error(e: SynErr, len: usize) -> JsonError {
             let msg = msg
                 .replace("object name", "object key")
                 .replace("at start of value", "looking for beginning of value")
-                .replace("at start of string", "looking for beginning of object key string")
+                .replace(
+                    "at start of string",
+                    "looking for beginning of object key string",
+                )
                 .replace("after object value", "after object key:value pair")
                 .replace("in number", "in numeric literal");
             JsonError::new(msg, at + 1)
@@ -675,12 +728,18 @@ fn check_valid(data: &[u8]) -> Result<(), JsonError> {
         return Err(legacy_syntax_error(SynErr::Eof, data.len()));
     }
     if data[pos] == b':' || data[pos] == b',' {
-        return Err(legacy_syntax_error(invalid_char(data, pos, "at start of value"), data.len()));
+        return Err(legacy_syntax_error(
+            invalid_char(data, pos, "at start of value"),
+            data.len(),
+        ));
     }
     let end = consume_value(data, pos, 1).map_err(|e| legacy_syntax_error(e, data.len()))?;
     let end = skip_ws(data, end);
     if end < data.len() {
-        return Err(legacy_syntax_error(invalid_char(data, end, "after top-level value"), data.len()));
+        return Err(legacy_syntax_error(
+            invalid_char(data, end, "after top-level value"),
+            data.len(),
+        ));
     }
     Ok(())
 }
@@ -720,8 +779,11 @@ impl<'a> Dec<'a> {
         } else {
             let field = self.path.join(".");
             let last = self.path.last().map(String::as_str).unwrap_or("");
-            let into =
-                if !last.is_empty() && last.bytes().all(|c| c.is_ascii_digit()) { "" } else { "Go struct field " };
+            let into = if !last.is_empty() && last.bytes().all(|c| c.is_ascii_digit()) {
+                ""
+            } else {
+                "Go struct field "
+            };
             format!("json: cannot unmarshal {value} into {into}.{field} of type {go_type}")
         };
         self.saved = Some(JsonError::new(msg, self.i));
@@ -794,7 +856,11 @@ impl<'a> Dec<'a> {
             }
             _ => {
                 let st = self.i;
-                while self.i < self.b.len() && matches!(self.b[self.i], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')
+                while self.i < self.b.len()
+                    && matches!(
+                        self.b[self.i],
+                        b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9'
+                    )
                 {
                     self.i += 1;
                 }
@@ -805,7 +871,11 @@ impl<'a> Dec<'a> {
                         let msg = format!("number {s}");
                         self.type_error(&msg, "float64");
                         // strconv.ParseFloat returns ±Inf on overflow.
-                        Value::Float(if s.starts_with('-') { f64::NEG_INFINITY } else { f64::INFINITY })
+                        Value::Float(if s.starts_with('-') {
+                            f64::NEG_INFINITY
+                        } else {
+                            f64::INFINITY
+                        })
                     }
                 }
             }
@@ -842,7 +912,9 @@ impl<'a> Dec<'a> {
                                 if r < 0xDC00 {
                                     if let Some(r2) = self.getu4(self.i) {
                                         if (0xDC00..0xE000).contains(&r2) {
-                                            combined = Some(0x10000 + ((r - 0xD800) << 10) + (r2 - 0xDC00));
+                                            combined = Some(
+                                                0x10000 + ((r - 0xD800) << 10) + (r2 - 0xDC00),
+                                            );
                                         }
                                     }
                                 }
@@ -894,7 +966,12 @@ pub fn unmarshal(s: &str, target: Target<'_>) -> (Value, Option<JsonError>) {
     if let Err(e) = check_valid(s.as_bytes()) {
         return (empty(), Some(e));
     }
-    let mut d = Dec { b: s.as_bytes(), i: 0, saved: None, path: Vec::new() };
+    let mut d = Dec {
+        b: s.as_bytes(),
+        i: 0,
+        saved: None,
+        path: Vec::new(),
+    };
     d.skip_ws();
     let start = d.i;
     let kind = match d.peek() {
@@ -915,7 +992,8 @@ pub fn unmarshal(s: &str, target: Target<'_>) -> (Value, Option<JsonError>) {
         }
         Target::List => {
             if kind != "array" && kind != "null" {
-                let msg = format!("json: cannot unmarshal {kind} into Go value of type []interface {{}}");
+                let msg =
+                    format!("json: cannot unmarshal {kind} into Go value of type []interface {{}}");
                 return (empty(), Some(JsonError::new(msg, start + 1)));
             }
         }
@@ -933,6 +1011,27 @@ pub fn from_str(s: &str) -> Result<Value, JsonError> {
     }
 }
 
+/// `encoding/json`'s `isEmptyValue` (for `omitempty`).
+fn is_empty_value(v: &Value) -> bool {
+    match v {
+        Value::Nil => true,
+        Value::Bool(b) => !b,
+        Value::Int(i) | Value::Int64(i) => *i == 0,
+        Value::Uint64(u) => *u == 0,
+        Value::Float(f) => *f == 0.0,
+        Value::String(s) => s.is_empty(),
+        Value::Bytes(b) => b.is_empty(),
+        Value::List(l) => l.is_empty(),
+        Value::Map(m) => m.is_empty(),
+        Value::Object(o) => {
+            matches!(
+                o.kind(),
+                crate::value::Kind::Map | crate::value::Kind::Slice
+            ) && !o.truthy()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -941,9 +1040,18 @@ mod tests {
     #[test]
     fn encode() {
         let v = map! { "b" => 1.0, "a" => "<x&y>", "c" => Value::list(alloc::vec![Value::Float(1e21), Value::Float(1e-7)]) };
-        assert_eq!(to_string(&v).unwrap(), "{\"a\":\"\\u003cx\\u0026y\\u003e\",\"b\":1,\"c\":[1e+21,1e-7]}");
-        assert_eq!(to_string_raw(&v).unwrap(), r#"{"a":"<x&y>","b":1,"c":[1e+21,1e-7]}"#);
-        assert_eq!(to_string(&Value::Float(f64::NAN)).unwrap_err().message, "json: unsupported value: NaN");
+        assert_eq!(
+            to_string(&v).unwrap(),
+            "{\"a\":\"\\u003cx\\u0026y\\u003e\",\"b\":1,\"c\":[1e+21,1e-7]}"
+        );
+        assert_eq!(
+            to_string_raw(&v).unwrap(),
+            r#"{"a":"<x&y>","b":1,"c":[1e+21,1e-7]}"#
+        );
+        assert_eq!(
+            to_string(&Value::Float(f64::NAN)).unwrap_err().message,
+            "json: unsupported value: NaN"
+        );
         assert_eq!(
             to_string_indent(&v, "", "  ").unwrap(),
             "{\n  \"a\": \"\\u003cx\\u0026y\\u003e\",\n  \"b\": 1,\n  \"c\": [\n    1e+21,\n    1e-7\n  ]\n}"
@@ -957,30 +1065,26 @@ mod tests {
             from_str("{\"a\": [1, 2.5, true, null, \"x\"]}").unwrap(),
             map! { "a" => Value::list(alloc::vec![Value::Float(1.0), Value::Float(2.5), Value::Bool(true), Value::Nil, Value::str("x")]) }
         );
-        assert_eq!(from_str("x").unwrap_err().message, "invalid character 'x' looking for beginning of value");
-        assert_eq!(from_str("").unwrap_err().message, "unexpected end of JSON input");
-        assert_eq!(from_str("{\"a\" 1}").unwrap_err().message, "invalid character '1' after object key");
+        assert_eq!(
+            from_str("x").unwrap_err().message,
+            "invalid character 'x' looking for beginning of value"
+        );
+        assert_eq!(
+            from_str("").unwrap_err().message,
+            "unexpected end of JSON input"
+        );
+        assert_eq!(
+            from_str("{\"a\" 1}").unwrap_err().message,
+            "invalid character '1' after object key"
+        );
         assert_eq!(
             from_str("1e400").unwrap_err().message,
             "json: cannot unmarshal number 1e400 into Go value of type float64"
         );
-        assert_eq!(from_str("[1] x").unwrap_err().message, "invalid character 'x' after top-level value");
+        assert_eq!(
+            from_str("[1] x").unwrap_err().message,
+            "invalid character 'x' after top-level value"
+        );
         assert_eq!(from_str("\"\\ud83d\\ude00\"").unwrap(), Value::str("😀"));
-    }
-}
-
-/// `encoding/json`'s `isEmptyValue` (for `omitempty`).
-fn is_empty_value(v: &Value) -> bool {
-    match v {
-        Value::Nil => true,
-        Value::Bool(b) => !b,
-        Value::Int(i) | Value::Int64(i) => *i == 0,
-        Value::Uint64(u) => *u == 0,
-        Value::Float(f) => *f == 0.0,
-        Value::String(s) => s.is_empty(),
-        Value::Bytes(b) => b.is_empty(),
-        Value::List(l) => l.is_empty(),
-        Value::Map(m) => m.is_empty(),
-        Value::Object(o) => matches!(o.kind(), crate::value::Kind::Map | crate::value::Kind::Slice) && !o.truthy(),
     }
 }

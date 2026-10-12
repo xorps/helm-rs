@@ -33,7 +33,9 @@ fn dbl_quoted(s: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\u{c}' => out.push_str("\\f"),
             '\r' => out.push_str("\\r"),
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+                out.push_str(&format!("\\u{:04x}", c as u32))
+            }
             c => out.push(c),
         }
     }
@@ -245,7 +247,11 @@ impl Enc {
                     self.write("inf");
                 } else {
                     let s = format_float(f, b'g', false);
-                    let s = if s.contains('e') || s.contains('.') { s } else { format!("{s}.0") };
+                    let s = if s.contains('e') || s.contains('.') {
+                        s
+                    } else {
+                        format!("{s}.0")
+                    };
                     self.write(&s);
                 }
             }
@@ -332,7 +338,11 @@ impl Enc {
 
     fn map(&mut self, key: &[String], v: &Value, inline: bool) -> EncResult {
         let entries: Vec<(String, Value)> = match v {
-            Value::Map(m) => m.borrow().iter().map(|(k, v)| (k.clone(), data_of(v))).collect(),
+            Value::Map(m) => m
+                .borrow()
+                .iter()
+                .map(|(k, v)| (k.clone(), data_of(v)))
+                .collect(),
             _ => match struct_entries(v) {
                 Some(e) => e,
                 None => return Ok(()),
@@ -358,7 +368,13 @@ impl Enc {
         Ok(())
     }
 
-    fn write_map_keys(&mut self, key: &[String], keys: &[(String, Value)], trail: bool, inline: bool) -> EncResult {
+    fn write_map_keys(
+        &mut self,
+        key: &[String],
+        keys: &[(String, Value)],
+        trail: bool,
+        inline: bool,
+    ) -> EncResult {
         for (i, (k, val)) in keys.iter().enumerate() {
             if val.is_nil() {
                 continue;
@@ -380,7 +396,11 @@ impl Enc {
 
 /// `toml.NewEncoder(...).Encode(v)`.
 pub fn to_string(v: &Value) -> Result<String, String> {
-    let mut e = Enc { out: String::new(), has_written: false, depth: 0 };
+    let mut e = Enc {
+        out: String::new(),
+        has_written: false,
+        depth: 0,
+    };
     let v = data_of(v);
     e.encode(&[], &v)?;
     Ok(e.out)
@@ -588,7 +608,11 @@ impl<'a> Lexer<'a> {
 
     fn get_pos(&self) -> Pos {
         let len = self.pos.saturating_sub(self.start);
-        Pos { line: self.line, start: self.start, len: if len == 0 { 1 } else { len } }
+        Pos {
+            line: self.line,
+            start: self.start,
+            len: if len == 0 { 1 } else { len },
+        }
     }
 
     fn emit(&mut self, typ: ItemType) {
@@ -597,7 +621,12 @@ impl<'a> Lexer<'a> {
             self.error(format!("invalid UTF-8 byte: 0x{b:02x}"));
             return;
         }
-        let it = Item { typ, val: self.current().to_string(), err: None, pos: self.get_pos() };
+        let it = Item {
+            typ,
+            val: self.current().to_string(),
+            err: None,
+            pos: self.get_pos(),
+        };
         self.items.push_back(it);
         self.start = self.pos;
     }
@@ -605,7 +634,10 @@ impl<'a> Lexer<'a> {
     fn emit_trim(&mut self, typ: ItemType) {
         let it = Item {
             typ,
-            val: self.current().trim_matches(|c: char| c.is_whitespace()).to_string(),
+            val: self
+                .current()
+                .trim_matches(|c: char| c.is_whitespace())
+                .to_string(),
             err: None,
             pos: self.get_pos(),
         };
@@ -630,11 +662,17 @@ impl<'a> Lexer<'a> {
         }
         let r = self.input[self.pos..].chars().next().unwrap_or(EOF);
         let w = r.len_utf8();
-        if is_control(r) || (r == '\r' && (self.input.len() - 1 == self.pos || b.get(self.pos + 1) != Some(&b'\n'))) {
+        if is_control(r)
+            || (r == '\r'
+                && (self.input.len() - 1 == self.pos || b.get(self.pos + 1) != Some(&b'\n')))
+        {
             self.error_pos(
                 self.pos.wrapping_sub(1),
                 1,
-                format!("TOML files cannot contain control characters: '0x{:02x}'", r as u32),
+                format!(
+                    "TOML files cannot contain control characters: '0x{:02x}'",
+                    r as u32
+                ),
             );
             return RUNE_ERROR;
         }
@@ -697,7 +735,12 @@ impl<'a> Lexer<'a> {
             return self.error_prev_line(msg);
         }
         let pos = self.get_pos();
-        self.items.push_back(Item { typ: ItemType::Error, val: String::new(), err: Some(msg), pos });
+        self.items.push_back(Item {
+            typ: ItemType::Error,
+            val: String::new(),
+            err: Some(msg),
+            pos,
+        });
         None
     }
 
@@ -706,7 +749,12 @@ impl<'a> Lexer<'a> {
         pos.line = pos.line.saturating_sub(1);
         pos.len = 1;
         pos.start = self.pos.saturating_sub(1);
-        self.items.push_back(Item { typ: ItemType::Error, val: String::new(), err: Some(msg), pos });
+        self.items.push_back(Item {
+            typ: ItemType::Error,
+            val: String::new(),
+            err: Some(msg),
+            pos,
+        });
         None
     }
 
@@ -714,7 +762,12 @@ impl<'a> Lexer<'a> {
         let mut pos = self.get_pos();
         pos.start = start;
         pos.len = len;
-        self.items.push_back(Item { typ: ItemType::Error, val: String::new(), err: Some(msg), pos });
+        self.items.push_back(Item {
+            typ: ItemType::Error,
+            val: String::new(),
+            err: Some(msg),
+            pos,
+        });
         None
     }
 
@@ -726,11 +779,21 @@ impl<'a> Lexer<'a> {
             }
             pos.len = 1;
             pos.start = self.pos.saturating_sub(1);
-            self.items.push_back(Item { typ: ItemType::Error, val: String::new(), err: Some(msg), pos });
+            self.items.push_back(Item {
+                typ: ItemType::Error,
+                val: String::new(),
+                err: Some(msg),
+                pos,
+            });
             return None;
         }
         let pos = self.get_pos();
-        self.items.push_back(Item { typ: ItemType::Error, val: String::new(), err: Some(msg), pos });
+        self.items.push_back(Item {
+            typ: ItemType::Error,
+            val: String::new(),
+            err: Some(msg),
+            pos,
+        });
         None
     }
 
@@ -813,10 +876,13 @@ impl<'a> Lexer<'a> {
                 self.skip(is_whitespace);
                 let r = self.peek();
                 if r == ']' || r == EOF {
-                    return self.errorf("unexpected end of table name (table names cannot be empty)".into());
+                    return self.errorf(
+                        "unexpected end of table name (table names cannot be empty)".into(),
+                    );
                 }
                 if r == '.' {
-                    return self.errorf("unexpected table separator (table names cannot be empty)".into());
+                    return self
+                        .errorf("unexpected table separator (table names cannot be empty)".into());
                 }
                 self.push(St::TableNameEnd);
                 if r == '"' || r == '\'' {
@@ -835,7 +901,10 @@ impl<'a> Lexer<'a> {
                 if r == ']' {
                     return self.pop();
                 }
-                self.errorf(format!("expected '.' or ']' to end table name, but got {} instead", q_rune(r)))
+                self.errorf(format!(
+                    "expected '.' or ']' to end table name, but got {} instead",
+                    q_rune(r)
+                ))
             }
             St::BareName => {
                 let r = self.next();
@@ -917,9 +986,15 @@ impl<'a> Lexer<'a> {
                     return Some(St::Value);
                 }
                 if r == '\n' {
-                    return self.error_prev_line(format!("expected '.' or '=', but got {} instead", q_rune(r)));
+                    return self.error_prev_line(format!(
+                        "expected '.' or '=', but got {} instead",
+                        q_rune(r)
+                    ));
                 }
-                self.errorf(format!("expected '.' or '=', but got {} instead", q_rune(r)))
+                self.errorf(format!(
+                    "expected '.' or '=', but got {} instead",
+                    q_rune(r)
+                ))
             }
             St::Value => self.lex_value(),
             St::ArrayValue => {
@@ -1055,7 +1130,8 @@ impl<'a> Lexer<'a> {
                             if self.accept('"') {
                                 if self.peek() == '"' {
                                     let cur = self.current();
-                                    if cur.ends_with("\"\"\"\"\"") && !cur.ends_with("\\\"\"\"\"\"") {
+                                    if cur.ends_with("\"\"\"\"\"") && !cur.ends_with("\\\"\"\"\"\"")
+                                    {
                                         return self.errorf("unexpected '\"\"\"\"\"\"'".into());
                                     }
                                     self.backup();
@@ -1148,13 +1224,18 @@ impl<'a> Lexer<'a> {
                     _ => self.error(format!("invalid escape in string '\\{r}'")),
                 }
             }
-            St::HexEscape => self.hex_escape(2, "expected two hexadecimal digits after '\\x', but got {} instead"),
-            St::ShortUnicodeEscape => {
-                self.hex_escape(4, "expected four hexadecimal digits after '\\u', but got {} instead")
-            }
-            St::LongUnicodeEscape => {
-                self.hex_escape(8, "expected eight hexadecimal digits after '\\U', but got {} instead")
-            }
+            St::HexEscape => self.hex_escape(
+                2,
+                "expected two hexadecimal digits after '\\x', but got {} instead",
+            ),
+            St::ShortUnicodeEscape => self.hex_escape(
+                4,
+                "expected four hexadecimal digits after '\\u', but got {} instead",
+            ),
+            St::LongUnicodeEscape => self.hex_escape(
+                8,
+                "expected eight hexadecimal digits after '\\U', but got {} instead",
+            ),
             St::NumberOrDateStart => {
                 if self.next() == '0' {
                     return Some(St::BaseNumberOrDate);
@@ -1238,7 +1319,9 @@ impl<'a> Lexer<'a> {
                         let p = self.peek();
                         if matches!(p, 'b' | 'o' | 'x') {
                             let c = self.current().to_string();
-                            return self.errorf(format!("cannot use sign with non-decimal numbers: '{c}{p}'"));
+                            return self.errorf(format!(
+                                "cannot use sign with non-decimal numbers: '{c}{p}'"
+                            ));
                         }
                     }
                     '.' => return self.errorf("floats must start with a digit, not '.'".into()),
@@ -1386,7 +1469,8 @@ impl<'a> Lexer<'a> {
             }
             '.' => return self.errorf("floats must start with a digit, not '.'".into()),
             'i' | 'n' => {
-                if (self.accept('n') && self.accept('f')) || (self.accept('a') && self.accept('n')) {
+                if (self.accept('n') && self.accept('f')) || (self.accept('a') && self.accept('n'))
+                {
                     self.emit(ItemType::Float);
                     return self.pop();
                 }
@@ -1434,7 +1518,12 @@ impl ParseError {
         if self.last_key.is_empty() {
             format!("toml: line {}: {}", self.line, self.message)
         } else {
-            format!("toml: line {} (last key {}): {}", self.line, quote(&self.last_key), self.message)
+            format!(
+                "toml: line {} (last key {}): {}",
+                self.line,
+                quote(&self.last_key),
+                self.message
+            )
         }
     }
 }
@@ -1477,7 +1566,11 @@ impl<'a> Parser<'a> {
     }
 
     fn err_at(&self, pos: Pos, message: String) -> Box<ParseError> {
-        Box::new(ParseError { message, line: pos.line, last_key: self.current() })
+        Box::new(ParseError {
+            message,
+            line: pos.line,
+            last_key: self.current(),
+        })
     }
 
     fn panicf(&self, message: String) -> Box<ParseError> {
@@ -1485,7 +1578,11 @@ impl<'a> Parser<'a> {
     }
 
     fn bug(&self, message: String) -> Box<ParseError> {
-        Box::new(ParseError { message: format!("BUG: {message}"), line: self.pos.line, last_key: String::new() })
+        Box::new(ParseError {
+            message: format!("BUG: {message}"),
+            line: self.pos.line,
+            last_key: String::new(),
+        })
     }
 
     fn next(&mut self) -> PResult<Item> {
@@ -1518,7 +1615,11 @@ impl<'a> Parser<'a> {
             }
             ItemType::TableStart | ItemType::ArrayTableStart => {
                 let array = item.typ == ItemType::ArrayTableStart;
-                let end = if array { ItemType::ArrayTableEnd } else { ItemType::TableEnd };
+                let end = if array {
+                    ItemType::ArrayTableEnd
+                } else {
+                    ItemType::TableEnd
+                };
                 let mut name = self.next_pos()?;
                 let mut key = Vec::new();
                 while name.typ != end && name.typ != ItemType::Eof {
@@ -1590,8 +1691,11 @@ impl<'a> Parser<'a> {
         if self.depth > MAX_DEPTH {
             return Err(self.depth_error(it));
         }
-        let r =
-            if it.typ == ItemType::Array { self.value_array(it) } else { self.value_inline_table(it, parent_is_array) };
+        let r = if it.typ == ItemType::Array {
+            self.value_array(it)
+        } else {
+            self.value_inline_table(it, parent_is_array)
+        };
         self.depth -= 1;
         r
     }
@@ -1610,7 +1714,10 @@ impl<'a> Parser<'a> {
                 let s = strip_escaped_newlines(strip_first_newline(&it.val));
                 (TVal::Str(self.replace_escapes(it, &s)?), TType::Str)
             }
-            ItemType::RawMultilineStr => (TVal::Str(strip_first_newline(&it.val).to_string()), TType::Str),
+            ItemType::RawMultilineStr => (
+                TVal::Str(strip_first_newline(&it.val).to_string()),
+                TType::Str,
+            ),
             ItemType::Integer => (self.value_integer(it)?, TType::Integer),
             ItemType::Float => (self.value_float(it)?, TType::Float),
             ItemType::Bool => match it.val.as_str() {
@@ -1627,11 +1734,20 @@ impl<'a> Parser<'a> {
         if !num_underscores_ok(&it.val) {
             return Err(self.err_at(
                 it.pos,
-                format!("Invalid integer {}: underscores must be surrounded by digits", quote(&it.val)),
+                format!(
+                    "Invalid integer {}: underscores must be surrounded by digits",
+                    quote(&it.val)
+                ),
             ));
         }
         if num_has_leading_zero(&it.val) {
-            return Err(self.err_at(it.pos, format!("Invalid integer {}: cannot have leading zeroes", quote(&it.val))));
+            return Err(self.err_at(
+                it.pos,
+                format!(
+                    "Invalid integer {}: cannot have leading zeroes",
+                    quote(&it.val)
+                ),
+            ));
         }
         match parse_int(&it.val, 0) {
             Ok(n) => Ok(TVal::Int(n)),
@@ -1643,22 +1759,38 @@ impl<'a> Parser<'a> {
     }
 
     fn value_float(&mut self, it: &Item) -> PResult<TVal> {
-        let parts: Vec<&str> = it.val.split(['.', 'e', 'E']).filter(|p| !p.is_empty()).collect();
+        let parts: Vec<&str> = it
+            .val
+            .split(['.', 'e', 'E'])
+            .filter(|p| !p.is_empty())
+            .collect();
         for part in &parts {
             if !num_underscores_ok(part) {
                 return Err(self.err_at(
                     it.pos,
-                    format!("Invalid float {}: underscores must be surrounded by digits", quote(&it.val)),
+                    format!(
+                        "Invalid float {}: underscores must be surrounded by digits",
+                        quote(&it.val)
+                    ),
                 ));
             }
         }
         if !parts.is_empty() && num_has_leading_zero(parts[0]) {
-            return Err(self.err_at(it.pos, format!("Invalid float {}: cannot have leading zeroes", quote(&it.val))));
+            return Err(self.err_at(
+                it.pos,
+                format!(
+                    "Invalid float {}: cannot have leading zeroes",
+                    quote(&it.val)
+                ),
+            ));
         }
         if !num_periods_ok(&it.val) {
             return Err(self.err_at(
                 it.pos,
-                format!("Invalid float {}: '.' must be followed by one or more digits", quote(&it.val)),
+                format!(
+                    "Invalid float {}: '.' must be followed by one or more digits",
+                    quote(&it.val)
+                ),
             ));
         }
         let mut val: String = it.val.chars().filter(|&c| c != '_').collect();
@@ -1672,7 +1804,9 @@ impl<'a> Parser<'a> {
             Err(crate::yaml::strconv::NumErr::Range) => {
                 return Err(self.err_at(it.pos, format!("{} is out of range for float64", it.val)));
             }
-            Err(_) => return Err(self.err_at(it.pos, format!("Invalid float value: {}", quote(&it.val)))),
+            Err(_) => {
+                return Err(self.err_at(it.pos, format!("Invalid float value: {}", quote(&it.val))));
+            }
         };
         Ok(TVal::Float(if signbit { -num.abs() } else { num }))
     }
@@ -1789,16 +1923,28 @@ impl<'a> Parser<'a> {
     }
 
     #[inline(never)]
-    fn inline_store(&mut self, st: &mut InlineState, parent: Vec<String>, val: TVal, typ: TType) -> PResult<()> {
+    fn inline_store(
+        &mut self,
+        st: &mut InlineState,
+        parent: Vec<String>,
+        val: TVal,
+        typ: TType,
+    ) -> PResult<()> {
         let ck = self.current_key.clone();
         self.set_value(&ck, val.clone())?;
         self.set_type(&ck, typ);
         let mut hash = &mut st.top;
         for c in &parent {
-            let entry = hash.entry(c.clone()).or_insert_with(|| TVal::Table(BTreeMap::new()));
+            let entry = hash
+                .entry(c.clone())
+                .or_insert_with(|| TVal::Table(BTreeMap::new()));
             match entry {
                 TVal::Table(t) => hash = t,
-                _ => return Err(self.panicf(format!("{} is not a table", quote(&key_str(&self.context))))),
+                _ => {
+                    return Err(
+                        self.panicf(format!("{} is not a table", quote(&key_str(&self.context))))
+                    );
+                }
             }
         }
         hash.insert(ck, val);
@@ -1849,7 +1995,10 @@ impl<'a> Parser<'a> {
             match self.table_at(&kc) {
                 Ok(_) => {}
                 Err(_) => {
-                    return Err(self.panicf(format!("Key '{}' was already created as a hash.", key_str(&kc))));
+                    return Err(self.panicf(format!(
+                        "Key '{}' was already created as a hash.",
+                        key_str(&kc)
+                    )));
                 }
             }
         }
@@ -1861,7 +2010,9 @@ impl<'a> Parser<'a> {
                 Ok(h) => h,
                 Err(_) => return Err(self.bug("Context for key has not been established.".into())),
             };
-            let entry = h.entry(last.clone()).or_insert_with(|| TVal::ArrayTables(Vec::new()));
+            let entry = h
+                .entry(last.clone())
+                .or_insert_with(|| TVal::ArrayTables(Vec::new()));
             match entry {
                 TVal::ArrayTables(ts) => ts.push(BTreeMap::new()),
                 _ => {
@@ -1883,9 +2034,15 @@ impl<'a> Parser<'a> {
         if let Err(i) = self.table_at(&ctx) {
             if i > usize::MAX / 2 {
                 let n = (usize::MAX - i + 1).min(ctx.len());
-                return Err(self.bug(format!("Context for key '{}' has not been established.", key_str(&ctx[..n]))));
+                return Err(self.bug(format!(
+                    "Context for key '{}' has not been established.",
+                    key_str(&ctx[..n])
+                )));
             }
-            return Err(self.panicf(format!("Key '{}' has already been defined.", key_str(&ctx[..=i]))));
+            return Err(self.panicf(format!(
+                "Key '{}' has already been defined.",
+                key_str(&ctx[..=i])
+            )));
         }
         let mut key_context = ctx.clone();
         key_context.push(key.to_string());
@@ -1893,7 +2050,10 @@ impl<'a> Parser<'a> {
         if exists {
             if self.is_array(&key_context) {
                 if !self.is_implicit(&key_context) {
-                    return Err(self.panicf(format!("Key '{}' has already been defined.", key_str(&key_context))));
+                    return Err(self.panicf(format!(
+                        "Key '{}' has already been defined.",
+                        key_str(&key_context)
+                    )));
                 }
                 self.remove_implicit(&key_context);
                 if let Ok(h) = self.table_at(&ctx) {
@@ -1905,7 +2065,10 @@ impl<'a> Parser<'a> {
                 self.remove_implicit(&key_context);
                 return Ok(());
             }
-            return Err(self.panicf(format!("Key '{}' has already been defined.", key_str(&key_context))));
+            return Err(self.panicf(format!(
+                "Key '{}' has already been defined.",
+                key_str(&key_context)
+            )));
         }
         if let Ok(h) = self.table_at(&ctx) {
             h.insert(key.to_string(), value);
@@ -1978,18 +2141,20 @@ impl<'a> Parser<'a> {
                     match char::from_u32(v) {
                         Some(ch) => out.push(ch),
                         None => {
-                            return Err(
-                                self.err_at(it.pos, format!("Escaped character '\\u{hex}' is not valid UTF-8."))
-                            );
+                            return Err(self.err_at(
+                                it.pos,
+                                format!("Escaped character '\\u{hex}' is not valid UTF-8."),
+                            ));
                         }
                     }
                     skip = n + 1;
                     continue;
                 }
                 other => {
-                    return Err(
-                        self.bug(format!("Expected valid escape code after \\, but got {}.", q_rune(other as char)))
-                    );
+                    return Err(self.bug(format!(
+                        "Expected valid escape code after \\, but got {}.",
+                        q_rune(other as char)
+                    )));
                 }
             }
             skip = 1;
@@ -2088,11 +2253,18 @@ fn digits(s: &[u8], n: usize) -> Option<(u32, &[u8])> {
     if s.len() < n || !s[..n].iter().all(|c| c.is_ascii_digit()) {
         return None;
     }
-    Some((s[..n].iter().fold(0u32, |a, c| a * 10 + (c - b'0') as u32), &s[n..]))
+    Some((
+        s[..n].iter().fold(0u32, |a, c| a * 10 + (c - b'0') as u32),
+        &s[n..],
+    ))
 }
 
 fn lit(s: &[u8], c: u8) -> Option<&[u8]> {
-    if s.first() == Some(&c) { Some(&s[1..]) } else { None }
+    if s.first() == Some(&c) {
+        Some(&s[1..])
+    } else {
+        None
+    }
 }
 
 /// Parses one layout; `with_seconds`/`frac` select the variants.
@@ -2113,7 +2285,11 @@ fn parse_dt(v: &str, date: bool, time: bool, seconds: bool, zone: bool) -> Optio
             4 | 6 | 9 | 11 => 30,
             _ => {
                 let y = y as i64;
-                if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) { 29 } else { 28 }
+                if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
+                    29
+                } else {
+                    28
+                }
             }
         };
         if d < 1 || d > dim {
@@ -2236,7 +2412,13 @@ impl crate::value::Object for TomlDatetime {
 fn parse_toml_datetime(v: &str) -> Option<TomlDatetime> {
     // (layout, date, time, seconds, zone)
     const LAYOUTS: [(&str, bool, bool, bool, bool); 7] = [
-        ("2006-01-02T15:04:05.999999999Z07:00", true, true, true, true),
+        (
+            "2006-01-02T15:04:05.999999999Z07:00",
+            true,
+            true,
+            true,
+            true,
+        ),
         ("2006-01-02T15:04:05.999999999", true, true, true, false),
         ("2006-01-02", true, false, false, false),
         ("15:04:05.999999999", false, true, true, false),
@@ -2256,7 +2438,11 @@ fn parse_toml_datetime(v: &str) -> Option<TomlDatetime> {
             while frac.ends_with('0') {
                 frac.pop();
             }
-            let frac = if frac.is_empty() { String::new() } else { format!(".{frac}") };
+            let frac = if frac.is_empty() {
+                String::new()
+            } else {
+                format!(".{frac}")
+            };
             let date_s = format!("{y:04}-{mo:02}-{d:02}");
             let time_s = format!("{h:02}:{mi:02}:{s:02}{frac}");
             let off = dt.offset.unwrap_or(0);
@@ -2272,13 +2458,24 @@ fn parse_toml_datetime(v: &str) -> Option<TomlDatetime> {
             };
             let json = format!("{date_s}T{time_s}{zone_rfc}");
             let (toml, zone_name) = match (date, time, zone) {
-                (true, true, true) => (json.clone(), if off == 0 { "UTC".to_string() } else { zone_num.clone() }),
+                (true, true, true) => (
+                    json.clone(),
+                    if off == 0 {
+                        "UTC".to_string()
+                    } else {
+                        zone_num.clone()
+                    },
+                ),
                 (true, true, false) => (format!("{date_s}T{time_s}"), "datetime-local".to_string()),
                 (true, false, _) => (date_s.clone(), "date-local".to_string()),
                 _ => (time_s.clone(), "time-local".to_string()),
             };
             let display = format!("{date_s} {time_s} {zone_num} {zone_name}");
-            return Some(TomlDatetime { json, toml, display });
+            return Some(TomlDatetime {
+                json,
+                toml,
+                display,
+            });
         }
     }
     None
@@ -2367,7 +2564,13 @@ mod tests {
                 "e" => Value::list(alloc::vec![map! { "f" => true }])
             }
         );
-        assert_eq!(to_string(&v).unwrap(), "a = 1\nb = \"x\"\n\n[c]\n  d = [1, 2.5]\n\n[[e]]\n  f = true\n");
-        assert_eq!(from_str("a = ").unwrap_err(), "toml: line 1 (last key \"a\"): unexpected EOF; expected value");
+        assert_eq!(
+            to_string(&v).unwrap(),
+            "a = 1\nb = \"x\"\n\n[c]\n  d = [1, 2.5]\n\n[[e]]\n  f = true\n"
+        );
+        assert_eq!(
+            from_str("a = ").unwrap_err(),
+            "toml: line 1 (last key \"a\"): unexpected EOF; expected value"
+        );
     }
 }

@@ -273,9 +273,10 @@ impl Emitter {
                 | EventType::DocumentStart
                 | EventType::SequenceStart
                 | EventType::MappingStart => level += 1,
-                EventType::StreamEnd | EventType::DocumentEnd | EventType::SequenceEnd | EventType::MappingEnd => {
-                    level -= 1
-                }
+                EventType::StreamEnd
+                | EventType::DocumentEnd
+                | EventType::SequenceEnd
+                | EventType::MappingEnd => level -= 1,
                 _ => {}
             }
             if level == 0 {
@@ -285,7 +286,12 @@ impl Emitter {
         true
     }
 
-    fn append_tag_directive(&mut self, handle: &[u8], prefix: &[u8], allow_duplicates: bool) -> bool {
+    fn append_tag_directive(
+        &mut self,
+        handle: &[u8],
+        prefix: &[u8],
+        allow_duplicates: bool,
+    ) -> bool {
         if self.tag_directives.iter().any(|(h, _)| h == handle) {
             if allow_duplicates {
                 return true;
@@ -305,7 +311,8 @@ impl Emitter {
                 if self.states.last() == Some(&State::BlockSequenceItem) {
                     self.indent += 2;
                 } else {
-                    self.indent = self.best_indent * ((self.indent + self.best_indent) / self.best_indent);
+                    self.indent =
+                        self.best_indent * ((self.indent + self.best_indent) / self.best_indent);
                 }
             } else {
                 self.indent += self.best_indent;
@@ -552,7 +559,14 @@ impl Emitter {
         self.emit_node(ev, false, false, true, false)
     }
 
-    fn emit_node(&mut self, ev: &Event, root: bool, sequence: bool, mapping: bool, simple_key: bool) -> bool {
+    fn emit_node(
+        &mut self,
+        ev: &Event,
+        root: bool,
+        sequence: bool,
+        mapping: bool,
+        simple_key: bool,
+    ) -> bool {
         self.root_context = root;
         self.sequence_context = sequence;
         self.mapping_context = mapping;
@@ -694,7 +708,9 @@ impl Emitter {
     }
 
     fn process_anchor(&mut self) {
-        let Some(anchor) = self.anchor.clone() else { return };
+        let Some(anchor) = self.anchor.clone() else {
+            return;
+        };
         let c: &[u8] = if self.anchor_alias { b"*" } else { b"&" };
         self.write_indicator(c, true, false, false);
         self.write_all(&anchor);
@@ -736,7 +752,11 @@ impl Emitter {
 
     fn analyze_anchor(&mut self, anchor: &[u8], alias: bool) -> bool {
         if anchor.is_empty() {
-            return self.error(if alias { "alias value must not be empty" } else { "anchor value must not be empty" });
+            return self.error(if alias {
+                "alias value must not be empty"
+            } else {
+                "anchor value must not be empty"
+            });
         }
         let mut i = 0;
         while i < anchor.len() {
@@ -804,8 +824,8 @@ impl Emitter {
             let followed_by_whitespace = i + w >= value.len() || is_blank(value, i + w);
             if i == 0 {
                 match value[i] {
-                    b'#' | b',' | b'[' | b']' | b'{' | b'}' | b'&' | b'*' | b'!' | b'|' | b'>' | b'\'' | b'"'
-                    | b'%' | b'@' | b'`' => {
+                    b'#' | b',' | b'[' | b']' | b'{' | b'}' | b'&' | b'*' | b'!' | b'|' | b'>'
+                    | b'\'' | b'"' | b'%' | b'@' | b'`' => {
                         flow_indicators = true;
                         block_indicators = true;
                     }
@@ -939,7 +959,10 @@ impl Emitter {
                 if !ev.anchor.is_empty() && !self.analyze_anchor(&ev.anchor, false) {
                     return false;
                 }
-                if !ev.tag.is_empty() && (self.canonical || !ev.implicit) && !self.analyze_tag(&ev.tag) {
+                if !ev.tag.is_empty()
+                    && (self.canonical || !ev.implicit)
+                    && !self.analyze_tag(&ev.tag)
+                {
                     return false;
                 }
             }
@@ -1044,7 +1067,11 @@ impl Emitter {
         let mut i = 0;
         while i < value.len() {
             if is_space(value, i) {
-                if allow_breaks && !spaces && self.column > self.best_width && !is_space(value, i + 1) {
+                if allow_breaks
+                    && !spaces
+                    && self.column > self.best_width
+                    && !is_space(value, i + 1)
+                {
                     self.write_indent();
                     i += width(value[i]).max(1);
                 } else {
@@ -1215,14 +1242,23 @@ impl Emitter {
                         let mut k = (w as i32 - 1) * 4;
                         while k >= 0 {
                             let digit = ((v >> k) & 0x0F) as u8;
-                            self.put(if digit < 10 { digit + b'0' } else { digit + b'A' - 10 });
+                            self.put(if digit < 10 {
+                                digit + b'0'
+                            } else {
+                                digit + b'A' - 10
+                            });
                             k -= 4;
                         }
                     }
                 }
                 spaces = false;
             } else if is_space(value, i) {
-                if allow_breaks && !spaces && self.column > self.best_width && i > 0 && i < value.len() - 1 {
+                if allow_breaks
+                    && !spaces
+                    && self.column > self.best_width
+                    && i > 0
+                    && i < value.len() - 1
+                {
                     self.write_indent();
                     if is_space(value, i + 1) {
                         self.put(b'\\');
@@ -1333,7 +1369,11 @@ impl Emitter {
                     self.write_indent();
                     leading_spaces = is_blank(value, i);
                 }
-                if !breaks && is_space(value, i) && !is_space(value, i + 1) && self.column > self.best_width {
+                if !breaks
+                    && is_space(value, i)
+                    && !is_space(value, i + 1)
+                    && self.column > self.best_width
+                {
                     self.write_indent();
                     i += width(value[i]).max(1);
                 } else {

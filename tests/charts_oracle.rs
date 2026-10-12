@@ -16,29 +16,60 @@ use std::collections::{BTreeMap, BTreeSet};
 use common::corpus::{self, ChartEntry};
 use common::diff;
 use common::helm_bin::{helm_bin, helm_template};
-use common::{OracleResult, Opts, oracle};
+use common::{Opts, OracleResult, oracle};
 
 #[test]
 fn lock_is_consistent() {
     let lock = corpus::lock_json();
-    assert_eq!(lock["helm_version"], "v4.3.0", "lock written with a different helm");
+    assert_eq!(
+        lock["helm_version"], "v4.3.0",
+        "lock written with a different helm"
+    );
     let charts = corpus::lock();
     assert!(charts.len() >= 25, "corpus too small: {}", charts.len());
     let mut names = BTreeSet::new();
     for c in &charts {
         assert!(names.insert(c.name.clone()), "duplicate chart {}", c.name);
         assert!(!c.version.is_empty(), "{}: no version", c.name);
-        assert_eq!(c.file, format!("{}-{}.tgz", c.name, c.version), "{}: file name", c.name);
-        assert!(c.sha256.len() == 64 && c.sha256.bytes().all(|b| b.is_ascii_hexdigit()), "{}: bad sha256", c.name);
+        assert_eq!(
+            c.file,
+            format!("{}-{}.tgz", c.name, c.version),
+            "{}: file name",
+            c.name
+        );
+        assert!(
+            c.sha256.len() == 64 && c.sha256.bytes().all(|b| b.is_ascii_hexdigit()),
+            "{}: bad sha256",
+            c.name
+        );
         if let Some(p) = c.values_path() {
-            assert!(p.exists(), "{}: values file {} missing", c.name, p.display());
+            assert!(
+                p.exists(),
+                "{}: values file {} missing",
+                c.name,
+                p.display()
+            );
         }
-        assert!(c.helm_template_ok, "{}: helm template failed when the lock was written: {}", c.name, c.error);
+        assert!(
+            c.helm_template_ok,
+            "{}: helm template failed when the lock was written: {}",
+            c.name, c.error
+        );
     }
     // Every values file belongs to a chart.
-    for e in std::fs::read_dir(corpus::charts_dir().join("values")).unwrap().flatten() {
-        let n = e.file_name().to_string_lossy().trim_end_matches(".yaml").to_string();
-        assert!(names.contains(&n), "values/{n}.yaml does not match any chart");
+    for e in std::fs::read_dir(corpus::charts_dir().join("values"))
+        .unwrap()
+        .flatten()
+    {
+        let n = e
+            .file_name()
+            .to_string_lossy()
+            .trim_end_matches(".yaml")
+            .to_string();
+        assert!(
+            names.contains(&n),
+            "values/{n}.yaml does not match any chart"
+        );
     }
     // sources.txt and the lock list the same charts.
     let sources = std::fs::read_to_string(corpus::charts_dir().join("sources.txt")).unwrap();
@@ -48,7 +79,10 @@ fn lock_is_consistent() {
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| l.split_whitespace().next().unwrap().to_string())
         .collect();
-    assert_eq!(src_names, names, "sources.txt and charts.lock disagree; run scripts/update-charts.sh");
+    assert_eq!(
+        src_names, names,
+        "sources.txt and charts.lock disagree; run scripts/update-charts.sh"
+    );
 }
 
 #[test]
@@ -58,7 +92,11 @@ fn cache_checksums_match_lock() {
             eprintln!("skipping: no sha256sum/shasum");
             return;
         };
-        assert_eq!(sum, c.sha256, "{}: cached {} does not match the lock", c.name, c.file);
+        assert_eq!(
+            sum, c.sha256,
+            "{}: cached {} does not match the lock",
+            c.name, c.file
+        );
     }
 }
 
@@ -85,7 +123,12 @@ fn oracle_template_matches_helm_binary() {
             failures.push(f);
         }
         if bin.is_ok() != c.helm_template_ok {
-            failures.push(format!("{}: helm template ok={} but the lock says ok={}", c.name, bin.is_ok(), c.helm_template_ok));
+            failures.push(format!(
+                "{}: helm template ok={} but the lock says ok={}",
+                c.name,
+                bin.is_ok(),
+                c.helm_template_ok
+            ));
         }
     }
     report(&charts, failures);
@@ -96,27 +139,40 @@ fn oracle_template_matches_helm_binary() {
 #[test]
 fn oracle_template_errors_match_helm_binary() {
     let Some(helm) = helm_bin() else { return };
-    let charts: Vec<_> = corpus::available().into_iter().filter(|c| c.values.is_some()).collect();
+    let charts: Vec<_> = corpus::available()
+        .into_iter()
+        .filter(|c| c.values.is_some())
+        .collect();
     let Some(mut o) = oracle() else { return };
     let mut failures = Vec::new();
     for c in &charts {
         let bin = helm_template(&helm, &c.tgz_path(), "", &opts());
         let a = o.template_chart(&c.tgz_path(), "", &opts());
-        assert!(bin.is_err(), "{}: expected helm template to fail without values", c.name);
+        assert!(
+            bin.is_err(),
+            "{}: expected helm template to fail without values",
+            c.name
+        );
         if let Some(f) = compare_template(c, &bin, &a, &a) {
             failures.push(f);
         }
     }
     // Malformed user values and a too-old kube version fail identically too.
     if let Some(c) = charts.first() {
-        let bad = Opts { kube_version: Some("v1.2.3".into()), ..opts() };
+        let bad = Opts {
+            kube_version: Some("v1.2.3".into()),
+            ..opts()
+        };
         for (values, o2) in [("a: [1\n", opts()), ("- 1\n", opts()), ("", bad)] {
             let bin = helm_template(&helm, &c.tgz_path(), values, &o2);
             let a = o.template_chart(&c.tgz_path(), values, &o2);
             if let (Err(be), Err(ae)) = (&bin, &a) {
                 // The CLI names the values file; the oracle says values.yaml.
                 let norm = |s: &str| s.split(": ").skip(1).collect::<Vec<_>>().join(": ");
-                if be.starts_with("failed to parse ") && ae.starts_with("failed to parse ") && norm(be) == norm(ae) {
+                if be.starts_with("failed to parse ")
+                    && ae.starts_with("failed to parse ")
+                    && norm(be) == norm(ae)
+                {
                     continue;
                 }
             }
@@ -128,14 +184,33 @@ fn oracle_template_errors_match_helm_binary() {
     report(&charts, failures);
 }
 
-fn compare_template(c: &ChartEntry, bin: &Result<String, String>, a: &Result<String, String>, b: &Result<String, String>) -> Option<String> {
+fn compare_template(
+    c: &ChartEntry,
+    bin: &Result<String, String>,
+    a: &Result<String, String>,
+    b: &Result<String, String>,
+) -> Option<String> {
     match (bin, a) {
-        (Ok(bin), Ok(a)) => diff::compare_text(a, b.as_ref().ok().map(|s| s.as_str()), bin, "oracle", "helm")
-            .map(|d| format!("{}: oracle template output differs from helm binary:\n{d}", c.name)),
+        (Ok(bin), Ok(a)) => diff::compare_text(
+            a,
+            b.as_ref().ok().map(|s| s.as_str()),
+            bin,
+            "oracle",
+            "helm",
+        )
+        .map(|d| {
+            format!(
+                "{}: oracle template output differs from helm binary:\n{d}",
+                c.name
+            )
+        }),
         // The CLI prints the message followed by a newline, so a trailing
         // newline in the error itself is not observable.
         (Err(be), Err(ae)) if be.trim_end() == ae.trim_end() => None,
-        (Err(be), Err(ae)) => Some(format!("{}: both fail, differently:\n  helm:   {be}\n  oracle: {ae}", c.name)),
+        (Err(be), Err(ae)) => Some(format!(
+            "{}: both fail, differently:\n  helm:   {be}\n  oracle: {ae}",
+            c.name
+        )),
         (Ok(_), Err(ae)) => Some(format!("{}: helm succeeds but oracle fails: {ae}", c.name)),
         (Err(be), Ok(_)) => Some(format!("{}: oracle succeeds but helm fails: {be}", c.name)),
     }
@@ -159,7 +234,11 @@ fn split_manifests(s: &str) -> Vec<String> {
         }
     }
     docs.push(&s[start..]);
-    docs.into_iter().map(str::trim).filter(|d| !d.is_empty()).map(str::to_string).collect()
+    docs.into_iter()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// The oracle's per-template engine output (what `chart::render` is compared
@@ -184,7 +263,12 @@ fn oracle_render_consistent_with_helm_binary() {
                 }
             }
             (Err(_), OracleResult::Err { .. }, _) => {}
-            (bin, a, _) => failures.push(format!("{}: helm template: {:?}\n  oracle render: {:?}", c.name, bin.as_ref().map(|_| "ok"), a_status(a))),
+            (bin, a, _) => failures.push(format!(
+                "{}: helm template: {:?}\n  oracle render: {:?}",
+                c.name,
+                bin.as_ref().map(|_| "ok"),
+                a_status(a)
+            )),
         }
     }
     report(&charts, failures);
@@ -197,7 +281,11 @@ fn a_status(r: &OracleResult) -> String {
     }
 }
 
-fn check_consistent(out: &str, fa: &BTreeMap<String, String>, fb: &BTreeMap<String, String>) -> Option<String> {
+fn check_consistent(
+    out: &str,
+    fa: &BTreeMap<String, String>,
+    fb: &BTreeMap<String, String>,
+) -> Option<String> {
     let mut ndocs = 0;
     for (name, content) in fa {
         if name.ends_with("NOTES.txt") {
@@ -212,13 +300,17 @@ fn check_consistent(out: &str, fa: &BTreeMap<String, String>, fb: &BTreeMap<Stri
             }
             let needle = format!("# Source: {name}\n{d}\n");
             if !out.contains(&needle) {
-                return Some(format!("document {k} of {name} not found in helm template output:\n{d}"));
+                return Some(format!(
+                    "document {k} of {name} not found in helm template output:\n{d}"
+                ));
             }
         }
     }
     let printed = out.matches("# Source: ").count();
     if printed != ndocs {
-        return Some(format!("helm template printed {printed} documents, the oracle rendered {ndocs}"));
+        return Some(format!(
+            "helm template printed {printed} documents, the oracle rendered {ndocs}"
+        ));
     }
     None
 }
@@ -236,6 +328,9 @@ fn report(charts: &[ChartEntry], failures: Vec<String>) {
 #[test]
 fn split_manifests_like_helm() {
     assert_eq!(split_manifests("a: 1\n---\nb: 2\n"), vec!["a: 1", "b: 2"]);
-    assert_eq!(split_manifests("---\n# c\na: 1\n--- \n\n"), vec!["# c\na: 1"]);
+    assert_eq!(
+        split_manifests("---\n# c\na: 1\n--- \n\n"),
+        vec!["# c\na: 1"]
+    );
     assert!(split_manifests("\n\n").is_empty());
 }

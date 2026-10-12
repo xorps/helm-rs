@@ -179,5 +179,8 @@ pub(crate) fn match_field<'a>(fields: &[&'a str], key: &str) -> Option<&'a str> 
     if let Some(f) = fields.iter().find(|f| **f == key) {
         return Some(f);
     }
-    fields.iter().copied().find(|f| f.eq_ignore_ascii_case(key) && f.len() == key.len())
+    fields
+        .iter()
+        .copied()
+        .find(|f| f.eq_ignore_ascii_case(key) && f.len() == key.len())
 }

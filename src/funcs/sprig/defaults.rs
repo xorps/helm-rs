@@ -17,21 +17,63 @@ pub(super) fn register(f: &mut FuncMap) {
         }
         Ok(given[0].clone())
     });
-    f.add("empty", Sig::new(&[A]), |a| Ok(Value::Bool(empty(arg(a, 0)))));
-    f.add("coalesce", Sig::variadic(&[], A), |a| Ok(a.iter().find(|v| !empty(v)).cloned().unwrap_or(Value::Nil)));
-    f.add("all", Sig::variadic(&[], A), |a| Ok(Value::Bool(a.iter().all(|v| !empty(v)))));
-    f.add("any", Sig::variadic(&[], A), |a| Ok(Value::Bool(a.iter().any(|v| !empty(v)))));
-    f.add("ternary", Sig::new(&[A, A, Ty::Bool]), |a| Ok(if barg(a, 2) { arg(a, 0).clone() } else { arg(a, 1).clone() }));
-    f.add("fromJson", Sig::new(&[Ty::String]), |a| Ok(crate::json::from_str(sarg(a, 0)).unwrap_or(Value::Nil)));
-    f.add("mustFromJson", Sig::new(&[Ty::String]), |a| crate::json::from_str(sarg(a, 0)).map_err(|e| FuncError::new(e.message)));
-    f.add("toJson", Sig::new(&[A]), |a| Ok(Value::string(crate::json::to_string(arg(a, 0)).unwrap_or_default())));
-    f.add("mustToJson", Sig::new(&[A]), |a| to_json(arg(a, 0)).map(Value::string));
-    f.add("toPrettyJson", Sig::new(&[A]), |a| Ok(Value::string(to_json(arg(a, 0)).map(|s| json_indent(&s)).unwrap_or_default())));
-    f.add("mustToPrettyJson", Sig::new(&[A]), |a| to_json(arg(a, 0)).map(|s| Value::string(json_indent(&s))));
-    f.add("toRawJson", Sig::new(&[A]), |a| to_json(arg(a, 0)).map(|s| Value::string(unescape_html(&s))));
-    f.add("mustToRawJson", Sig::new(&[A]), |a| to_json(arg(a, 0)).map(|s| Value::string(unescape_html(&s))));
+    f.add("empty", Sig::new(&[A]), |a| {
+        Ok(Value::Bool(empty(arg(a, 0))))
+    });
+    f.add("coalesce", Sig::variadic(&[], A), |a| {
+        Ok(a.iter().find(|v| !empty(v)).cloned().unwrap_or(Value::Nil))
+    });
+    f.add("all", Sig::variadic(&[], A), |a| {
+        Ok(Value::Bool(a.iter().all(|v| !empty(v))))
+    });
+    f.add("any", Sig::variadic(&[], A), |a| {
+        Ok(Value::Bool(a.iter().any(|v| !empty(v))))
+    });
+    f.add("ternary", Sig::new(&[A, A, Ty::Bool]), |a| {
+        Ok(if barg(a, 2) {
+            arg(a, 0).clone()
+        } else {
+            arg(a, 1).clone()
+        })
+    });
+    f.add("fromJson", Sig::new(&[Ty::String]), |a| {
+        Ok(crate::json::from_str(sarg(a, 0)).unwrap_or(Value::Nil))
+    });
+    f.add("mustFromJson", Sig::new(&[Ty::String]), |a| {
+        crate::json::from_str(sarg(a, 0)).map_err(|e| FuncError::new(e.message))
+    });
+    f.add("toJson", Sig::new(&[A]), |a| {
+        Ok(Value::string(
+            crate::json::to_string(arg(a, 0)).unwrap_or_default(),
+        ))
+    });
+    f.add("mustToJson", Sig::new(&[A]), |a| {
+        to_json(arg(a, 0)).map(Value::string)
+    });
+    f.add("toPrettyJson", Sig::new(&[A]), |a| {
+        Ok(Value::string(
+            to_json(arg(a, 0))
+                .map(|s| json_indent(&s))
+                .unwrap_or_default(),
+        ))
+    });
+    f.add("mustToPrettyJson", Sig::new(&[A]), |a| {
+        to_json(arg(a, 0)).map(|s| Value::string(json_indent(&s)))
+    });
+    f.add("toRawJson", Sig::new(&[A]), |a| {
+        to_json(arg(a, 0)).map(|s| Value::string(unescape_html(&s)))
+    });
+    f.add("mustToRawJson", Sig::new(&[A]), |a| {
+        to_json(arg(a, 0)).map(|s| Value::string(unescape_html(&s)))
+    });
     f.add("deepCopy", Sig::new(&[A]), |a| {
-        deep_copy(arg(a, 0), 0).map_err(|e| if e.message.starts_with("reflect:") { e } else { FuncError::new(alloc::format!("deepCopy error: {}", e.message)) })
+        deep_copy(arg(a, 0), 0).map_err(|e| {
+            if e.message.starts_with("reflect:") {
+                e
+            } else {
+                FuncError::new(alloc::format!("deepCopy error: {}", e.message))
+            }
+        })
     });
     f.add("mustDeepCopy", Sig::new(&[A]), |a| deep_copy(arg(a, 0), 0));
 }
@@ -43,16 +85,23 @@ fn to_json(v: &Value) -> Result<String, FuncError> {
 /// `copystructure.Copy`.
 fn deep_copy(v: &Value, depth: usize) -> FuncResult {
     if depth > 1000 {
-        return Err(FuncError::new("copystructure: structure too deep (cyclic?)"));
+        return Err(FuncError::new(
+            "copystructure: structure too deep (cyclic?)",
+        ));
     }
     Ok(match v {
         Value::Nil if depth == 0 => {
-            return Err(FuncError::new("reflect: call of reflect.Value.Type on zero Value"));
+            return Err(FuncError::new(
+                "reflect: call of reflect.Value.Type on zero Value",
+            ));
         }
         // copystructure copies exported struct fields only; a semver
         // version has none, so its copy is the zero version.
         Value::Object(o) if o.as_any().is::<crate::semver::VersionObject>() => {
-            let by_value = o.as_any().downcast_ref::<crate::semver::VersionObject>().is_some_and(|x| x.by_value);
+            let by_value = o
+                .as_any()
+                .downcast_ref::<crate::semver::VersionObject>()
+                .is_some_and(|x| x.by_value);
             let zero = crate::semver::Version {
                 major: 0,
                 minor: 0,
@@ -61,10 +110,17 @@ fn deep_copy(v: &Value, depth: usize) -> FuncResult {
                 metadata: String::new(),
                 original: String::new(),
             };
-            Value::object(crate::semver::VersionObject { version: zero, by_value })
+            Value::object(crate::semver::VersionObject {
+                version: zero,
+                by_value,
+            })
         }
         Value::Map(m) => {
-            let entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let entries: Vec<(String, Value)> = m
+                .borrow()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
             let mut out = crate::value::Map::new();
             for (k, x) in entries {
                 out.insert(k, deep_copy(&x, depth + 1)?);
@@ -72,7 +128,11 @@ fn deep_copy(v: &Value, depth: usize) -> FuncResult {
             // copystructure keeps the named type (e.g. common.Values).
             Value::Map(crate::value::MapRef::new(out).with_kind(m.kind()))
         }
-        Value::List(l) => Value::list(l.iter().map(|x| deep_copy(x, depth + 1)).collect::<Result<Vec<_>, _>>()?),
+        Value::List(l) => Value::list(
+            l.iter()
+                .map(|x| deep_copy(x, depth + 1))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
         Value::Bytes(b) => Value::Bytes(b.to_vec().into()),
         x => x.clone(),
     })

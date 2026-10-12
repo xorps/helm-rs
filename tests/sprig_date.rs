@@ -22,7 +22,11 @@ struct Batch {
 impl Batch {
     fn new() -> Batch {
         utc_oracle();
-        Batch { funcs: helm_rs::funcs::helm(), exprs: Vec::new(), ours: Vec::new() }
+        Batch {
+            funcs: helm_rs::funcs::helm(),
+            exprs: Vec::new(),
+            ours: Vec::new(),
+        }
     }
     fn add(&mut self, name: &str, args: Vec<Arg>) {
         let mut e = String::from(name);
@@ -31,7 +35,13 @@ impl Batch {
             e.push_str(&a.tmpl);
         }
         let vals: Vec<Value> = args.iter().map(|a| a.value.clone()).collect();
-        let r = call(&self.funcs, name, &vals).map(|v| if v.is_nil() { String::new() } else { render_value(&v) });
+        let r = call(&self.funcs, name, &vals).map(|v| {
+            if v.is_nil() {
+                String::new()
+            } else {
+                render_value(&v)
+            }
+        });
         self.exprs.push(e);
         self.ours.push(r);
     }
@@ -53,7 +63,13 @@ impl Batch {
             Value::Object(o) => o.call_method(method, &mvals).map_err(|e| e.message),
             _ => Err("not an object".into()),
         });
-        let r = r.map(|v| if v.is_nil() { String::new() } else { render_value(&v) });
+        let r = r.map(|v| {
+            if v.is_nil() {
+                String::new()
+            } else {
+                render_value(&v)
+            }
+        });
         self.exprs.push(e);
         self.ours.push(r);
     }
@@ -61,7 +77,9 @@ impl Batch {
         let mut bad = Vec::new();
         for chunk in (0..self.exprs.len()).collect::<Vec<_>>().chunks(500) {
             let (a, b) = (chunk[0], chunk[chunk.len() - 1] + 1);
-            let Some(helm) = helm_eval_many(&self.exprs[a..b], "") else { return };
+            let Some(helm) = helm_eval_many(&self.exprs[a..b], "") else {
+                return;
+            };
             bad.extend(compare(&self.exprs[a..b], &self.ours[a..b], &helm));
         }
         report(name, self.exprs.len(), &bad);
@@ -118,7 +136,10 @@ fn format_layouts() {
     let mut t = Batch::new();
     let times = [
         ("2006-01-02T15:04:05Z07:00", "2024-02-29T13:45:59Z"),
-        ("2006-01-02T15:04:05Z07:00", "1999-12-31T23:59:59.123456789+05:30"),
+        (
+            "2006-01-02T15:04:05Z07:00",
+            "1999-12-31T23:59:59.123456789+05:30",
+        ),
         ("2006-01-02T15:04:05Z07:00", "2001-01-01T00:00:00-08:00"),
         ("2006-01-02T15:04:05Z07:00", "0001-01-01T00:00:00Z"),
         ("2006-01-02", "1969-07-20"),
@@ -135,11 +156,36 @@ fn format_layouts() {
         t.add("htmlDateInZone", vec![date_arg(l, v), s("UTC")]);
         t.add("unixEpoch", vec![date_arg(l, v)]);
         t.add("toString", vec![date_arg(l, v)]);
-        for m in ["Year", "Month", "Day", "Hour", "Minute", "Second", "Nanosecond", "YearDay", "Weekday", "Unix", "UnixNano", "IsZero", "String", "UTC"] {
+        for m in [
+            "Year",
+            "Month",
+            "Day",
+            "Hour",
+            "Minute",
+            "Second",
+            "Nanosecond",
+            "YearDay",
+            "Weekday",
+            "Unix",
+            "UnixNano",
+            "IsZero",
+            "String",
+            "UTC",
+        ] {
             t.add_method("toDate", vec![s(l), s(v)], m, vec![]);
         }
-        t.add_method("toDate", vec![s(l), s(v)], "Format", vec![s("Jan 2 2006 3pm")]);
-        t.add_method("toDate", vec![s(l), s(v)], "AddDate", vec![i(1), i(-14), i(40)]);
+        t.add_method(
+            "toDate",
+            vec![s(l), s(v)],
+            "Format",
+            vec![s("Jan 2 2006 3pm")],
+        );
+        t.add_method(
+            "toDate",
+            vec![s(l), s(v)],
+            "AddDate",
+            vec![i(1), i(-14), i(40)],
+        );
         for d in ["1h", "-36h", "1.5s", "abc", ""] {
             t.add("dateModify", vec![s(d), date_arg(l, v)]);
             t.add("mustDateModify", vec![s(d), date_arg(l, v)]);
@@ -149,10 +195,22 @@ fn format_layouts() {
         t.add("date", vec![s("2006-01-02 15:04:05 MST Mon"), i(n)]);
         t.add("date", vec![s("2006-01-02 15:04:05 MST Mon"), i64a(n)]);
         t.add("htmlDate", vec![i(n)]);
-        t.add("dateInZone", vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("UTC")]);
-        t.add("dateInZone", vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("Local")]);
-        t.add("dateInZone", vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("")]);
-        t.add("dateInZone", vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("Not/AZone")]);
+        t.add(
+            "dateInZone",
+            vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("UTC")],
+        );
+        t.add(
+            "dateInZone",
+            vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("Local")],
+        );
+        t.add(
+            "dateInZone",
+            vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("")],
+        );
+        t.add(
+            "dateInZone",
+            vec![s("2006-01-02T15:04:05Z07:00"), i(n), s("Not/AZone")],
+        );
     }
     t.run("format_layouts");
 }
@@ -177,7 +235,10 @@ fn parse_layouts() {
         ("2006-01-02T15:04:05Z07:00", "2024-01-01T10:00:00+02:00"),
         ("2006-01-02T15:04:05Z07:00", "2024-01-01T10:00:00Z"),
         ("2006-01-02T15:04:05Z07:00", "2024-01-01T10:00:00+25:00"),
-        ("2006-01-02T15:04:05Z07:00", "2024-01-01T10:00:00.999999999999-00:30"),
+        (
+            "2006-01-02T15:04:05Z07:00",
+            "2024-01-01T10:00:00.999999999999-00:30",
+        ),
         ("2006-01-02T15:04:05Z07:00", "2024-1-01T10:00:00Z"),
         ("Jan 2 2006", "Feb 30 2024"),
         ("Jan 2 2006", "feb 3 2024"),
@@ -222,7 +283,12 @@ fn parse_layouts() {
     for &(l, v) in cases {
         t.add("toDate", vec![s(l), s(v)]);
         t.add("mustToDate", vec![s(l), s(v)]);
-        t.add_method("toDate", vec![s(l), s(v)], "Format", vec![s("2006-01-02T15:04:05.999999999Z07:00 MST")]);
+        t.add_method(
+            "toDate",
+            vec![s(l), s(v)],
+            "Format",
+            vec![s("2006-01-02T15:04:05.999999999Z07:00 MST")],
+        );
     }
     t.run("parse_layouts");
 }
@@ -231,13 +297,21 @@ fn parse_layouts() {
 fn parse_random() {
     let mut t = Batch::new();
     let mut rng = Rng::new(2024);
-    let pieces = ["2006", "06", "01", "1", "Jan", "January", "02", "2", "_2", "15", "3", "03", "04", "4", "05", "5", "PM", "pm", "MST", "-0700", "-07:00", "Z07:00", ".000", ".999", "Mon", "Monday", "002", "-", ":", " ", "T", "/"];
+    let pieces = [
+        "2006", "06", "01", "1", "Jan", "January", "02", "2", "_2", "15", "3", "03", "04", "4",
+        "05", "5", "PM", "pm", "MST", "-0700", "-07:00", "Z07:00", ".000", ".999", "Mon", "Monday",
+        "002", "-", ":", " ", "T", "/",
+    ];
     for _ in 0..1500 {
         let n = rng.range(1, 6);
         let layout: String = (0..n).map(|_| *rng.pick(&pieces)).collect();
         // Format a random time with the layout, then parse it back.
         let secs = rng.range(-2_000_000_000, 4_000_000_000);
-        let v = helm_rs::funcs::sprig::time::Time::from_unix(secs, helm_rs::funcs::sprig::time::Location::Utc).format(&layout);
+        let v = helm_rs::funcs::sprig::time::Time::from_unix(
+            secs,
+            helm_rs::funcs::sprig::time::Location::Utc,
+        )
+        .format(&layout);
         t.add("mustToDate", vec![s(&layout), s(&v)]);
         let mut garbled = v.clone();
         if !garbled.is_empty() {
@@ -289,7 +363,10 @@ fn durations() {
         fl_arg(9.3e9),
         fl_arg(f64::NAN),
         Arg::new(Value::Uint64(5), "(semver \"5.0.0\").Major"),
-        Arg::new(Value::Uint64(u64::MAX), "(semver \"18446744073709551615.0.0\").Major"),
+        Arg::new(
+            Value::Uint64(u64::MAX),
+            "(semver \"18446744073709551615.0.0\").Major",
+        ),
         Arg::new(Value::Bool(true), "true"),
         Arg::new(Value::Nil, "nil"),
         list_arg(vec![]),
@@ -315,16 +392,48 @@ fn durations() {
             t.add("durationTruncateTo", vec![x.clone(), m]);
         }
     }
-    for n in [0i64, 1, 59, 60, 61, 3600, 86400, 86401, 2_592_000, 31_536_000, 31_536_001, -61, i64::MAX / 2] {
+    for n in [
+        0i64,
+        1,
+        59,
+        60,
+        61,
+        3600,
+        86400,
+        86401,
+        2_592_000,
+        31_536_000,
+        31_536_001,
+        -61,
+        i64::MAX / 2,
+    ] {
         t.add("duration", vec![i64a(n)]);
         t.add("duration", vec![s(&n.to_string())]);
         t.add("durationRound", vec![i64a(n.wrapping_mul(1_000_000_000))]);
     }
-    for (d, m) in [("1h2m3.5s", "Hours"), ("1h2m3.5s", "Minutes"), ("1h2m3.5s", "Seconds"), ("1h2m3.5s", "Milliseconds"), ("-90s", "Abs"), ("1h2m3.5s", "String"), ("1h2m3.5s", "Nanoseconds")] {
+    for (d, m) in [
+        ("1h2m3.5s", "Hours"),
+        ("1h2m3.5s", "Minutes"),
+        ("1h2m3.5s", "Seconds"),
+        ("1h2m3.5s", "Milliseconds"),
+        ("-90s", "Abs"),
+        ("1h2m3.5s", "String"),
+        ("1h2m3.5s", "Nanoseconds"),
+    ] {
         t.add_method("mustToDuration", vec![s(d)], m, vec![]);
     }
-    t.add_method("mustToDuration", vec![s("1h2m3.5s")], "Round", vec![i(60_000_000_000)]);
-    t.add_method("mustToDuration", vec![s("1h2m3.5s")], "Truncate", vec![i(60_000_000_000)]);
+    t.add_method(
+        "mustToDuration",
+        vec![s("1h2m3.5s")],
+        "Round",
+        vec![i(60_000_000_000)],
+    );
+    t.add_method(
+        "mustToDuration",
+        vec![s("1h2m3.5s")],
+        "Truncate",
+        vec![i(60_000_000_000)],
+    );
     t.run("durations");
 }
 
@@ -337,7 +446,11 @@ fn now_and_ago_shapes() {
     // Nondeterministic in Helm: check shapes only.
     utc_oracle();
     let Some(out) = helm_eval_many(
-        &["now | date \"2006\"".to_string(), "ago (now)".to_string(), "now | typeOf".to_string()],
+        &[
+            "now | date \"2006\"".to_string(),
+            "ago (now)".to_string(),
+            "now | typeOf".to_string(),
+        ],
         "",
     ) else {
         return;

@@ -19,7 +19,10 @@ pub fn render_batch(
     let oracle = Oracle::shared()?;
     let mut o = oracle.lock().unwrap_or_else(|e| e.into_inner());
     let mut all = BTreeMap::new();
-    all.insert("Chart.yaml".to_string(), "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string());
+    all.insert(
+        "Chart.yaml".to_string(),
+        "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string(),
+    );
     all.insert("values.yaml".to_string(), values.to_string());
     for (k, v) in files {
         all.insert(k.clone(), v.clone());
@@ -27,13 +30,22 @@ pub fn render_batch(
     for (k, v) in templates {
         all.insert(format!("templates/{k}"), v.clone());
     }
-    Some(match o.render_files(&all, "", &Opts { skip_schema: true, ..Default::default() }) {
-        OracleResult::Ok(out) => Ok(out
-            .into_iter()
-            .filter_map(|(k, v)| k.strip_prefix("t/templates/").map(|k| (k.to_string(), v)))
-            .collect()),
-        OracleResult::Err { stage, message } => Err(format!("{stage}: {message}")),
-    })
+    Some(
+        match o.render_files(
+            &all,
+            "",
+            &Opts {
+                skip_schema: true,
+                ..Default::default()
+            },
+        ) {
+            OracleResult::Ok(out) => Ok(out
+                .into_iter()
+                .filter_map(|(k, v)| k.strip_prefix("t/templates/").map(|k| (k.to_string(), v)))
+                .collect()),
+            OracleResult::Err { stage, message } => Err(format!("{stage}: {message}")),
+        },
+    )
 }
 
 /// The template used to probe `fromYaml` on file `data/{name}`.
@@ -54,7 +66,12 @@ pub fn from_yaml_probe_rust(input: &str) -> String {
     if let Some(Value::String(s)) = m.as_map().and_then(|m| m.get("Error")) {
         return format!("ERR:{s}");
     }
-    format!("J:{}\nY:{}\nP:{}", enc::to_json(&m), enc::to_yaml(&m), enc::to_yaml_pretty(&m))
+    format!(
+        "J:{}\nY:{}\nP:{}",
+        enc::to_json(&m),
+        enc::to_yaml(&m),
+        enc::to_yaml_pretty(&m)
+    )
 }
 
 /// `fromYamlArray` probe.
@@ -66,7 +83,12 @@ pub fn from_yaml_array_probe(name: &str) -> String {
 
 pub fn from_yaml_array_probe_rust(input: &str) -> String {
     let a = enc::from_yaml_array(input);
-    format!("J:{}\nY:{}\nP:{}", enc::to_json(&a), enc::to_yaml(&a), enc::to_yaml_pretty(&a))
+    format!(
+        "J:{}\nY:{}\nP:{}",
+        enc::to_json(&a),
+        enc::to_yaml(&a),
+        enc::to_yaml_pretty(&a)
+    )
 }
 
 /// `fromJson` probe.
@@ -174,7 +196,12 @@ pub fn report(mismatches: &[(String, String, String)], total: usize) {
     for (input, want, got) in mismatches.iter().take(15) {
         eprintln!("---- input: {input:?}\n  helm: {want:?}\n  rust: {got:?}");
     }
-    assert!(mismatches.is_empty(), "{} of {} cases differ from Helm", mismatches.len(), total);
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} cases differ from Helm",
+        mismatches.len(),
+        total
+    );
     eprintln!("{total} cases match Helm");
 }
 
@@ -420,8 +447,8 @@ fn rand_atom(r: &mut Rng) -> String {
     if r.chance(15) {
         // random printable soup
         let chars = [
-            'a', 'Z', '0', '9', ' ', '-', ':', '#', ',', '[', ']', '{', '}', '\'', '"', '\\', '.', '!', '&', '*', '?',
-            '|', '>', '%', '@', '`', 'é', '\t', '~', '<', '=', '_', '/',
+            'a', 'Z', '0', '9', ' ', '-', ':', '#', ',', '[', ']', '{', '}', '\'', '"', '\\', '.',
+            '!', '&', '*', '?', '|', '>', '%', '@', '`', 'é', '\t', '~', '<', '=', '_', '/',
         ];
         let n = 1 + r.below(8);
         return (0..n).map(|_| *r.pick(&chars)).collect();
@@ -438,7 +465,9 @@ pub fn dq(s: &str, r: &mut Rng) -> String {
             '\\' => out.push_str("\\\\"),
             '\n' => out.push_str("\\n"),
             '\t' => out.push_str(if r.chance(50) { "\\t" } else { "\t" }),
-            c if (c as u32) < 0x20 || c == '\u{7f}' => out.push_str(&format!("\\x{:02x}", c as u32)),
+            c if (c as u32) < 0x20 || c == '\u{7f}' => {
+                out.push_str(&format!("\\x{:02x}", c as u32))
+            }
             c if r.chance(3) && (c as u32) > 0x7f && (c as u32) < 0x10000 => {
                 out.push_str(&format!("\\u{:04X}", c as u32))
             }
@@ -517,7 +546,12 @@ fn gen_node(r: &mut Rng, ind: usize, depth: usize, anchors: &mut Vec<String>) ->
                     s.push('\n');
                     continue;
                 }
-                s.push_str(&format!("{}{}{}\n", indent_str(ind + 2), extra, rand_atom(r).replace('\n', " ")));
+                s.push_str(&format!(
+                    "{}{}{}\n",
+                    indent_str(ind + 2),
+                    extra,
+                    rand_atom(r).replace('\n', " ")
+                ));
             }
             s.pop();
             s
@@ -534,7 +568,11 @@ fn gen_node(r: &mut Rng, ind: usize, depth: usize, anchors: &mut Vec<String>) ->
             let mut s = prefix.clone();
             let child_ind = ind + if r.chance(80) { 2 } else { 1 + r.below(4) };
             for i in 0..n {
-                let key = if r.chance(10) { "<<".to_string() } else { rand_key(r, i) };
+                let key = if r.chance(10) {
+                    "<<".to_string()
+                } else {
+                    rand_key(r, i)
+                };
                 s.push('\n');
                 s.push_str(&indent_str(child_ind));
                 s.push_str(&key);
@@ -591,7 +629,11 @@ fn rand_key(r: &mut Rng, i: usize) -> String {
                 "2001-01-01",
             ])
             .to_string(),
-        _ => format!("k{}{}", i, r.pick(&["", "a", "_b", "-c", "10", "2", "B", "é"])),
+        _ => format!(
+            "k{}{}",
+            i,
+            r.pick(&["", "a", "_b", "-c", "10", "2", "B", "é"])
+        ),
     }
 }
 
@@ -616,7 +658,11 @@ fn gen_flow(r: &mut Rng, depth: usize) -> String {
     } else {
         let items: Vec<String> = (0..n)
             .map(|i| {
-                let v = if depth < 4 && r.chance(25) { gen_flow(r, depth + 1) } else { dq(&rand_atom(r), r) };
+                let v = if depth < 4 && r.chance(25) {
+                    gen_flow(r, depth + 1)
+                } else {
+                    dq(&rand_atom(r), r)
+                };
                 format!("{}: {}", rand_key(r, i), v)
             })
             .collect();
@@ -674,7 +720,13 @@ pub fn gen_doc2(r: &mut Rng) -> String {
         gen_entry2(r, &mut s, 0, i, 0, &mut anchors);
     }
     if r.chance(10) {
-        s.push_str(r.pick(&["...\n", "---\nx: 1\n", "--- [\n", "...\n---\n- a\n", "# end"]));
+        s.push_str(r.pick(&[
+            "...\n",
+            "---\nx: 1\n",
+            "--- [\n",
+            "...\n---\n- a\n",
+            "# end",
+        ]));
     }
     s
 }
@@ -689,7 +741,14 @@ fn gen_key2(r: &mut Rng, i: usize) -> String {
     }
 }
 
-fn gen_entry2(r: &mut Rng, s: &mut String, ind: usize, i: usize, depth: usize, anchors: &mut Vec<String>) {
+fn gen_entry2(
+    r: &mut Rng,
+    s: &mut String,
+    ind: usize,
+    i: usize,
+    depth: usize,
+    anchors: &mut Vec<String>,
+) {
     let pad = " ".repeat(ind);
     if r.chance(5) {
         s.push_str(&format!("{pad}{}# comment {i}\n", " ".repeat(r.below(4))));
@@ -707,7 +766,14 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
     let pad = " ".repeat(ind);
     let choice = if depth > 3 { r.below(5) } else { r.below(11) };
     match choice {
-        0 => s.push_str(&format!(" {}\n", if r.chance(50) { rand_word() } else { rand_atom(r) })),
+        0 => s.push_str(&format!(
+            " {}\n",
+            if r.chance(50) {
+                rand_word()
+            } else {
+                rand_atom(r)
+            }
+        )),
         1 => {
             // multi-line plain scalar
             s.push_str(&format!(" {}\n", rand_word()));
@@ -715,14 +781,22 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
                 if r.chance(30) {
                     s.push('\n');
                 }
-                s.push_str(&format!("{pad}{}{}\n", " ".repeat(1 + r.below(3)), rand_word()));
+                s.push_str(&format!(
+                    "{pad}{}{}\n",
+                    " ".repeat(1 + r.below(3)),
+                    rand_word()
+                ));
             }
         }
         2 => {
             // multi-line quoted scalar
             let q = if r.chance(50) { '"' } else { '\'' };
             let esc = |w: String| {
-                if q == '"' { w.replace('\\', "\\\\").replace('"', "\\\"") } else { w.replace('\'', "''") }
+                if q == '"' {
+                    w.replace('\\', "\\\\").replace('"', "\\\"")
+                } else {
+                    w.replace('\'', "''")
+                }
             };
             s.push_str(&format!(" {q}{}", esc(rand_word())));
             for _ in 0..1 + r.below(3) {
@@ -730,7 +804,11 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
                 if r.chance(30) {
                     s.push('\n');
                 }
-                s.push_str(&format!("{pad}{}{}", " ".repeat(r.below(4)), esc(rand_word())));
+                s.push_str(&format!(
+                    "{pad}{}{}",
+                    " ".repeat(r.below(4)),
+                    esc(rand_word())
+                ));
                 if q == '"' && r.chance(20) {
                     s.push('\\');
                 }
@@ -741,7 +819,11 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
             // block scalar with indentation indicator / chomping
             let ind_ind = r.below(3);
             let chomp = *r.pick(&["", "-", "+"]);
-            let header = if ind_ind > 0 { format!("{ind_ind}{chomp}") } else { chomp.to_string() };
+            let header = if ind_ind > 0 {
+                format!("{ind_ind}{chomp}")
+            } else {
+                chomp.to_string()
+            };
             let style = if r.chance(50) { '|' } else { '>' };
             s.push_str(&format!(" {style}{header}\n"));
             let base = ind + if ind_ind > 0 { ind_ind } else { 2 };
@@ -772,7 +854,11 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
                 match r.below(4) {
                     0 => {
                         // compact nested sequence
-                        s.push_str(&format!("{cpad}- - {}\n{cpad}  - {}\n", rand_word(), rand_word()));
+                        s.push_str(&format!(
+                            "{cpad}- - {}\n{cpad}  - {}\n",
+                            rand_word(),
+                            rand_word()
+                        ));
                     }
                     1 => {
                         // sequence of mappings
@@ -792,7 +878,10 @@ fn gen_value2(r: &mut Rng, s: &mut String, ind: usize, depth: usize, anchors: &m
         9 => {
             // anchor + tag on a collection
             let name = format!("n{}", r.below(3));
-            s.push_str(&format!(" &{name} {}\n", r.pick(&["!!map", "!!map", "!custom", ""])));
+            s.push_str(&format!(
+                " &{name} {}\n",
+                r.pick(&["!!map", "!!map", "!custom", ""])
+            ));
             let child = ind + 2;
             for i in 0..1 + r.below(2) {
                 gen_entry2(r, s, child, i, depth + 1, anchors);
@@ -839,13 +928,27 @@ fn rand_word() -> String {
 
 fn gen_flow_multiline(r: &mut Rng, ind: usize, depth: usize) -> String {
     let pad = " ".repeat(ind + 1);
-    let sep = if r.chance(40) { format!(",\n{pad}") } else { ", ".to_string() };
+    let sep = if r.chance(40) {
+        format!(",\n{pad}")
+    } else {
+        ", ".to_string()
+    };
     let n = r.below(4);
     if r.chance(50) {
         let items: Vec<String> = (0..n)
-            .map(|_| if depth < 3 && r.chance(25) { gen_flow_multiline(r, ind + 1, depth + 1) } else { rand_atom(r) })
+            .map(|_| {
+                if depth < 3 && r.chance(25) {
+                    gen_flow_multiline(r, ind + 1, depth + 1)
+                } else {
+                    rand_atom(r)
+                }
+            })
             .collect();
-        format!("[{}{}]", items.join(&sep), if r.chance(20) { "," } else { "" })
+        format!(
+            "[{}{}]",
+            items.join(&sep),
+            if r.chance(20) { "," } else { "" }
+        )
     } else {
         let items: Vec<String> = (0..n)
             .map(|i| {
@@ -854,7 +957,11 @@ fn gen_flow_multiline(r: &mut Rng, ind: usize, depth: usize) -> String {
                 } else {
                     dq(&rand_atom(r), r)
                 };
-                if r.chance(15) { format!("? k{i} : {v}") } else { format!("k{i}: {v}") }
+                if r.chance(15) {
+                    format!("? k{i} : {v}")
+                } else {
+                    format!("k{i}: {v}")
+                }
             })
             .collect();
         format!("{{{}}}", items.join(&sep))
@@ -871,8 +978,8 @@ pub fn mutate(r: &mut Rng, s: &str) -> String {
         }
         let pos = r.below(chars.len());
         let ins = [
-            '\t', ' ', ':', '-', '"', '\'', '[', ']', '{', '}', '\n', '#', '&', '*', '!', '|', '>', '?', ',', '%',
-            '\u{1}', '\u{7f}', '\u{feff}', '\r', '@',
+            '\t', ' ', ':', '-', '"', '\'', '[', ']', '{', '}', '\n', '#', '&', '*', '!', '|', '>',
+            '?', ',', '%', '\u{1}', '\u{7f}', '\u{feff}', '\r', '@',
         ];
         match r.below(3) {
             0 => {

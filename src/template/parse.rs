@@ -76,7 +76,13 @@ pub fn parse(
 }
 
 fn dummy_item() -> Item {
-    Item { typ: ItemType::Eof, pos: 0, val: String::new(), line: 0, end: 0 }
+    Item {
+        typ: ItemType::Eof,
+        pos: 0,
+        val: String::new(),
+        line: 0,
+        end: 0,
+    }
 }
 
 struct Parser<'a> {
@@ -195,7 +201,10 @@ impl<'a> Parser<'a> {
         if token.typ == ItemType::Error {
             let mut extra = String::new();
             if self.action_line != 0 && self.action_line != token.line {
-                extra = format!(" in action started at {}:{}", self.parse_name, self.action_line);
+                extra = format!(
+                    " in action started at {}:{}",
+                    self.parse_name, self.action_line
+                );
                 if token.val.ends_with(" action") {
                     extra = extra[" in action".len()..].to_string();
                 }
@@ -209,11 +218,19 @@ impl<'a> Parser<'a> {
             return self.fail(format!("{}{}", token.describe(), extra), span);
         }
         let span = token.pos..token.end.max(token.pos);
-        self.fail(format!("unexpected {} in {}", token.describe(), context), span)
+        self.fail(
+            format!("unexpected {} in {}", token.describe(), context),
+            span,
+        )
     }
 
     fn new_tree(&self, name: String, root: ListNode) -> Tree {
-        Tree { name, parse_name: self.parse_name.clone(), text: self.text.clone(), root }
+        Tree {
+            name,
+            parse_name: self.parse_name.clone(),
+            text: self.text.clone(),
+            root,
+        }
     }
 
     /// Go's `Tree.add`.
@@ -223,7 +240,10 @@ impl<'a> Parser<'a> {
             && !is_empty_list(&existing.root, &existing.text)
         {
             if !empty_new {
-                let msg = format!("template: multiple definition of template {}", quote::go_quote(&tree.name));
+                let msg = format!(
+                    "template: multiple definition of template {}",
+                    quote::go_quote(&tree.name)
+                );
                 return self.errorf(msg);
             }
             return Ok(());
@@ -234,7 +254,10 @@ impl<'a> Parser<'a> {
 
     fn parse_top(&mut self, name: &str) -> PResult<()> {
         let pos = self.peek().pos;
-        let mut root = ListNode { pos, nodes: Vec::new() };
+        let mut root = ListNode {
+            pos,
+            nodes: Vec::new(),
+        };
         while self.peek().typ != ItemType::Eof {
             if self.peek().typ == ItemType::LeftDelim {
                 let delim = self.next();
@@ -280,7 +303,10 @@ impl<'a> Parser<'a> {
 
     fn item_list(&mut self) -> PResult<(ListNode, Parsed)> {
         let pos = self.peek_non_space().pos;
-        let mut list = ListNode { pos, nodes: Vec::new() };
+        let mut list = ListNode {
+            pos,
+            nodes: Vec::new(),
+        };
         while self.peek_non_space().typ != ItemType::Eof {
             match self.text_or_action()? {
                 Parsed::Node(n) => list.nodes.push(n),
@@ -293,7 +319,10 @@ impl<'a> Parser<'a> {
     fn text_or_action(&mut self) -> PResult<Parsed> {
         let token = self.next_non_space();
         match token.typ {
-            ItemType::Text => Ok(Parsed::Node(Node::Text { pos: token.pos, end: token.end })),
+            ItemType::Text => Ok(Parsed::Node(Node::Text {
+                pos: token.pos,
+                end: token.end,
+            })),
             ItemType::LeftDelim => {
                 let saved = (self.action_line, self.action_pos);
                 self.action_line = token.line;
@@ -325,7 +354,10 @@ impl<'a> Parser<'a> {
         self.backup();
         let token = self.peek();
         let pipe = self.pipeline("command", ItemType::RightDelim)?;
-        Ok(Parsed::Node(Node::Action(ActionNode { pos: token.pos, pipe })))
+        Ok(Parsed::Node(Node::Action(ActionNode {
+            pos: token.pos,
+            pipe,
+        })))
     }
 
     fn break_control(&mut self, pos: Pos) -> PResult<Node> {
@@ -336,7 +368,10 @@ impl<'a> Parser<'a> {
         if self.range_depth == 0 {
             return self.errorf("{{break}} outside {{range}}".into());
         }
-        Ok(Node::Break { pos, span: pos..token.end })
+        Ok(Node::Break {
+            pos,
+            span: pos..token.end,
+        })
     }
 
     fn continue_control(&mut self, pos: Pos) -> PResult<Node> {
@@ -347,12 +382,21 @@ impl<'a> Parser<'a> {
         if self.range_depth == 0 {
             return self.errorf("{{continue}} outside {{range}}".into());
         }
-        Ok(Node::Continue { pos, span: pos..token.end })
+        Ok(Node::Continue {
+            pos,
+            span: pos..token.end,
+        })
     }
 
     fn pipeline(&mut self, context: &str, end: ItemType) -> PResult<PipeNode> {
         let token = self.peek_non_space();
-        let mut pipe = PipeNode { pos: token.pos, is_assign: false, decl: Vec::new(), cmds: Vec::new(), span: token.pos..token.pos };
+        let mut pipe = PipeNode {
+            pos: token.pos,
+            is_assign: false,
+            decl: Vec::new(),
+            cmds: Vec::new(),
+            span: token.pos..token.pos,
+        };
         // decls:
         loop {
             let v = self.peek_non_space();
@@ -374,7 +418,9 @@ impl<'a> Parser<'a> {
                 self.vars.push(v.val.clone());
                 if context == "range" && pipe.decl.len() < 2 {
                     match self.peek_non_space().typ {
-                        ItemType::Variable | ItemType::RightDelim | ItemType::RightParen => continue,
+                        ItemType::Variable | ItemType::RightDelim | ItemType::RightParen => {
+                            continue;
+                        }
                         _ => return self.errorf("range can only initialize variables".into()),
                     }
                 }
@@ -421,9 +467,19 @@ impl<'a> Parser<'a> {
             return self.errorf(format!("missing value for {context}"));
         }
         for (i, c) in pipe.cmds.iter().enumerate().skip(1) {
-            if matches!(c.args[0], Arg::Bool { .. } | Arg::Dot { .. } | Arg::Nil { .. } | Arg::Number(_) | Arg::String { .. }) {
+            if matches!(
+                c.args[0],
+                Arg::Bool { .. }
+                    | Arg::Dot { .. }
+                    | Arg::Nil { .. }
+                    | Arg::Number(_)
+                    | Arg::String { .. }
+            ) {
                 let span = c.span.clone();
-                return self.fail(format!("non executable command in pipeline stage {}", i + 1), span);
+                return self.fail(
+                    format!("non executable command in pipeline stage {}", i + 1),
+                    span,
+                );
             }
         }
         Ok(())
@@ -458,11 +514,17 @@ impl<'a> Parser<'a> {
                 if context == "if" && self.peek().typ == ItemType::If {
                     self.next();
                     let n = self.if_control()?;
-                    else_list = Some(ListNode { pos: epos, nodes: vec![n] });
+                    else_list = Some(ListNode {
+                        pos: epos,
+                        nodes: vec![n],
+                    });
                 } else if context == "with" && self.peek().typ == ItemType::With {
                     self.next();
                     let n = self.with_control()?;
-                    else_list = Some(ListNode { pos: epos, nodes: vec![n] });
+                    else_list = Some(ListNode {
+                        pos: epos,
+                        nodes: vec![n],
+                    });
                 } else {
                     let (el, next) = self.item_list()?;
                     if !matches!(next, Parsed::End) {
@@ -474,7 +536,12 @@ impl<'a> Parser<'a> {
             }
             Parsed::Node(_) => unreachable!(),
         }
-        Ok(BranchNode { pos: pipe.pos, pipe, list, else_list })
+        Ok(BranchNode {
+            pos: pipe.pos,
+            pipe,
+            list,
+            else_list,
+        })
     }
 
     fn if_control(&mut self) -> PResult<Node> {
@@ -521,7 +588,12 @@ impl<'a> Parser<'a> {
         }
         let tree = self.new_tree(name.clone(), root);
         self.add(tree)?;
-        Ok(Node::Template(TemplateNode { pos: token.pos, name, pipe: Some(pipe), span: token.pos..token.end }))
+        Ok(Node::Template(TemplateNode {
+            pos: token.pos,
+            name,
+            pipe: Some(pipe),
+            span: token.pos..token.end,
+        }))
     }
 
     fn template_control(&mut self) -> PResult<Node> {
@@ -533,7 +605,12 @@ impl<'a> Parser<'a> {
             self.backup();
             pipe = Some(self.pipeline(context, ItemType::RightDelim)?);
         }
-        Ok(Node::Template(TemplateNode { pos: token.pos, name, pipe, span: token.pos..token.end }))
+        Ok(Node::Template(TemplateNode {
+            pos: token.pos,
+            name,
+            pipe,
+            span: token.pos..token.end,
+        }))
     }
 
     fn parse_template_name(&mut self, token: &Item, context: &str) -> PResult<String> {
@@ -548,7 +625,11 @@ impl<'a> Parser<'a> {
 
     fn command(&mut self) -> PResult<CommandNode> {
         let pos = self.peek_non_space().pos;
-        let mut cmd = CommandNode { pos, args: Vec::new(), span: pos..pos };
+        let mut cmd = CommandNode {
+            pos,
+            args: Vec::new(),
+            span: pos..pos,
+        };
         loop {
             self.peek_non_space();
             if let Some(op) = self.operand()? {
@@ -571,7 +652,9 @@ impl<'a> Parser<'a> {
     }
 
     fn operand(&mut self) -> PResult<Option<Arg>> {
-        let Some(node) = self.term()? else { return Ok(None) };
+        let Some(node) = self.term()? else {
+            return Ok(None);
+        };
         if self.peek().typ == ItemType::Field {
             let chain_pos = self.peek().pos;
             let mut fields = Vec::new();
@@ -579,23 +662,43 @@ impl<'a> Parser<'a> {
             while self.peek().typ == ItemType::Field {
                 let t = self.next();
                 end = t.end;
-                fields.push(Ident { name: Rc::from(&t.val[1..]), start: t.pos });
+                fields.push(Ident {
+                    name: Rc::from(&t.val[1..]),
+                    start: t.pos,
+                });
             }
             let start = node.span().start;
             let node = match node {
                 Arg::Field(mut f) => {
                     f.ident.extend(fields);
-                    Arg::Field(FieldNode { pos: chain_pos, ident: f.ident, span: start..end })
+                    Arg::Field(FieldNode {
+                        pos: chain_pos,
+                        ident: f.ident,
+                        span: start..end,
+                    })
                 }
                 Arg::Variable(mut v) => {
                     v.ident.extend(fields);
-                    Arg::Variable(VariableNode { pos: chain_pos, ident: v.ident, span: start..end })
+                    Arg::Variable(VariableNode {
+                        pos: chain_pos,
+                        ident: v.ident,
+                        span: start..end,
+                    })
                 }
-                Arg::Bool { .. } | Arg::String { .. } | Arg::Number(_) | Arg::Nil { .. } | Arg::Dot { .. } => {
+                Arg::Bool { .. }
+                | Arg::String { .. }
+                | Arg::Number(_)
+                | Arg::Nil { .. }
+                | Arg::Dot { .. } => {
                     let s = node.to_string();
                     return self.errorf(format!("unexpected . after term {}", quote::go_quote(&s)));
                 }
-                other => Arg::Chain(Box::new(ChainNode { pos: chain_pos, node: other, field: fields, span: start..end })),
+                other => Arg::Chain(Box::new(ChainNode {
+                    pos: chain_pos,
+                    node: other,
+                    field: fields,
+                    span: start..end,
+                })),
             };
             return Ok(Some(node));
         }
@@ -608,9 +711,16 @@ impl<'a> Parser<'a> {
         let arg = match token.typ {
             ItemType::Identifier => {
                 if !(self.has_function)(&token.val) {
-                    return self.fail(format!("function {} not defined", quote::go_quote(&token.val)), span);
+                    return self.fail(
+                        format!("function {} not defined", quote::go_quote(&token.val)),
+                        span,
+                    );
                 }
-                Arg::Identifier { pos: token.pos, name: Rc::from(token.val.as_str()), span }
+                Arg::Identifier {
+                    pos: token.pos,
+                    name: Rc::from(token.val.as_str()),
+                    span,
+                }
             }
             ItemType::Dot => Arg::Dot { pos: token.pos },
             ItemType::Nil => Arg::Nil { pos: token.pos },
@@ -620,11 +730,16 @@ impl<'a> Parser<'a> {
                 ident: split_idents(token.pos, &token.val[1..], 1),
                 span,
             }),
-            ItemType::Bool => Arg::Bool { pos: token.pos, val: token.val == "true" },
-            ItemType::CharConstant | ItemType::Complex | ItemType::Number => match new_number(&token) {
-                Ok(n) => Arg::Number(Box::new(n)),
-                Err(msg) => return self.fail(msg, span),
+            ItemType::Bool => Arg::Bool {
+                pos: token.pos,
+                val: token.val == "true",
             },
+            ItemType::CharConstant | ItemType::Complex | ItemType::Number => {
+                match new_number(&token) {
+                    Ok(n) => Arg::Number(Box::new(n)),
+                    Err(msg) => return self.fail(msg, span),
+                }
+            }
             ItemType::LeftParen => {
                 if self.stack_depth >= MAX_STACK_DEPTH {
                     return self.errorf("max expression depth exceeded".into());
@@ -637,7 +752,11 @@ impl<'a> Parser<'a> {
                 Arg::Pipe(Box::new(p))
             }
             ItemType::String | ItemType::RawString => match quote::unquote(&token.val) {
-                Ok(s) => Arg::String { pos: token.pos, quoted: Rc::from(token.val.as_str()), text: Rc::from(s) },
+                Ok(s) => Arg::String {
+                    pos: token.pos,
+                    quoted: Rc::from(token.val.as_str()),
+                    text: Rc::from(s),
+                },
                 Err(e) => return self.fail(e.into(), span),
             },
             _ => {
@@ -671,7 +790,10 @@ fn split_idents(start: usize, s: &str, prefix_len: usize) -> Vec<Ident> {
     let mut out = Vec::new();
     let mut off = start;
     for part in s.split('.') {
-        out.push(Ident { name: Rc::from(part), start: off });
+        out.push(Ident {
+            name: Rc::from(part),
+            start: off,
+        });
         off += part.len() + prefix_len;
     }
     out
@@ -681,12 +803,18 @@ fn new_variable(pos: Pos, ident: &str) -> VariableNode {
     // "$x.a.b": ident[0] = "$x" at pos, then fields.
     let mut out = Vec::new();
     let mut off = pos;
-    for (i, part) in ident.split('.').enumerate() {
-        let start = if i == 0 { off } else { off };
-        out.push(Ident { name: Rc::from(part), start });
+    for part in ident.split('.') {
+        out.push(Ident {
+            name: Rc::from(part),
+            start: off,
+        });
         off += part.len() + 1;
     }
-    VariableNode { pos, ident: out, span: pos..pos + ident.len() }
+    VariableNode {
+        pos,
+        ident: out,
+        span: pos..pos + ident.len(),
+    }
 }
 
 /// Go's `Tree.newNumber`.
@@ -730,12 +858,17 @@ fn new_number(token: &Item) -> Result<NumberNode, String> {
             let split = body
                 .char_indices()
                 .skip(1)
-                .filter(|&(i, c)| (c == '+' || c == '-') && !matches!(body.as_bytes()[i - 1], b'e' | b'E' | b'p' | b'P'))
+                .filter(|&(i, c)| {
+                    (c == '+' || c == '-')
+                        && !matches!(body.as_bytes()[i - 1], b'e' | b'E' | b'p' | b'P')
+                })
                 .map(|(i, _)| i)
                 .last()
                 .ok_or_else(|| String::from("expected integer"))?;
-            let re = num::parse_float(&body[..split]).map_err(|_| String::from("expected integer"))?;
-            let im = num::parse_float(&body[split..]).map_err(|_| String::from("expected integer"))?;
+            let re =
+                num::parse_float(&body[..split]).map_err(|_| String::from("expected integer"))?;
+            let im =
+                num::parse_float(&body[split..]).map_err(|_| String::from("expected integer"))?;
             n.is_complex = true;
             n.complex = (re, im);
             simplify_complex(&mut n);
@@ -811,7 +944,8 @@ fn simplify_complex(n: &mut NumberNode) {
 
 /// `float64(int64(f)) == f`, for values in int64 range.
 fn f_as_int(f: f64) -> Option<i64> {
-    if (-9.223_372_036_854_775_808e18..9.223_372_036_854_775_808e18).contains(&f) && (f as i64) as f64 == f {
+    if (-9.223_372_036_854_776e18..9.223_372_036_854_776e18).contains(&f) && (f as i64) as f64 == f
+    {
         Some(f as i64)
     } else {
         None
@@ -820,7 +954,7 @@ fn f_as_int(f: f64) -> Option<i64> {
 
 /// `float64(uint64(f)) == f`, for values in uint64 range.
 fn f_as_uint(f: f64) -> Option<u64> {
-    if (0.0..1.844_674_407_370_955_161_6e19).contains(&f) && (f as u64) as f64 == f {
+    if (0.0..1.844_674_407_370_955_2e19).contains(&f) && (f as u64) as f64 == f {
         Some(f as u64)
     } else {
         None

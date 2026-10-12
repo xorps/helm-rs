@@ -73,10 +73,16 @@ pub struct Sig {
 
 impl Sig {
     pub const fn new(params: &'static [Ty]) -> Sig {
-        Sig { params, variadic: None }
+        Sig {
+            params,
+            variadic: None,
+        }
     }
     pub const fn variadic(params: &'static [Ty], rest: Ty) -> Sig {
-        Sig { params, variadic: Some(rest) }
+        Sig {
+            params,
+            variadic: Some(rest),
+        }
     }
 }
 
@@ -89,7 +95,9 @@ pub struct FuncError {
 
 impl FuncError {
     pub fn new(message: impl Into<String>) -> Self {
-        FuncError { message: message.into() }
+        FuncError {
+            message: message.into(),
+        }
     }
 }
 
@@ -107,7 +115,9 @@ impl From<String> for FuncError {
 
 impl From<&str> for FuncError {
     fn from(message: &str) -> Self {
-        FuncError { message: message.into() }
+        FuncError {
+            message: message.into(),
+        }
     }
 }
 
@@ -129,7 +139,11 @@ pub struct Timestamp {
 pub trait Env {
     /// Current time, for `now`, `date` and friends.
     fn now(&self) -> Timestamp {
-        Timestamp { unix_seconds: 0, nanos: 0, utc_offset_seconds: 0 }
+        Timestamp {
+            unix_seconds: 0,
+            nanos: 0,
+            utc_offset_seconds: 0,
+        }
     }
     /// Fills `buf` with random bytes, for `randAlphaNum`, `uuidv4`, `genCA`, ...
     fn fill_random(&mut self, buf: &mut [u8]);
@@ -158,7 +172,9 @@ pub struct DeterministicEnv {
 
 impl DeterministicEnv {
     pub fn new(seed: u64) -> Self {
-        DeterministicEnv { state: seed ^ 0x9E37_79B9_7F4A_7C15 }
+        DeterministicEnv {
+            state: seed ^ 0x9E37_79B9_7F4A_7C15,
+        }
     }
 }
 
@@ -202,7 +218,10 @@ impl Func {
         sig: Sig,
         f: impl Fn(&mut CallCtx<'_>, &[Value]) -> Result<Value, FuncError> + 'static,
     ) -> Func {
-        Func { sig, imp: Rc::new(f) }
+        Func {
+            sig,
+            imp: Rc::new(f),
+        }
     }
 }
 
@@ -230,7 +249,13 @@ impl FuncMap {
 
     /// Registers a plain `fn` that does not need the [`CallCtx`].
     pub fn add(&mut self, name: &str, sig: Sig, f: fn(&[Value]) -> Result<Value, FuncError>) {
-        self.insert(name, Func { sig, imp: Rc::new(move |_ctx: &mut CallCtx<'_>, a: &[Value]| f(a)) });
+        self.insert(
+            name,
+            Func {
+                sig,
+                imp: Rc::new(move |_ctx: &mut CallCtx<'_>, a: &[Value]| f(a)),
+            },
+        );
     }
 
     /// Registers a plain `fn` that needs the [`CallCtx`].
@@ -240,7 +265,13 @@ impl FuncMap {
         sig: Sig,
         f: fn(&mut CallCtx<'_>, &[Value]) -> Result<Value, FuncError>,
     ) {
-        self.insert(name, Func { sig, imp: Rc::new(f) });
+        self.insert(
+            name,
+            Func {
+                sig,
+                imp: Rc::new(f),
+            },
+        );
     }
 
     pub fn remove(&mut self, name: &str) -> Option<Func> {

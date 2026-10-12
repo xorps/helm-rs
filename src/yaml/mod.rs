@@ -89,11 +89,19 @@ impl YamlError {
         } else {
             (None, None)
         };
-        YamlError { message, line, column }
+        YamlError {
+            message,
+            line,
+            column,
+        }
     }
 
     fn plain(message: String) -> YamlError {
-        YamlError { message, line: None, column: None }
+        YamlError {
+            message,
+            line: None,
+            column: None,
+        }
     }
 }
 
@@ -111,20 +119,27 @@ pub fn from_str_map(s: &str) -> Result<Value, YamlError> {
 /// `sigs.k8s.io/yaml.Unmarshal(data, &out)` for the given target type.
 pub fn unmarshal(s: &str, target: Target<'_>) -> Result<Value, YamlError> {
     const CONV: &str = "error converting YAML to JSON: ";
-    let (nodes, root) =
-        decode::compose(s.as_bytes()).map_err(|e| YamlError::new(format!("{CONV}yaml: {}", e.message), s, &e))?;
+    let (nodes, root) = decode::compose(s.as_bytes())
+        .map_err(|e| YamlError::new(format!("{CONV}yaml: {}", e.message), s, &e))?;
     let (go, root_mark) = match root {
         Some(r) => {
             let mut d = decode::Decoder::new(&nodes);
-            let v = d.decode(r).map_err(|e| YamlError::new(format!("{CONV}yaml: {}", e.message), s, &e))?;
-            let mark = nodes[r].children.first().map_or(nodes[r].mark, |&c| nodes[c].mark);
+            let v = d
+                .decode(r)
+                .map_err(|e| YamlError::new(format!("{CONV}yaml: {}", e.message), s, &e))?;
+            let mark = nodes[r]
+                .children
+                .first()
+                .map_or(nodes[r].mark, |&c| nodes[c].mark);
             (v, mark)
         }
         None => (decode::GoVal::Nil, scanner::Mark::default()),
     };
     drop(nodes);
-    let j = decode::to_jsonable(go, root_mark).map_err(|e| YamlError::new(format!("{CONV}{}", e.message), s, &e))?;
-    let v = decode::json_roundtrip(j).map_err(|e| YamlError::new(format!("{CONV}{}", e.message), s, &e))?;
+    let j = decode::to_jsonable(go, root_mark)
+        .map_err(|e| YamlError::new(format!("{CONV}{}", e.message), s, &e))?;
+    let v = decode::json_roundtrip(j)
+        .map_err(|e| YamlError::new(format!("{CONV}{}", e.message), s, &e))?;
     let kind_err = |kind: &str, ty: &str| YamlError {
         message: format!(
             "error unmarshaling JSON: while decoding JSON: json: cannot unmarshal {kind} into Go value of type {ty}"
@@ -163,9 +178,13 @@ pub(crate) fn json_kind(v: &Value) -> &'static str {
 /// in which case Go's result depends on map iteration order. For tests.
 #[doc(hidden)]
 pub fn has_key_collisions(s: &str) -> bool {
-    let Ok((nodes, Some(root))) = decode::compose(s.as_bytes()) else { return false };
+    let Ok((nodes, Some(root))) = decode::compose(s.as_bytes()) else {
+        return false;
+    };
     let mut d = decode::Decoder::new(&nodes);
-    d.decode(root).map(|v| decode::has_key_collisions(&v)).unwrap_or(false)
+    d.decode(root)
+        .map(|v| decode::has_key_collisions(&v))
+        .unwrap_or(false)
 }
 
 /// goyaml's map key ordering (`keyList.Less`) for string keys; `v3` selects
@@ -185,12 +204,13 @@ pub fn to_string(v: &Value) -> Result<String, YamlError> {
 
 /// `sigs.k8s.io/yaml.JSONToYAML`.
 pub fn json_to_yaml(json: &str) -> Result<String, YamlError> {
-    let (nodes, root) =
-        decode::compose(json.as_bytes()).map_err(|e| YamlError::new(format!("yaml: {}", e.message), json, &e))?;
+    let (nodes, root) = decode::compose(json.as_bytes())
+        .map_err(|e| YamlError::new(format!("yaml: {}", e.message), json, &e))?;
     let go = match root {
         Some(r) => {
             let mut d = decode::Decoder::new(&nodes);
-            d.decode(r).map_err(|e| YamlError::new(format!("yaml: {}", e.message), json, &e))?
+            d.decode(r)
+                .map_err(|e| YamlError::new(format!("yaml: {}", e.message), json, &e))?
         }
         None => decode::GoVal::Nil,
     };
@@ -234,7 +254,10 @@ mod tests {
     #[test]
     fn pretty() {
         let v = from_str("a: 1000000\nb:\n- x\n- {c: d}\n").unwrap();
-        assert_eq!(to_string_pretty(&v).unwrap(), "a: 1e+06\nb:\n  - x\n  - c: d\n");
+        assert_eq!(
+            to_string_pretty(&v).unwrap(),
+            "a: 1e+06\nb:\n  - x\n  - c: d\n"
+        );
     }
 
     #[test]
@@ -243,7 +266,10 @@ mod tests {
         assert_eq!(e.line, Some(2));
         assert_eq!(e.column, Some(5));
         let e = from_str("a: 1\n\u{1}").unwrap_err();
-        assert_eq!(e.message, "error converting YAML to JSON: yaml: control characters are not allowed");
+        assert_eq!(
+            e.message,
+            "error converting YAML to JSON: yaml: control characters are not allowed"
+        );
         assert_eq!((e.line, e.column), (Some(2), Some(1)));
         let _ = e.to_string();
     }

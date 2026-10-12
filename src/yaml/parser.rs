@@ -97,8 +97,14 @@ pub(crate) struct Parser<'a> {
 
 fn default_tag_directives() -> [TagDirective; 2] {
     [
-        TagDirective { handle: b"!".to_vec(), prefix: b"!".to_vec() },
-        TagDirective { handle: b"!!".to_vec(), prefix: b"tag:yaml.org,2002:".to_vec() },
+        TagDirective {
+            handle: b"!".to_vec(),
+            prefix: b"!".to_vec(),
+        },
+        TagDirective {
+            handle: b"!!".to_vec(),
+            prefix: b"tag:yaml.org,2002:".to_vec(),
+        },
     ]
 }
 
@@ -162,7 +168,10 @@ impl<'a> Parser<'a> {
     /// `yaml_parser_parse`. Returns false on error (see `sc.err`).
     pub fn parse(&mut self, event: &mut Event) -> bool {
         *event = Event::default();
-        if self.sc.stream_end_produced || self.sc.err.kind != ErrorKind::None || self.state == State::End {
+        if self.sc.stream_end_produced
+            || self.sc.err.kind != ErrorKind::None
+            || self.state == State::End
+        {
             return true;
         }
         match self.state {
@@ -181,7 +190,9 @@ impl<'a> Parser<'a> {
             State::FlowSequenceFirstEntry => self.parse_flow_sequence_entry(event, true),
             State::FlowSequenceEntry => self.parse_flow_sequence_entry(event, false),
             State::FlowSequenceEntryMappingKey => self.parse_flow_sequence_entry_mapping_key(event),
-            State::FlowSequenceEntryMappingValue => self.parse_flow_sequence_entry_mapping_value(event),
+            State::FlowSequenceEntryMappingValue => {
+                self.parse_flow_sequence_entry_mapping_value(event)
+            }
             State::FlowSequenceEntryMappingEnd => self.parse_flow_sequence_entry_mapping_end(event),
             State::FlowMappingFirstKey => self.parse_flow_mapping_key(event, true),
             State::FlowMappingKey => self.parse_flow_mapping_key(event, false),
@@ -198,15 +209,21 @@ impl<'a> Parser<'a> {
             let m = t.start_mark;
             return self.set_parser_error("did not find expected <stream-start>", m);
         }
-        *event =
-            Event { typ: EventType::StreamStart, start_mark: t.start_mark, end_mark: t.end_mark, ..Default::default() };
+        *event = Event {
+            typ: EventType::StreamStart,
+            start_mark: t.start_mark,
+            end_mark: t.end_mark,
+            ..Default::default()
+        };
         self.state = State::ImplicitDocumentStart;
         self.skip_token();
         true
     }
 
     fn parse_document_start(&mut self, event: &mut Event, implicit: bool) -> bool {
-        let Some(mut typ) = self.peek() else { return false };
+        let Some(mut typ) = self.peek() else {
+            return false;
+        };
         if !implicit {
             while typ == TokenType::DocumentEnd {
                 self.skip_token();
@@ -247,8 +264,13 @@ impl<'a> Parser<'a> {
             self.states.push(State::DocumentEnd);
             self.state = State::DocumentContent;
             let end_mark = self.tok().end_mark;
-            *event =
-                Event { typ: EventType::DocumentStart, start_mark, end_mark, implicit: false, ..Default::default() };
+            *event = Event {
+                typ: EventType::DocumentStart,
+                start_mark,
+                end_mark,
+                implicit: false,
+                ..Default::default()
+            };
             self.skip_token();
         } else {
             self.state = State::End;
@@ -293,12 +315,20 @@ impl<'a> Parser<'a> {
         }
         self.tag_directives.clear();
         self.state = State::DocumentStart;
-        *event = Event { typ: EventType::DocumentEnd, start_mark, end_mark, implicit, ..Default::default() };
+        *event = Event {
+            typ: EventType::DocumentEnd,
+            start_mark,
+            end_mark,
+            implicit,
+            ..Default::default()
+        };
         true
     }
 
     fn parse_node(&mut self, event: &mut Event, block: bool, indentless_sequence: bool) -> bool {
-        let Some(mut typ) = self.peek() else { return false };
+        let Some(mut typ) = self.peek() else {
+            return false;
+        };
         if typ == TokenType::Alias {
             self.pop_state();
             let t = self.tok();
@@ -508,7 +538,11 @@ impl<'a> Parser<'a> {
             };
             return true;
         }
-        let context = if block { "while parsing a block node" } else { "while parsing a flow node" };
+        let context = if block {
+            "while parsing a block node"
+        } else {
+            "while parsing a flow node"
+        };
         let m = self.tok().start_mark;
         self.set_parser_error_context(context, start_mark, "did not find expected node content", m)
     }
@@ -618,7 +652,12 @@ impl<'a> Parser<'a> {
         }
         let context_mark = self.marks.pop().unwrap_or_default();
         let m = self.tok().start_mark;
-        self.set_parser_error_context("while parsing a block mapping", context_mark, "did not find expected key", m)
+        self.set_parser_error_context(
+            "while parsing a block mapping",
+            context_mark,
+            "did not find expected key",
+            m,
+        )
     }
 
     fn parse_block_mapping_value(&mut self, event: &mut Event) -> bool {
@@ -647,7 +686,9 @@ impl<'a> Parser<'a> {
             self.marks.push(self.tok().start_mark);
             self.skip_token();
         }
-        let Some(mut typ) = self.peek() else { return false };
+        let Some(mut typ) = self.peek() else {
+            return false;
+        };
         if typ != TokenType::FlowSequenceEnd {
             if !first {
                 if typ == TokenType::FlowEntry {
@@ -688,15 +729,22 @@ impl<'a> Parser<'a> {
         self.pop_state();
         self.marks.pop();
         let t = self.tok();
-        *event =
-            Event { typ: EventType::SequenceEnd, start_mark: t.start_mark, end_mark: t.end_mark, ..Default::default() };
+        *event = Event {
+            typ: EventType::SequenceEnd,
+            start_mark: t.start_mark,
+            end_mark: t.end_mark,
+            ..Default::default()
+        };
         self.skip_token();
         true
     }
 
     fn parse_flow_sequence_entry_mapping_key(&mut self, event: &mut Event) -> bool {
         let Some(typ) = self.peek() else { return false };
-        if typ != TokenType::Value && typ != TokenType::FlowEntry && typ != TokenType::FlowSequenceEnd {
+        if typ != TokenType::Value
+            && typ != TokenType::FlowEntry
+            && typ != TokenType::FlowSequenceEnd
+        {
             self.states.push(State::FlowSequenceEntryMappingValue);
             return self.parse_node(event, false, false);
         }
@@ -727,7 +775,12 @@ impl<'a> Parser<'a> {
         }
         self.state = State::FlowSequenceEntry;
         let m = self.tok().start_mark;
-        *event = Event { typ: EventType::MappingEnd, start_mark: m, end_mark: m, ..Default::default() };
+        *event = Event {
+            typ: EventType::MappingEnd,
+            start_mark: m,
+            end_mark: m,
+            ..Default::default()
+        };
         true
     }
 
@@ -739,7 +792,9 @@ impl<'a> Parser<'a> {
             self.marks.push(self.tok().start_mark);
             self.skip_token();
         }
-        let Some(mut typ) = self.peek() else { return false };
+        let Some(mut typ) = self.peek() else {
+            return false;
+        };
         if typ != TokenType::FlowMappingEnd {
             if !first {
                 if typ == TokenType::FlowEntry {
@@ -762,7 +817,10 @@ impl<'a> Parser<'a> {
             if typ == TokenType::Key {
                 self.skip_token();
                 let Some(typ) = self.peek() else { return false };
-                if typ != TokenType::Value && typ != TokenType::FlowEntry && typ != TokenType::FlowMappingEnd {
+                if typ != TokenType::Value
+                    && typ != TokenType::FlowEntry
+                    && typ != TokenType::FlowMappingEnd
+                {
                     self.states.push(State::FlowMappingValue);
                     return self.parse_node(event, false, false);
                 }
@@ -777,8 +835,12 @@ impl<'a> Parser<'a> {
         self.pop_state();
         self.marks.pop();
         let t = self.tok();
-        *event =
-            Event { typ: EventType::MappingEnd, start_mark: t.start_mark, end_mark: t.end_mark, ..Default::default() };
+        *event = Event {
+            typ: EventType::MappingEnd,
+            start_mark: t.start_mark,
+            end_mark: t.end_mark,
+            ..Default::default()
+        };
         self.skip_token();
         true
     }
@@ -816,7 +878,9 @@ impl<'a> Parser<'a> {
     }
 
     fn process_directives(&mut self) -> bool {
-        let Some(mut typ) = self.peek() else { return false };
+        let Some(mut typ) = self.peek() else {
+            return false;
+        };
         let mut has_version = false;
         while typ == TokenType::VersionDirective || typ == TokenType::TagDirective {
             let t = self.tok().clone();
@@ -829,7 +893,10 @@ impl<'a> Parser<'a> {
                 }
                 has_version = true;
             } else {
-                let value = TagDirective { handle: t.value.clone(), prefix: t.prefix.clone() };
+                let value = TagDirective {
+                    handle: t.value.clone(),
+                    prefix: t.prefix.clone(),
+                };
                 if !self.append_tag_directive(value, false, t.start_mark) {
                     return false;
                 }
@@ -849,7 +916,12 @@ impl<'a> Parser<'a> {
         true
     }
 
-    fn append_tag_directive(&mut self, value: TagDirective, allow_duplicates: bool, mark: Mark) -> bool {
+    fn append_tag_directive(
+        &mut self,
+        value: TagDirective,
+        allow_duplicates: bool,
+        mark: Mark,
+    ) -> bool {
         if self.tag_directives.iter().any(|t| t.handle == value.handle) {
             if allow_duplicates {
                 return true;

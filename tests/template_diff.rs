@@ -7,7 +7,7 @@ mod values;
 
 use std::collections::BTreeMap;
 
-use common::{Oracle, OracleResult, Opts};
+use common::{Opts, Oracle, OracleResult};
 use helm_rs::template::{Engine, Renderable};
 use helm_rs::{DeterministicEnv, FuncMap, Map, Value};
 
@@ -19,22 +19,38 @@ const VALUES: &str = r#"{
   "pct": "100%", "html": "<a href='x'>&</a>", "uni": "héllo wörld ✓"
 }"#;
 
+type Rendered = Result<BTreeMap<String, String>, helm_rs::Error>;
+
 /// Renders `templates` (file name → source) with real Helm and with us.
-fn both(templates: &[(&str, &str)]) -> Option<(OracleResult, Result<BTreeMap<String, String>, helm_rs::Error>)> {
+fn both(templates: &[(&str, &str)]) -> Option<(OracleResult, Rendered)> {
     let oracle = Oracle::shared()?;
     let mut files = BTreeMap::new();
-    files.insert("Chart.yaml".to_string(), "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string());
+    files.insert(
+        "Chart.yaml".to_string(),
+        "apiVersion: v2\nname: t\nversion: 0.1.0\n".to_string(),
+    );
     files.insert("values.yaml".to_string(), VALUES.to_string());
     for (n, src) in templates {
         files.insert(format!("templates/{n}"), src.to_string());
     }
-    let helm = oracle.lock().unwrap_or_else(|e| e.into_inner()).render_files(&files, "", &Opts::default());
+    let helm = oracle
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .render_files(&files, "", &Opts::default());
 
     let vals: serde_json::Value = serde_json::from_str(VALUES).unwrap();
     let mut top = Map::new();
-    let helm_rs::Value::Map(v) = values::json_to_value(&vals) else { unreachable!() };
-    top.insert("Values".into(), Value::Map(v.with_kind(helm_rs::MapKind::HelmValues)));
-    top.insert("Release".into(), helm_rs::map! { "Name" => "release-name", "Namespace" => "default" });
+    let helm_rs::Value::Map(v) = values::json_to_value(&vals) else {
+        unreachable!()
+    };
+    top.insert(
+        "Values".into(),
+        Value::Map(v.with_kind(helm_rs::MapKind::HelmValues)),
+    );
+    top.insert(
+        "Release".into(),
+        helm_rs::map! { "Name" => "release-name", "Namespace" => "default" },
+    );
     let top = Value::Map(helm_rs::MapRef::new_values(top));
     let mut engine = Engine::new();
     engine.funcs = FuncMap::new();
@@ -54,7 +70,9 @@ fn both(templates: &[(&str, &str)]) -> Option<(OracleResult, Result<BTreeMap<Str
 fn check(cases: &[&str]) {
     let mut failures = Vec::new();
     for (i, case) in cases.iter().enumerate() {
-        let Some((helm, ours)) = both(&[("t.yaml", case)]) else { return };
+        let Some((helm, ours)) = both(&[("t.yaml", case)]) else {
+            return;
+        };
         let ok = match (&helm, &ours) {
             (OracleResult::Ok(h), Ok(o)) => h == o,
             (OracleResult::Err { message, .. }, Err(e)) => e.helm_message() == *message,
@@ -72,7 +90,13 @@ fn check(cases: &[&str]) {
             failures.push(format!("case {i}: {case:?}\n  helm: {h}\n  ours: {o}"));
         }
     }
-    assert!(failures.is_empty(), "{} of {} cases differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} cases differ:\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -260,7 +284,12 @@ fn templates_and_helm_functions() {
 
 #[test]
 fn infinite_recursion_fails_cleanly() {
-    let Some((helm, ours)) = both(&[("t.yaml", "{{ define \"r\" }}{{ include \"r\" . }}{{ end }}{{ include \"r\" . }}")]) else { return };
+    let Some((helm, ours)) = both(&[(
+        "t.yaml",
+        "{{ define \"r\" }}{{ include \"r\" . }}{{ end }}{{ include \"r\" . }}",
+    )]) else {
+        return;
+    };
     assert!(matches!(helm, OracleResult::Err { .. }));
     let e = ours.unwrap_err();
     assert!(e.message.contains("exceeded maximum template depth"), "{e}");

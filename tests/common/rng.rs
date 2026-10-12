@@ -73,7 +73,9 @@ pub fn fuzz_seed(test: &str) -> u64 {
                 .unwrap_or_else(|e| panic!("bad HELM_RS_FUZZ_SEED {s:?}: {e}"))
         }
         Err(_) => {
-            let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap();
             (t.as_nanos() as u64) ^ ((std::process::id() as u64) << 32)
         }
     };
@@ -85,7 +87,11 @@ pub fn fuzz_seed(test: &str) -> u64 {
 pub fn fuzz_iters(default: usize) -> usize {
     std::env::var("HELM_RS_FUZZ_ITERS")
         .ok()
-        .map(|s| s.trim().parse().unwrap_or_else(|e| panic!("bad HELM_RS_FUZZ_ITERS {s:?}: {e}")))
+        .map(|s| {
+            s.trim()
+                .parse()
+                .unwrap_or_else(|e| panic!("bad HELM_RS_FUZZ_ITERS {s:?}: {e}"))
+        })
         .unwrap_or(default)
 }
 

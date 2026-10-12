@@ -20,7 +20,11 @@ fn local(ctx: &mut CallCtx<'_>) -> Location {
 /// `time.Now()` in the local zone.
 pub(crate) fn now(ctx: &mut CallCtx<'_>) -> Time {
     let ts = ctx.env.now();
-    Time { unix: ts.unix_seconds, nsec: ts.nanos.min(999_999_999), loc: Location::Local(ts.utc_offset_seconds) }
+    Time {
+        unix: ts.unix_seconds,
+        nsec: ts.nanos.min(999_999_999),
+        loc: Location::Local(ts.utc_offset_seconds),
+    }
 }
 
 /// `time.LoadLocation(name)`, falling back to UTC like Sprig does on error.
@@ -57,15 +61,39 @@ fn date_in_zone(ctx: &mut CallCtx<'_>, fmt: &str, date: &Value, zone: &str) -> S
 
 pub(super) fn register(f: &mut FuncMap) {
     f.add_ctx("now", Sig::new(&[]), |c, _| Ok(Value::object(now(c))));
-    f.add_ctx("date", Sig::new(&[S, A]), |c, a| Ok(Value::string(date_in_zone(c, sarg(a, 0), arg(a, 1), "Local"))));
+    f.add_ctx("date", Sig::new(&[S, A]), |c, a| {
+        Ok(Value::string(date_in_zone(
+            c,
+            sarg(a, 0),
+            arg(a, 1),
+            "Local",
+        )))
+    });
     for name in ["dateInZone", "date_in_zone"] {
         f.add_ctx(name, Sig::new(&[S, A, S]), |c, a| {
-            Ok(Value::string(date_in_zone(c, sarg(a, 0), arg(a, 1), sarg(a, 2))))
+            Ok(Value::string(date_in_zone(
+                c,
+                sarg(a, 0),
+                arg(a, 1),
+                sarg(a, 2),
+            )))
         });
     }
-    f.add_ctx("htmlDate", Sig::new(&[A]), |c, a| Ok(Value::string(date_in_zone(c, "2006-01-02", arg(a, 0), "Local"))));
+    f.add_ctx("htmlDate", Sig::new(&[A]), |c, a| {
+        Ok(Value::string(date_in_zone(
+            c,
+            "2006-01-02",
+            arg(a, 0),
+            "Local",
+        )))
+    });
     f.add_ctx("htmlDateInZone", Sig::new(&[A, S]), |c, a| {
-        Ok(Value::string(date_in_zone(c, "2006-01-02", arg(a, 0), sarg(a, 1))))
+        Ok(Value::string(date_in_zone(
+            c,
+            "2006-01-02",
+            arg(a, 0),
+            sarg(a, 1),
+        )))
     });
     for name in ["dateModify", "date_modify"] {
         f.add(name, Sig::new(&[S, T]), |a| {
@@ -79,7 +107,9 @@ pub(super) fn register(f: &mut FuncMap) {
     for name in ["mustDateModify", "must_date_modify"] {
         f.add(name, Sig::new(&[S, T]), |a| {
             let t = time_arg(a, 1);
-            parse_duration(sarg(a, 0)).map(|d| Value::object(t.add(d))).map_err(FuncError::new)
+            parse_duration(sarg(a, 0))
+                .map(|d| Value::object(t.add(d)))
+                .map_err(FuncError::new)
         });
     }
     f.add_ctx("ago", Sig::new(&[A]), |c, a| {
@@ -105,13 +135,19 @@ pub(super) fn register(f: &mut FuncMap) {
     f.add_ctx("durationRound", Sig::new(&[A]), duration_round);
     f.add_ctx("toDate", Sig::new(&[S, S]), |c, a| {
         let loc = local(c);
-        Ok(Value::object(parse_in_location(sarg(a, 0), sarg(a, 1), &loc, &loc).unwrap_or_else(|_| Time::zero())))
+        Ok(Value::object(
+            parse_in_location(sarg(a, 0), sarg(a, 1), &loc, &loc).unwrap_or_else(|_| Time::zero()),
+        ))
     });
     f.add_ctx("mustToDate", Sig::new(&[S, S]), |c, a| {
         let loc = local(c);
-        parse_in_location(sarg(a, 0), sarg(a, 1), &loc, &loc).map(Value::object).map_err(FuncError::new)
+        parse_in_location(sarg(a, 0), sarg(a, 1), &loc, &loc)
+            .map(Value::object)
+            .map_err(FuncError::new)
     });
-    f.add("unixEpoch", Sig::new(&[T]), |a| Ok(Value::string(time_arg(a, 0).unix.to_string())));
+    f.add("unixEpoch", Sig::new(&[T]), |a| {
+        Ok(Value::string(time_arg(a, 0).unix.to_string()))
+    });
 }
 
 fn duration_round(ctx: &mut CallCtx<'_>, a: &[Value]) -> FuncResult {

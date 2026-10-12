@@ -1,5 +1,137 @@
 # helm-rs
 
+Render Helm charts in Rust, without Helm. `helm-rs` is a `#![no_std]` (+
+`alloc`) implementation of Helm's template engine:
+
+- **Go `text/template`**, ported from Go 1.27, including Go's reflection
+  semantics (nil vs missing values, typed arguments, comparison rules).
+- **All of Sprig v3.3.0** (strings, lists, dicts, regex with Go's RE2 syntax,
+  semver, dates, crypto, key and certificate generation) and **Helm's own
+  functions**: `include`, `tpl`, `required`, `fail`, `lookup`, `toYaml`,
+  `fromYaml`, `toJson`, `toToml`, the duration helpers, ...
+- **Charts**: loading from files or `.tgz`, `.helmignore`, subcharts,
+  values coalescing, dependency conditions/tags/aliases/`import-values`,
+  `values.schema.json` validation, `.Files`, `.Capabilities`, and output
+  byte-identical to `helm template`.
+
+It is **diff-tested against real Helm v4.3.0** (the latest release): 38
+popular charts render identically, and randomized values and template fuzzing
+compares every output and error message against Helm. See
+[Testing against real Helm](#testing-against-real-helm).
+
+## Errors that point at the problem
+
+Every error carries the file, line, column and span of the failing
+construct, the `include`/`template`/`tpl` call stack, and a hint. Helm
+reports only `file:line` for syntax errors and a node offset for runtime
+errors. For example (`cargo run --example diagnostics`):
+
+```text
+nil pointer evaluating interface {}.major
+  --> mychart/templates/_helpers.tpl:2:52
+   |
+ 2 | {{ .Values.image.repository }}:{{ .Values.image.tag.major }}
+   |                                                    ^^^^^^
+   = help: `.Values.image.tag` is nil or missing
+   = note: from `include "mychart.image"` at mychart/templates/deployment.yaml:8:21
+```
+
+The fields are available programmatically ([`Error`]: `kind`, `message`,
+`location`, `frames`, `help`), and `Error::helm_message()` returns the exact
+message Helm would print, for tools that need compatibility.
+
+## Usage
+
+```toml
+[dependencies]
+helm-rs = { git = "https://github.com/xorps/helm-rs" }
+```
+
+Render a chart archive like `helm template` (from
+[`examples/template.rs`](examples/template.rs)):
+
+```rust
+use helm_rs::chart::{self, Chart, RenderOptions};
+use helm_rs::{DeterministicEnv, yaml};
+
+let chart = Chart::from_tgz(&std::fs::read("mychart-1.0.0.tgz")?)?;
+
+// User values, parsed exactly like `helm template -f values.yaml`.
+let values = yaml::unmarshal(&std::fs::read_to_string("values.yaml")?, yaml::Target::Map("common.Values"))?;
+
+// Defaults match `helm template`: release "release-name" in "default",
+// Kubernetes v1.37.0, Helm v4.3.0 capabilities.
+let opts = RenderOptions::default();
+
+let manifest: String = chart::template(&chart, &values, &opts, &mut DeterministicEnv::default())?;
+```
+
+- `chart::render` returns the per-template output instead (`BTreeMap` of
+  `mychart/templates/x.yaml` → rendered text), like Helm's `engine.Render`.
+- `Chart::from_files` loads a chart from in-memory files (`Chart.yaml`,
+  `templates/...`, `charts/...`), applying `.helmignore` like Helm's
+  directory loader. There is no filesystem in `no_std`; the host supplies the
+  bytes.
+- `RenderOptions` sets the release name/namespace, upgrade vs install,
+  capabilities (`kube_version`, `api_versions`), `strict` (missing keys are
+  errors), `include_crds`, `skip_tests` and `skip_schema_validation`.
+
+Render a single template string:
+
+```rust
+use helm_rs::template::Engine;
+use helm_rs::{DeterministicEnv, map};
+
+let data = map! { "Values" => map! { "name" => "world" } };
+let out = Engine::new().render_str("greeting", "hello {{ .Values.name | upper }}", &data, &mut DeterministicEnv::default())?;
+assert_eq!(out, "hello WORLD");
+```
+
+### The environment
+
+`no_std` has no clock, randomness or network, so those come from an
+[`Env`] you provide. `DeterministicEnv` (fixed clock at the Unix epoch, seeded
+randomness) makes rendering reproducible. Implement `Env` to supply the real
+time (`now`, `date`), randomness (`randAlphaNum`, `uuidv4`, `genCA`, ...),
+cluster lookups (`lookup` returns an empty map by default, as in
+`helm template`) and DNS (`getHostByName`, off by default as in Helm).
+
+### Custom functions
+
+```rust
+use helm_rs::{Sig, Ty, Value};
+use helm_rs::template::Engine;
+
+let mut engine = Engine::new();
+// Signatures are Go signatures: arguments are checked and converted the way
+// Go's text/template does.
+engine.funcs.add("shout", Sig::new(&[Ty::String]), |args| {
+    Ok(Value::string(args[0].as_str().unwrap_or("").to_uppercase() + "!"))
+});
+```
+
+### Features
+
+| Feature | Default | |
+| --- | --- | --- |
+| `archive` | yes | `Chart::from_tgz` (gzip + tar, pure Rust) |
+| `certs` | yes | RSA/ECDSA/Ed25519 key and x509 certificate generation for Sprig's `genPrivateKey`, `genCA`, `genSignedCert`, ... Without it those functions return an error. |
+
+The crate builds for bare-metal targets (`cargo build --target
+aarch64-unknown-none`). Minimum Rust version: 1.88.
+
+### Known differences from Helm
+
+- Recursion is capped at `Engine::max_depth` (default 128) nested
+  `include`/`template`/`tpl` calls instead of Helm's ~1000, to stay within the
+  native stack. Exceeding it is a clean error.
+- Named time zones other than `UTC` and `Local` fall back to UTC (there is
+  no time zone database in `no_std`); `Local` is the `Env`'s offset.
+- `index` on a string yields an `int` where Go yields `uint8` (only visible
+  in error messages).
+- Where Helm itself is nondeterministic (Go map iteration order, pointer
+  addresses in printed values), results match one of Helm's possible outputs.
+
 ## Testing against real Helm
 
 helm-rs is diff-tested against the real Helm, pinned to **v4.3.0**, in two

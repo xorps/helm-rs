@@ -45,7 +45,11 @@ fn crc32_table() -> [u32; 256] {
     for (i, e) in t.iter_mut().enumerate() {
         let mut c = i as u32;
         for _ in 0..8 {
-            c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+            c = if c & 1 != 0 {
+                0xEDB8_8320 ^ (c >> 1)
+            } else {
+                c >> 1
+            };
         }
         *e = c;
     }
@@ -62,7 +66,9 @@ fn crc32_update(table: &[u32; 256], crc: u32, data: &[u8]) -> u32 {
 
 enum Phase {
     /// Expecting a member header (`first` = no member read yet).
-    Header { first: bool },
+    Header {
+        first: bool,
+    },
     Body,
     Done(RErr),
 }
@@ -104,7 +110,11 @@ impl<'a> Gz<'a> {
         let rest = &self.input[self.ipos..];
         if rest.len() < n {
             self.ipos = self.input.len();
-            return Err(if rest.is_empty() { RErr::Eof } else { RErr::msg(UNEXPECTED_EOF) });
+            return Err(if rest.is_empty() {
+                RErr::Eof
+            } else {
+                RErr::msg(UNEXPECTED_EOF)
+            });
         }
         self.ipos += n;
         Ok(&rest[..n])
@@ -112,7 +122,13 @@ impl<'a> Gz<'a> {
 
     fn read_header(&mut self, first: bool) -> Result<(), RErr> {
         let _ = first;
-        let no_eof = |e: RErr| if e == RErr::Eof { RErr::msg(UNEXPECTED_EOF) } else { e };
+        let no_eof = |e: RErr| {
+            if e == RErr::Eof {
+                RErr::msg(UNEXPECTED_EOF)
+            } else {
+                e
+            }
+        };
         let h = self.take_input(10)?;
         if h[0] != 0x1f || h[1] != 0x8b || h[2] != 8 {
             return Err(RErr::msg(GZ_ERR_HEADER));
@@ -303,8 +319,14 @@ impl Parser {
     }
 
     fn octal(&mut self, b: &[u8]) -> i64 {
-        let start = b.iter().position(|c| *c != b' ' && *c != 0).unwrap_or(b.len());
-        let end = b.iter().rposition(|c| *c != b' ' && *c != 0).map_or(start, |i| i + 1);
+        let start = b
+            .iter()
+            .position(|c| *c != b' ' && *c != 0)
+            .unwrap_or(b.len());
+        let end = b
+            .iter()
+            .rposition(|c| *c != b' ' && *c != 0)
+            .map_or(start, |i| i + 1);
         let b = &b[start..end.max(start)];
         if b.is_empty() {
             return 0;
@@ -455,7 +477,11 @@ impl<'a> TarReader<'a> {
     }
 
     fn handle_regular_file(&mut self, hdr: &Header) -> Result<(), RErr> {
-        let nb = if header_only(hdr.typeflag) { 0 } else { hdr.size };
+        let nb = if header_only(hdr.typeflag) {
+            0
+        } else {
+            hdr.size
+        };
         if nb < 0 {
             return Err(RErr::msg(ERR_HEADER));
         }
@@ -513,7 +539,12 @@ impl<'a> TarReader<'a> {
                         if let Some(p) = recs.get("path").filter(|p| !p.is_empty()) {
                             hdr.name = p.clone();
                         }
-                        return Ok(Header { name: hdr.name, typeflag: b'g', size: 0, mode: 0 });
+                        return Ok(Header {
+                            name: hdr.name,
+                            typeflag: b'g',
+                            size: 0,
+                            mode: 0,
+                        });
                     }
                     pax = Some(recs);
                 }
@@ -535,7 +566,9 @@ impl<'a> TarReader<'a> {
                     }
                     self.handle_regular_file(&hdr)?;
                     let sparse = hdr.typeflag == b'S'
-                        || pax.as_ref().is_some_and(|p| p.keys().any(|k| k.starts_with("GNU.sparse.")));
+                        || pax
+                            .as_ref()
+                            .is_some_and(|p| p.keys().any(|k| k.starts_with("GNU.sparse.")));
                     if sparse {
                         return Err(RErr::msg("archive/tar: sparse files are not supported"));
                     }
@@ -553,7 +586,12 @@ fn parse_pax(buf: &[u8]) -> Result<BTreeMap<String, String>, RErr> {
     while !s.is_empty() {
         let sp = s.iter().position(|b| *b == b' ').ok_or_else(bad)?;
         let n_str = core::str::from_utf8(&s[..sp]).map_err(|_| bad())?;
-        let n: i64 = if n_str.is_empty() || !n_str.trim_start_matches(['+', '-']).bytes().all(|c| c.is_ascii_digit()) {
+        let n: i64 = if n_str.is_empty()
+            || !n_str
+                .trim_start_matches(['+', '-'])
+                .bytes()
+                .all(|c| c.is_ascii_digit())
+        {
             return Err(bad());
         } else {
             n_str.parse().map_err(|_| bad())?
@@ -628,11 +666,18 @@ fn merge_pax(hdr: &mut Header, recs: &BTreeMap<String, String>) -> Result<(), RE
 /// Helm's `archive.LoadArchiveFiles`.
 pub(crate) fn load_archive_files(data: &[u8]) -> Result<Vec<BufferedFile>, Error> {
     let gz = Gz::new(data).map_err(chart_err)?;
-    let mut tr = TarReader { gz, remaining: 0, pad: 0 };
+    let mut tr = TarReader {
+        gz,
+        remaining: 0,
+        pad: 0,
+    };
     let mut files = Vec::new();
     let mut remaining_size = MAX_DECOMPRESSED_CHART_SIZE as i64;
-    let too_large =
-        || chart_err(alloc::format!("decompressed chart is larger than the maximum size {MAX_DECOMPRESSED_CHART_SIZE}"));
+    let too_large = || {
+        chart_err(alloc::format!(
+            "decompressed chart is larger than the maximum size {MAX_DECOMPRESSED_CHART_SIZE}"
+        ))
+    };
     loop {
         let hd = match tr.next() {
             Ok(h) => h,
@@ -644,7 +689,9 @@ pub(crate) fn load_archive_files(data: &[u8]) -> Result<Vec<BufferedFile>, Error
         }
         let delimiter = if hd.name.contains('\\') { '\\' } else { '/' };
         let parts: Vec<&str> = hd.name.split(delimiter).collect();
-        let n = parts[1..].join(&delimiter.to_string()).replace(delimiter, "/");
+        let n = parts[1..]
+            .join(&delimiter.to_string())
+            .replace(delimiter, "/");
         if n.starts_with('/') {
             return Err(chart_err("chart illegally contains absolute paths"));
         }
@@ -670,13 +717,17 @@ pub(crate) fn load_archive_files(data: &[u8]) -> Result<Vec<BufferedFile>, Error
         }
         let mut buf = Vec::new();
         let limit = usize::try_from(remaining_size).unwrap_or(0);
-        tr.read_entry(limit, &mut buf).map_err(|e| chart_err(e.into_string()))?;
+        tr.read_entry(limit, &mut buf)
+            .map_err(|e| chart_err(e.into_string()))?;
         remaining_size -= buf.len() as i64;
         if (buf.len() as i64) < hd.size || remaining_size <= 0 {
             return Err(too_large());
         }
         let data = buf.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&buf);
-        files.push(BufferedFile { name: n, data: Rc::from(data) });
+        files.push(BufferedFile {
+            name: n,
+            data: Rc::from(data),
+        });
     }
     if files.is_empty() {
         return Err(chart_err("no files in chart archive"));
@@ -723,7 +774,11 @@ pub(crate) mod tests {
     pub(crate) fn gzip(data: &[u8]) -> Vec<u8> {
         let table = crc32_table();
         let mut out = alloc::vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3];
-        let chunks: Vec<&[u8]> = if data.is_empty() { alloc::vec![&[][..]] } else { data.chunks(65535).collect() };
+        let chunks: Vec<&[u8]> = if data.is_empty() {
+            alloc::vec![&[][..]]
+        } else {
+            data.chunks(65535).collect()
+        };
         for (i, c) in chunks.iter().enumerate() {
             out.push(if i + 1 == chunks.len() { 1 } else { 0 });
             out.extend_from_slice(&(c.len() as u16).to_le_bytes());
@@ -755,14 +810,26 @@ pub(crate) mod tests {
         assert_eq!(e(b"\x1f\x8b"), "unexpected EOF");
         assert_eq!(e(b"not gzip at all"), "gzip: invalid header");
         assert_eq!(e(&gzip(&tar(&[]))), "no files in chart archive");
-        assert_eq!(e(&gzip(&tar(&[("Chart.yaml/x", b"x", b'0')]))), "chart yaml not in base directory");
-        assert_eq!(e(&gzip(&tar(&[("a/../../x", b"x", b'0')]))), "chart illegally references parent directory");
-        assert_eq!(e(&gzip(&tar(&[("a//x", b"x", b'0')]))), "chart illegally contains absolute paths");
+        assert_eq!(
+            e(&gzip(&tar(&[("Chart.yaml/x", b"x", b'0')]))),
+            "chart yaml not in base directory"
+        );
+        assert_eq!(
+            e(&gzip(&tar(&[("a/../../x", b"x", b'0')]))),
+            "chart illegally references parent directory"
+        );
+        assert_eq!(
+            e(&gzip(&tar(&[("a//x", b"x", b'0')]))),
+            "chart illegally contains absolute paths"
+        );
         assert_eq!(
             e(&gzip(&tar(&[("x", b"x", b'0')]))),
             "chart illegally contains content outside the base directory: \"x\""
         );
-        assert_eq!(e(&gzip(&tar(&[("a/c:/x", b"x", b'0')]))), "chart contains illegally named files");
+        assert_eq!(
+            e(&gzip(&tar(&[("a/c:/x", b"x", b'0')]))),
+            "chart contains illegally named files"
+        );
         let mut bad = tar(&[("a/b", b"x", b'0')]);
         bad[0] = b'z';
         assert_eq!(e(&gzip(&bad)), "archive/tar: invalid tar header");

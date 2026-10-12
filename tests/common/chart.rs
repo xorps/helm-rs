@@ -19,7 +19,10 @@ pub fn json_to_value(j: &Json) -> Value {
         Json::String(s) => Value::str(s),
         Json::Array(a) => Value::list(a.iter().map(json_to_value).collect()),
         Json::Object(o) => {
-            let m: Map = o.iter().map(|(k, v)| (k.clone(), json_to_value(v))).collect();
+            let m: Map = o
+                .iter()
+                .map(|(k, v)| (k.clone(), json_to_value(v)))
+                .collect();
             Value::map(m)
         }
     }
@@ -42,7 +45,12 @@ pub fn value_to_json(v: &Value) -> Json {
         Value::String(s) => json!(&**s),
         Value::Bytes(b) => json!(String::from_utf8_lossy(b)),
         Value::List(l) => Json::Array(l.iter().map(value_to_json).collect()),
-        Value::Map(m) => Json::Object(m.borrow().iter().map(|(k, v)| (k.clone(), value_to_json(v))).collect()),
+        Value::Map(m) => Json::Object(
+            m.borrow()
+                .iter()
+                .map(|(k, v)| (k.clone(), value_to_json(v)))
+                .collect(),
+        ),
         Value::Object(o) => value_to_json(&o.to_data()),
     }
 }
@@ -52,7 +60,11 @@ pub fn norm(j: &Json) -> Json {
     match j {
         Json::Number(n) => {
             let f = n.as_f64().unwrap();
-            if f.fract() == 0.0 && f.abs() < 1e15 { json!(f as i64) } else { j.clone() }
+            if f.fract() == 0.0 && f.abs() < 1e15 {
+                json!(f as i64)
+            } else {
+                j.clone()
+            }
         }
         Json::Array(a) => Json::Array(a.iter().map(norm).collect()),
         Json::Object(o) => Json::Object(o.iter().map(|(k, v)| (k.clone(), norm(v))).collect()),
@@ -67,7 +79,11 @@ pub fn json_yaml(s: &str) -> Result<Value, YamlError> {
     }
     serde_json::from_str::<Json>(s)
         .map(|j| json_to_value(&j))
-        .map_err(|e| YamlError { message: format!("json fixture: {e}"), line: Some(e.line() as u32), column: Some(e.column() as u32) })
+        .map_err(|e| YamlError {
+            message: format!("json fixture: {e}"),
+            line: Some(e.line() as u32),
+            column: Some(e.column() as u32),
+        })
 }
 
 /// A tar archive (USTAR) from entries; `None` data means a directory.
@@ -76,7 +92,11 @@ pub fn tar(entries: &[(&str, Option<&[u8]>)]) -> Vec<u8> {
     for (name, data) in entries {
         let mut b = [0u8; 512];
         b[..name.len()].copy_from_slice(name.as_bytes());
-        b[100..107].copy_from_slice(if data.is_some() { b"0000644" } else { b"0000755" });
+        b[100..107].copy_from_slice(if data.is_some() {
+            b"0000644"
+        } else {
+            b"0000755"
+        });
         b[108..115].copy_from_slice(b"0000000");
         b[116..123].copy_from_slice(b"0000000");
         let size = data.map_or(0, |d| d.len());
@@ -103,7 +123,11 @@ fn crc32(data: &[u8]) -> u32 {
     for &b in data {
         c ^= u32::from(b);
         for _ in 0..8 {
-            c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+            c = if c & 1 != 0 {
+                0xEDB8_8320 ^ (c >> 1)
+            } else {
+                c >> 1
+            };
         }
     }
     !c
@@ -112,7 +136,11 @@ fn crc32(data: &[u8]) -> u32 {
 /// gzip with stored deflate blocks.
 pub fn gzip(data: &[u8]) -> Vec<u8> {
     let mut out = vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3];
-    let chunks: Vec<&[u8]> = if data.is_empty() { vec![&[][..]] } else { data.chunks(65535).collect() };
+    let chunks: Vec<&[u8]> = if data.is_empty() {
+        vec![&[][..]]
+    } else {
+        data.chunks(65535).collect()
+    };
     for (i, c) in chunks.iter().enumerate() {
         out.push(u8::from(i + 1 == chunks.len()));
         out.extend_from_slice(&(c.len() as u16).to_le_bytes());
@@ -128,11 +156,21 @@ pub fn b64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
     for c in data.chunks(3) {
-        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
         out.push(T[(n >> 18) as usize & 63] as char);
         out.push(T[(n >> 12) as usize & 63] as char);
-        out.push(if c.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if c.len() > 2 { T[n as usize & 63] as char } else { '=' });
+        out.push(if c.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -156,7 +194,8 @@ pub fn oracle_op(req: Json) -> Option<Result<Json, String>> {
 pub fn semver_ready() -> bool {
     static READY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let ok = *READY.get_or_init(|| {
-        std::panic::catch_unwind(|| helm_rs::semver::Version::parse("1.0.0").is_ok()).unwrap_or(false)
+        std::panic::catch_unwind(|| helm_rs::semver::Version::parse("1.0.0").is_ok())
+            .unwrap_or(false)
     });
     if !ok {
         eprintln!("skipping: helm_rs::semver is not implemented yet");

@@ -1,7 +1,12 @@
 //! Port of the parts of Go's `strconv` (and `unicode/utf8`) that `fmt` and the
 //! template functions rely on: float formatting, quoting, number parsing.
 
-#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::collapsible_match,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -24,7 +29,9 @@ pub const MAX_RUNE: u32 = 0x10FFFF;
 /// `utf8.DecodeRune`: returns `(RuneError, 1)` for invalid encodings and
 /// `(RuneError, 0)` for empty input.
 pub fn decode_rune(s: &[u8]) -> (u32, usize) {
-    let Some(&b0) = s.first() else { return (RUNE_ERROR, 0) };
+    let Some(&b0) = s.first() else {
+        return (RUNE_ERROR, 0);
+    };
     if b0 < 0x80 {
         return (b0 as u32, 1);
     }
@@ -373,7 +380,11 @@ pub fn parse_uint(s: &str, base: u32, bit_size: u32) -> Result<u64, NumErr> {
     }
     let bit_size = if bit_size == 0 { 64 } else { bit_size.min(64) };
     let cutoff = u64::MAX / base as u64 + 1;
-    let max_val = if bit_size == 64 { u64::MAX } else { (1u64 << bit_size) - 1 };
+    let max_val = if bit_size == 64 {
+        u64::MAX
+    } else {
+        (1u64 << bit_size) - 1
+    };
     let mut underscores = false;
     let mut n: u64 = 0;
     for &c in digits {
@@ -611,7 +622,14 @@ fn read_float(s: &[u8]) -> Option<ReadFloat> {
     if underscores && !underscore_ok(&s[..i]) {
         return None;
     }
-    Some(ReadFloat { mantissa, exp, neg, trunc, hex, n: i })
+    Some(ReadFloat {
+        mantissa,
+        exp,
+        neg,
+        trunc,
+        hex,
+        n: i,
+    })
 }
 
 fn atof_hex(mut mantissa: u64, exp: i64, neg: bool, trunc: bool) -> Result<f64, (NumErr, f64)> {
@@ -675,7 +693,9 @@ pub fn parse_float(s: &str) -> Result<f64, (NumErr, f64)> {
         }
         return Err((NumErr::Syntax, 0.0));
     }
-    let Some(rf) = read_float(b) else { return Err((NumErr::Syntax, 0.0)) };
+    let Some(rf) = read_float(b) else {
+        return Err((NumErr::Syntax, 0.0));
+    };
     if rf.n != b.len() {
         return Err((NumErr::Syntax, 0.0));
     }
@@ -773,7 +793,12 @@ static LEFTCHEATS: [(i64, &str); 61] = [
 
 impl Decimal {
     fn new(v: u64) -> Decimal {
-        let mut d = Decimal { d: alloc::vec![0u8; DEC_CAP], nd: 0, dp: 0, trunc: false };
+        let mut d = Decimal {
+            d: alloc::vec![0u8; DEC_CAP],
+            nd: 0,
+            dp: 0,
+            trunc: false,
+        };
         let mut buf = [0u8; 24];
         let mut n = 0;
         let mut v = v;
@@ -978,7 +1003,16 @@ fn shortest_digits(f: f64) -> (Vec<u8>, i64) {
     (digits, exp + 1)
 }
 
-fn fmt_efg(dst: &mut Vec<u8>, neg: bool, s: &[u8], dp: i64, nd: i64, prec: i64, fmt: u8, shortest: bool) {
+fn fmt_efg(
+    dst: &mut Vec<u8>,
+    neg: bool,
+    s: &[u8],
+    dp: i64,
+    nd: i64,
+    prec: i64,
+    fmt: u8,
+    shortest: bool,
+) {
     let mut prec = prec;
     let mut fmt = fmt;
     if fmt == b'g' || fmt == b'G' {
@@ -1103,7 +1137,15 @@ fn write_u64(dst: &mut Vec<u8>, v: u64) -> core::fmt::Result {
     Ok(())
 }
 
-fn fmt_x(dst: &mut Vec<u8>, prec: i64, fmt: u8, neg: bool, mut mant: u64, mut exp: i64, mantbits: i64) {
+fn fmt_x(
+    dst: &mut Vec<u8>,
+    prec: i64,
+    fmt: u8,
+    neg: bool,
+    mut mant: u64,
+    mut exp: i64,
+    mantbits: i64,
+) {
     if mant == 0 {
         exp = 0;
     }
@@ -1217,7 +1259,12 @@ pub fn append_float(dst: &mut Vec<u8>, val: f64, fmt: u8, prec: i64, bit_size: u
             let _ = write!(s, "{:e}", (val as f32).abs());
             let (m, e) = s.split_once('e').unwrap_or((&s, "0"));
             let e: i64 = e.parse().unwrap_or(0);
-            (m.bytes().filter(|b| b.is_ascii_digit()).collect::<Vec<u8>>(), e + 1)
+            (
+                m.bytes()
+                    .filter(|b| b.is_ascii_digit())
+                    .collect::<Vec<u8>>(),
+                e + 1,
+            )
         } else {
             shortest_digits(val)
         };

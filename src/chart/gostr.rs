@@ -173,10 +173,18 @@ pub(crate) fn format_float32_g(f: f64) -> String {
         return "NaN".into();
     }
     if x.is_infinite() {
-        return if x > 0.0 { "+Inf".into() } else { "-Inf".into() };
+        return if x > 0.0 {
+            "+Inf".into()
+        } else {
+            "-Inf".into()
+        };
     }
     if x == 0.0 {
-        return if x.is_sign_negative() { "-0".into() } else { "0".into() };
+        return if x.is_sign_negative() {
+            "-0".into()
+        } else {
+            "0".into()
+        };
     }
     // Shortest round-trip digits via Rust's `{:e}`, then Go's %g layout.
     let e = alloc::format!("{:e}", x);

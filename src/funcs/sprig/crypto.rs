@@ -17,13 +17,18 @@ const S: Ty = Ty::String;
 const I: Ty = Ty::Int;
 
 pub(super) fn register(f: &mut FuncMap) {
-    f.add_ctx("bcrypt", Sig::new(&[S]), |c, a| Ok(Value::string(bcrypt_string(c, sarg(a, 0)))));
+    f.add_ctx("bcrypt", Sig::new(&[S]), |c, a| {
+        Ok(Value::string(bcrypt_string(c, sarg(a, 0))))
+    });
     f.add_ctx("htpasswd", Sig::new(&[S, S]), |c, a| {
         let user = sarg(a, 0);
         if user.contains(':') {
             return Ok(Value::string(format!("invalid username: {user}")));
         }
-        Ok(Value::string(format!("{user}:{}", bcrypt_string(c, sarg(a, 1)))))
+        Ok(Value::string(format!(
+            "{user}:{}",
+            bcrypt_string(c, sarg(a, 1))
+        )))
     });
     f.add("derivePassword", Sig::new(&[Ty::Uint32, S, S, S, S]), |a| {
         let counter = match a.first() {
@@ -31,7 +36,13 @@ pub(super) fn register(f: &mut FuncMap) {
             Some(Value::Int(n)) | Some(Value::Int64(n)) => *n as u32,
             _ => 0,
         };
-        Ok(Value::string(derive_password(counter, sarg(a, 1), sarg(a, 2), sarg(a, 3), sarg(a, 4))))
+        Ok(Value::string(derive_password(
+            counter,
+            sarg(a, 1),
+            sarg(a, 2),
+            sarg(a, 3),
+            sarg(a, 4),
+        )))
     });
     f.add_ctx("encryptAES", Sig::new(&[S, S]), encrypt_aes);
     f.add("decryptAES", Sig::new(&[S, S]), decrypt_aes);
@@ -58,13 +69,18 @@ pub(super) fn register(f: &mut FuncMap) {
 // bcrypt (golang.org/x/crypto/bcrypt, cost 10, version 2a)
 // ---------------------------------------------------------------------------
 
-const BCRYPT_ALPHABET: &[u8; 64] = b"./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const BCRYPT_ALPHABET: &[u8; 64] =
+    b"./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 fn bcrypt_b64(src: &[u8]) -> String {
     // Standard base64 bit grouping with the bcrypt alphabet, no padding.
     let mut out = String::new();
     for chunk in src.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let v = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         let n = chunk.len() + 1;
         for i in 0..n {
@@ -87,7 +103,12 @@ pub(crate) fn bcrypt_hash(password: &[u8], cost: u32, salt: &[u8; 16]) -> String
     let magic = b"OrpheanBeholderScryDoubt";
     let mut ctext = [0u32; 6];
     for i in 0..6 {
-        ctext[i] = u32::from_be_bytes([magic[4 * i], magic[4 * i + 1], magic[4 * i + 2], magic[4 * i + 3]]);
+        ctext[i] = u32::from_be_bytes([
+            magic[4 * i],
+            magic[4 * i + 1],
+            magic[4 * i + 2],
+            magic[4 * i + 3],
+        ]);
     }
     for i in (0..6).step_by(2) {
         for _ in 0..64 {
@@ -100,12 +121,18 @@ pub(crate) fn bcrypt_hash(password: &[u8], cost: u32, salt: &[u8; 16]) -> String
     for w in ctext {
         out.extend_from_slice(&w.to_be_bytes());
     }
-    format!("$2a${cost:02}${}{}", bcrypt_b64(salt), bcrypt_b64(&out[..23]))
+    format!(
+        "$2a${cost:02}${}{}",
+        bcrypt_b64(salt),
+        bcrypt_b64(&out[..23])
+    )
 }
 
 fn bcrypt_string(ctx: &mut CallCtx<'_>, input: &str) -> String {
     if input.len() > 72 {
-        return String::from("failed to encrypt string with bcrypt: bcrypt: password length exceeds 72 bytes");
+        return String::from(
+            "failed to encrypt string with bcrypt: bcrypt: password length exceeds 72 bytes",
+        );
     }
     let mut salt = [0u8; 16];
     ctx.env.fill_random(&mut salt);
@@ -165,7 +192,13 @@ fn template_chars(c: u8) -> &'static [u8] {
     }
 }
 
-fn derive_password(counter: u32, password_type: &str, password: &str, user: &str, site: &str) -> String {
+fn derive_password(
+    counter: u32,
+    password_type: &str,
+    password: &str,
+    user: &str,
+    site: &str,
+) -> String {
     let Some(templates) = password_templates(password_type) else {
         return format!("cannot find password template {password_type}");
     };
@@ -273,7 +306,9 @@ fn decrypt_aes(a: &[Value]) -> FuncResult {
     };
     let end = pt.len() as i64 - last as i64;
     if end < 0 {
-        return Err(FuncError::new(format!("runtime error: slice bounds out of range [:{end}]")));
+        return Err(FuncError::new(format!(
+            "runtime error: slice bounds out of range [:{end}]"
+        )));
     }
     Ok(Value::string(strconv::lossy(&pt[..end as usize])))
 }
@@ -288,7 +323,14 @@ fn uuidv4(ctx: &mut CallCtx<'_>) -> String {
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
     let h = super::strings::hex(&b);
-    format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[0..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..32]
+    )
 }
 
 #[cfg(test)]
@@ -303,14 +345,27 @@ mod tests {
                 bits.push((v >> k) & 1);
             }
         }
-        bits.chunks(8).filter(|c| c.len() == 8).map(|c| c.iter().fold(0u8, |a, &b| (a << 1) | b)).collect()
+        bits.chunks(8)
+            .filter(|c| c.len() == 8)
+            .map(|c| c.iter().fold(0u8, |a, &b| (a << 1) | b))
+            .collect()
     }
 
     #[test]
     fn bcrypt_openbsd_vectors() {
         for (pw, salt, cost, want) in [
-            ("U*U", "CCCCCCCCCCCCCCCCCCCCC.", 5, "$2a$05$CCCCCCCCCCCCCCCCCCCCC.E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"),
-            ("", "CCCCCCCCCCCCCCCCCCCCC.", 5, "$2a$05$CCCCCCCCCCCCCCCCCCCCC.7uG0VCzI2bS7j6ymqJi9CdcdxiRTWNy"),
+            (
+                "U*U",
+                "CCCCCCCCCCCCCCCCCCCCC.",
+                5,
+                "$2a$05$CCCCCCCCCCCCCCCCCCCCC.E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW",
+            ),
+            (
+                "",
+                "CCCCCCCCCCCCCCCCCCCCC.",
+                5,
+                "$2a$05$CCCCCCCCCCCCCCCCCCCCC.7uG0VCzI2bS7j6ymqJi9CdcdxiRTWNy",
+            ),
             (
                 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789chars after 72 are ignored",
                 "abcdefghijklmnopqrstuu",
@@ -331,6 +386,9 @@ mod tests {
     fn derive_password_shape() {
         let p = derive_password(1, "long", "pass", "user", "example.com");
         assert_eq!(p.len(), 14);
-        assert_eq!(derive_password(1, "nope", "a", "b", "c"), "cannot find password template nope");
+        assert_eq!(
+            derive_password(1, "nope", "a", "b", "c"),
+            "cannot find password template nope"
+        );
     }
 }

@@ -49,12 +49,24 @@ impl Location {
     /// Builds a location from a byte span in `source`, computing line/column.
     pub fn from_span(name: impl Into<String>, source: Rc<str>, span: Range<usize>) -> Location {
         let (line, column) = line_col(&source, span.start);
-        Location { name: name.into(), line, column, span, source: Some(source) }
+        Location {
+            name: name.into(),
+            line,
+            column,
+            span,
+            source: Some(source),
+        }
     }
 
     /// Builds a location without source text.
     pub fn new(name: impl Into<String>, line: u32, column: u32) -> Location {
-        Location { name: name.into(), line, column, span: 0..0, source: None }
+        Location {
+            name: name.into(),
+            line,
+            column,
+            span: 0..0,
+            source: None,
+        }
     }
 
     /// The source line containing the start of the span, without newline.
@@ -124,7 +136,14 @@ pub struct Error {
 
 impl Error {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Error {
-        Error { kind, message: message.into(), location: None, frames: Vec::new(), helm_message: None, help: None }
+        Error {
+            kind,
+            message: message.into(),
+            location: None,
+            frames: Vec::new(),
+            helm_message: None,
+            help: None,
+        }
     }
 
     pub fn at(mut self, location: Location) -> Error {
@@ -201,7 +220,11 @@ impl fmt::Display for Error {
             while i + n < self.frames.len() && self.frames[i + n] == *frame {
                 n += 1;
             }
-            write!(f, "\n   = note: from `{}` at {}", frame.call, frame.location)?;
+            write!(
+                f,
+                "\n   = note: from `{}` at {}",
+                frame.call, frame.location
+            )?;
             if n > 1 {
                 write!(f, " ({n} times)")?;
             }
@@ -212,7 +235,9 @@ impl fmt::Display for Error {
 }
 
 fn write_snippet(f: &mut fmt::Formatter<'_>, loc: &Location) -> fmt::Result {
-    let Some(line) = loc.source_line() else { return Ok(()) };
+    let Some(line) = loc.source_line() else {
+        return Ok(());
+    };
     let num = loc.line.to_string();
     let pad = " ".repeat(num.len());
     let col = loc.column.saturating_sub(1) as usize;
@@ -225,8 +250,16 @@ fn write_snippet(f: &mut fmt::Formatter<'_>, loc: &Location) -> fmt::Result {
     let avail = line.chars().count().saturating_sub(col);
     let width = span_text_len.clamp(1, avail.max(1));
     // Reproduce tabs so the caret lines up.
-    let lead: String = line.chars().take(col).map(|c| if c == '\t' { '\t' } else { ' ' }).collect();
-    write!(f, "\n {pad} |\n {num} | {line}\n {pad} | {lead}{}", "^".repeat(width))
+    let lead: String = line
+        .chars()
+        .take(col)
+        .map(|c| if c == '\t' { '\t' } else { ' ' })
+        .collect();
+    write!(
+        f,
+        "\n {pad} |\n {num} | {line}\n {pad} | {lead}{}",
+        "^".repeat(width)
+    )
 }
 
 impl core::error::Error for Error {}

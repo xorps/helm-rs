@@ -82,7 +82,10 @@ pub(crate) fn key_location(name: &str, source: &Rc<str>, key: Option<&str>) -> L
     if let Some(key) = key {
         let mut off = 0usize;
         for line in source.split('\n') {
-            let l = line.strip_prefix('"').or_else(|| line.strip_prefix('\'')).unwrap_or(line);
+            let l = line
+                .strip_prefix('"')
+                .or_else(|| line.strip_prefix('\''))
+                .unwrap_or(line);
             if let Some(rest) = l.strip_prefix(key) {
                 let rest = rest.trim_start_matches(['"', '\'']).trim_start();
                 if rest.starts_with(':') && !line.starts_with([' ', '\t']) {
@@ -104,7 +107,13 @@ fn yaml_text(data: &[u8]) -> String {
 }
 
 /// Converts a YAML error into an [`Error`] at `line_offset` lines into `name`.
-pub(crate) fn yaml_error(prefix: &str, e: &YamlError, name: &str, source: &Rc<str>, line_offset: u32) -> Error {
+pub(crate) fn yaml_error(
+    prefix: &str,
+    e: &YamlError,
+    name: &str,
+    source: &Rc<str>,
+    line_offset: u32,
+) -> Error {
     let mut err = Error::new(ErrorKind::Syntax, alloc::format!("{prefix}{}", e.message));
     let (line, column) = yaml_err_pos(e);
     err = err.at(location_at(name, source, line + line_offset, column));
@@ -138,7 +147,8 @@ fn decode_yaml(
     f: impl FnOnce(&mut Dec, &Value),
 ) -> Result<(), Error> {
     let src = source_of(data);
-    let v = yaml(&yaml_text(data)).map_err(|e| yaml_error(&alloc::format!("cannot load {what}: "), &e, name, &src, 0))?;
+    let v = yaml(&yaml_text(data))
+        .map_err(|e| yaml_error(&alloc::format!("cannot load {what}: "), &e, name, &src, 0))?;
     let mut d = Dec::new();
     f(&mut d, &v);
     if let Some(msg) = d.err {
@@ -172,7 +182,13 @@ pub(crate) fn load_values(yaml: YamlParser, data: &[u8], name: &str) -> Result<M
     let mut values = MapRef::default();
     for doc in docs {
         let v = yaml(&doc.text).map_err(|e| {
-            yaml_error("cannot unmarshal yaml document: ", &e, name, &src, doc.first_line - 1)
+            yaml_error(
+                "cannot unmarshal yaml document: ",
+                &e,
+                name,
+                &src,
+                doc.first_line - 1,
+            )
         })?;
         let cur = match v {
             Value::Nil => MapRef::default(),
@@ -193,15 +209,22 @@ pub(crate) fn load_values(yaml: YamlParser, data: &[u8], name: &str) -> Result<M
         values = merge_maps(&values, &cur);
     }
     if let Some((m, line)) = sep_err {
-        return Err(Error::new(ErrorKind::Syntax, alloc::format!("error reading yaml document: {m}"))
-            .at(location_at(name, &src, line, 1)));
+        return Err(Error::new(
+            ErrorKind::Syntax,
+            alloc::format!("error reading yaml document: {m}"),
+        )
+        .at(location_at(name, &src, line, 1)));
     }
     Ok(values)
 }
 
 /// `loader.LoadFiles`. `loc_prefix` is prepended to file names in error
 /// locations (e.g. `charts/sub/`).
-pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlParser) -> Result<Chart, Error> {
+pub(crate) fn load_files(
+    files: Vec<BufferedFile>,
+    loc_prefix: &str,
+    yaml: YamlParser,
+) -> Result<Chart, Error> {
     if loc_prefix.matches("charts/").count() > MAX_CHART_DEPTH {
         return Err(chart_err("chart dependencies are nested too deeply"));
     }
@@ -211,7 +234,9 @@ pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlP
     for f in &files {
         if f.name == "Chart.yaml" {
             let md = raw.get_or_insert_with(RawMetadata::default);
-            decode_yaml(yaml, &f.data, &loc(&f.name), "Chart.yaml", |d, v| md.decode(d, v))?;
+            decode_yaml(yaml, &f.data, &loc(&f.name), "Chart.yaml", |d, v| {
+                md.decode(d, v)
+            })?;
             if md.md.api_version.is_empty() {
                 md.md.api_version = "v1".into();
             }
@@ -222,13 +247,18 @@ pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlP
     let mut lock: Option<Lock> = None;
     let mut subcharts: BTreeMap<String, Vec<BufferedFile>> = BTreeMap::new();
     for f in files {
-        let file = || File { name: f.name.clone(), data: f.data.clone() };
+        let file = || File {
+            name: f.name.clone(),
+            data: f.data.clone(),
+        };
         match f.name.as_str() {
             "Chart.yaml" => {}
             "Chart.lock" | "requirements.lock" => {
                 let what = f.name.clone();
                 lock = Some(Lock::default());
-                decode_yaml(yaml, &f.data, &loc(&f.name), &what, |d, v| Lock::decode(d, v, &mut lock))?;
+                decode_yaml(yaml, &f.data, &loc(&f.name), &what, |d, v| {
+                    Lock::decode(d, v, &mut lock)
+                })?;
                 if f.name == "requirements.lock" {
                     let md = raw.get_or_insert_with(RawMetadata::default);
                     if md.md.api_version == "v1" {
@@ -237,12 +267,15 @@ pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlP
                 }
             }
             "values.yaml" => {
-                c.values = load_values(yaml, &f.data, &loc(&f.name)).map_err(|e| e.context("cannot load values.yaml"))?;
+                c.values = load_values(yaml, &f.data, &loc(&f.name))
+                    .map_err(|e| e.context("cannot load values.yaml"))?;
             }
             "values.schema.json" => c.schema = Some(f.data.clone()),
             "requirements.yaml" => {
                 let md = raw.get_or_insert_with(RawMetadata::default);
-                decode_yaml(yaml, &f.data, &loc(&f.name), "requirements.yaml", |d, v| md.decode(d, v))?;
+                decode_yaml(yaml, &f.data, &loc(&f.name), "requirements.yaml", |d, v| {
+                    md.decode(d, v)
+                })?;
                 if md.md.api_version == "v1" {
                     c.files.push(file());
                 }
@@ -258,7 +291,10 @@ pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlP
                 subcharts
                     .entry(cname.to_string())
                     .or_default()
-                    .push(BufferedFile { name: fname.to_string(), data: f.data.clone() });
+                    .push(BufferedFile {
+                        name: fname.to_string(),
+                        data: f.data.clone(),
+                    });
             }
             _ => c.files.push(file()),
         }
@@ -294,12 +330,16 @@ pub(crate) fn load_files(files: Vec<BufferedFile>, loc_prefix: &str, yaml: YamlP
                 .into_iter()
                 .filter_map(|f| {
                     let (_, rest) = f.name.split_once('/')?;
-                    Some(BufferedFile { name: rest.to_string(), data: f.data })
+                    Some(BufferedFile {
+                        name: rest.to_string(),
+                        data: f.data,
+                    })
                 })
                 .collect();
             load_files(buff, &alloc::format!("{loc_prefix}charts/{n}/"), yaml)
         };
-        let sc = sc.map_err(|e| e.context(alloc::format!("error unpacking subchart {n} in {parent}")))?;
+        let sc =
+            sc.map_err(|e| e.context(alloc::format!("error unpacking subchart {n} in {parent}")))?;
         c.dependencies.push(sc);
     }
     Ok(c)
@@ -330,7 +370,9 @@ fn load_archive_bytes(data: &[u8], loc_prefix: &str, yaml: YamlParser) -> Result
 
 #[cfg(not(feature = "archive"))]
 fn load_archive_bytes(_data: &[u8], _loc_prefix: &str, _yaml: YamlParser) -> Result<Chart, Error> {
-    Err(chart_err("loading .tgz subcharts requires the `archive` feature"))
+    Err(chart_err(
+        "loading .tgz subcharts requires the `archive` feature",
+    ))
 }
 
 /// Compares paths component-wise, which is the order `filepath.Walk` visits
@@ -341,7 +383,10 @@ fn walk_order(a: &str, b: &str) -> core::cmp::Ordering {
 
 /// The directory loader (`loader.LoadDir`) applied to an in-memory listing:
 /// `.helmignore` rules (plus defaults), walk order, size budget, BOM removal.
-pub(crate) fn load_dir_files(files: Vec<(String, Vec<u8>)>, yaml: YamlParser) -> Result<Chart, Error> {
+pub(crate) fn load_dir_files(
+    files: Vec<(String, Vec<u8>)>,
+    yaml: YamlParser,
+) -> Result<Chart, Error> {
     let mut files: Vec<(String, Vec<u8>)> = files
         .into_iter()
         .map(|(n, d)| {
@@ -380,7 +425,10 @@ pub(crate) fn load_dir_files(files: Vec<(String, Vec<u8>)>, yaml: YamlParser) ->
         }
         remaining -= data.len();
         let data = data.strip_prefix(UTF8_BOM).unwrap_or(&data);
-        out.push(BufferedFile { name, data: Rc::from(data) });
+        out.push(BufferedFile {
+            name,
+            data: Rc::from(data),
+        });
     }
     load_files(out, "", yaml)
 }

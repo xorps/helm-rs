@@ -182,9 +182,8 @@ impl Object for Duration {
     }
     fn method(&self, name: &str) -> Option<Sig> {
         match name {
-            "String" | "Hours" | "Minutes" | "Seconds" | "Milliseconds" | "Microseconds" | "Nanoseconds" | "Abs" => {
-                Some(Sig::new(&[]))
-            }
+            "String" | "Hours" | "Minutes" | "Seconds" | "Milliseconds" | "Microseconds"
+            | "Nanoseconds" | "Abs" => Some(Sig::new(&[])),
             "Round" | "Truncate" => Some(Sig::new(&[Ty::Int64])),
             _ => None,
         }
@@ -209,7 +208,11 @@ impl Object for Duration {
                     },
                     None => Duration(0),
                 };
-                Value::object(if name == "Round" { d.round(m) } else { d.truncate(m) })
+                Value::object(if name == "Round" {
+                    d.round(m)
+                } else {
+                    d.truncate(m)
+                })
             }
             _ => return Err(FuncError::new(format!("no method {name}"))),
         })
@@ -361,7 +364,10 @@ pub fn parse_duration(orig: &str) -> Result<Duration, String> {
             i += 1;
         }
         if i == 0 {
-            return Err(format!("time: missing unit in duration {}", time_quote(orig)));
+            return Err(format!(
+                "time: missing unit in duration {}",
+                time_quote(orig)
+            ));
         }
         let u = &s[..i];
         s = &s[i..];
@@ -376,7 +382,11 @@ pub fn parse_duration(orig: &str) -> Result<Duration, String> {
             b"h" => 3_600_000_000_000,
             _ => {
                 let us = strconv::lossy(u);
-                return Err(format!("time: unknown unit {} in duration {}", time_quote(&us), time_quote(orig)));
+                return Err(format!(
+                    "time: unknown unit {} in duration {}",
+                    time_quote(&us),
+                    time_quote(orig)
+                ));
             }
         };
         if v > (1u64 << 63) / unit {
@@ -419,14 +429,23 @@ const MIN_DURATION_SECONDS_FLOAT: f64 = i64::MIN as f64 / SECOND as f64;
 
 fn from_seconds_float(seconds: f64) -> Result<Duration, String> {
     if seconds.is_nan() || seconds.is_infinite() {
-        return Err(format!("invalid duration seconds: {}", crate::gofmt::format_value(&Value::Float(seconds))));
+        return Err(format!(
+            "invalid duration seconds: {}",
+            crate::gofmt::format_value(&Value::Float(seconds))
+        ));
     }
     if !(MIN_DURATION_SECONDS_FLOAT..=MAX_DURATION_SECONDS_FLOAT).contains(&seconds) {
-        return Err(format!("duration seconds overflow: {}", crate::gofmt::format_value(&Value::Float(seconds))));
+        return Err(format!(
+            "duration seconds overflow: {}",
+            crate::gofmt::format_value(&Value::Float(seconds))
+        ));
     }
     let nanos = seconds * SECOND as f64;
     if nanos > i64::MAX as f64 || nanos < i64::MIN as f64 {
-        return Err(format!("duration nanoseconds overflow: {}", crate::gofmt::format_value(&Value::Float(nanos))));
+        return Err(format!(
+            "duration nanoseconds overflow: {}",
+            crate::gofmt::format_value(&Value::Float(nanos))
+        ));
     }
     Ok(Duration(f64_to_i64(nanos)))
 }
@@ -485,7 +504,9 @@ fn arg0(a: &[Value]) -> &Value {
 }
 
 fn must_to_duration(a: &[Value]) -> FuncResult {
-    as_duration(arg0(a)).map(Value::object).map_err(FuncError::new)
+    as_duration(arg0(a))
+        .map(Value::object)
+        .map_err(FuncError::new)
 }
 
 fn float_or_zero(a: &[Value], f: fn(Duration) -> f64) -> FuncResult {
@@ -497,9 +518,17 @@ fn int_or_zero(a: &[Value], f: fn(Duration) -> i64) -> FuncResult {
 }
 
 fn round_to(a: &[Value], truncate: bool) -> FuncResult {
-    let Ok(d) = as_duration(arg0(a)) else { return Ok(Value::object(Duration(0))) };
-    let Ok(m) = as_duration(a.get(1).unwrap_or(&Value::Nil)) else { return Ok(Value::object(d)) };
-    Ok(Value::object(if truncate { d.truncate(m) } else { d.round(m) }))
+    let Ok(d) = as_duration(arg0(a)) else {
+        return Ok(Value::object(Duration(0)));
+    };
+    let Ok(m) = as_duration(a.get(1).unwrap_or(&Value::Nil)) else {
+        return Ok(Value::object(d));
+    };
+    Ok(Value::object(if truncate {
+        d.truncate(m)
+    } else {
+        d.round(m)
+    }))
 }
 
 /// Registers Helm's duration helpers.
@@ -507,14 +536,26 @@ pub fn register(f: &mut FuncMap) {
     const ANY1: Sig = Sig::new(&[Ty::Any]);
     const ANY2: Sig = Sig::new(&[Ty::Any, Ty::Any]);
     f.add("mustToDuration", ANY1, must_to_duration);
-    f.add("durationSeconds", ANY1, |a| float_or_zero(a, Duration::seconds));
-    f.add("durationMilliseconds", ANY1, |a| int_or_zero(a, |d| d.0 / MILLISECOND));
-    f.add("durationMicroseconds", ANY1, |a| int_or_zero(a, |d| d.0 / MICROSECOND));
+    f.add("durationSeconds", ANY1, |a| {
+        float_or_zero(a, Duration::seconds)
+    });
+    f.add("durationMilliseconds", ANY1, |a| {
+        int_or_zero(a, |d| d.0 / MILLISECOND)
+    });
+    f.add("durationMicroseconds", ANY1, |a| {
+        int_or_zero(a, |d| d.0 / MICROSECOND)
+    });
     f.add("durationNanoseconds", ANY1, |a| int_or_zero(a, |d| d.0));
-    f.add("durationMinutes", ANY1, |a| float_or_zero(a, Duration::minutes));
+    f.add("durationMinutes", ANY1, |a| {
+        float_or_zero(a, Duration::minutes)
+    });
     f.add("durationHours", ANY1, |a| float_or_zero(a, Duration::hours));
-    f.add("durationDays", ANY1, |a| float_or_zero(a, |d| d.hours() / 24.0));
-    f.add("durationWeeks", ANY1, |a| float_or_zero(a, |d| d.hours() / 24.0 / 7.0));
+    f.add("durationDays", ANY1, |a| {
+        float_or_zero(a, |d| d.hours() / 24.0)
+    });
+    f.add("durationWeeks", ANY1, |a| {
+        float_or_zero(a, |d| d.hours() / 24.0 / 7.0)
+    });
     f.add("durationRoundTo", ANY2, |a| round_to(a, false));
     f.add("durationTruncateTo", ANY2, |a| round_to(a, true));
 }

@@ -9,6 +9,9 @@
 //! stack; see [`Error`].
 #![no_std]
 #![forbid(unsafe_code)]
+// `Error` carries a full diagnostic (spans, source, call stack) by design; it
+// only travels on the error path.
+#![allow(clippy::result_large_err)]
 
 extern crate alloc;
 
@@ -26,7 +29,10 @@ pub mod yaml;
 
 pub use error::{Error, ErrorKind, Location};
 pub use func::{CallCtx, DeterministicEnv, Env, Func, FuncError, FuncMap, Sig, Ty};
-pub use value::{GoBytesString, GoField, GoStruct, JsonField, Kind, Map, MapKind, MapRef, Object, Stringer, TypedList, TypedMap, Value};
+pub use value::{
+    GoBytesString, GoField, GoStruct, JsonField, Kind, Map, MapKind, MapRef, Object, Stringer,
+    TypedList, TypedMap, Value,
+};
 
 #[doc(hidden)]
 pub mod __private {

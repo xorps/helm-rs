@@ -61,7 +61,13 @@ pub struct Engine {
 
 impl Default for Engine {
     fn default() -> Self {
-        Engine { funcs: crate::funcs::helm(), strict: false, lint_mode: false, enable_dns: false, max_depth: 128 }
+        Engine {
+            funcs: crate::funcs::helm(),
+            strict: false,
+            lint_mode: false,
+            enable_dns: false,
+            max_depth: 128,
+        }
     }
 }
 
@@ -70,9 +76,15 @@ impl Default for Engine {
 #[derive(Clone, Debug)]
 pub(crate) enum GoErr {
     /// `template.ExecError` whose message optionally wraps (`%w`) another.
-    Exec { msg: String, wrapped: Option<Box<GoErr>> },
+    Exec {
+        msg: String,
+        wrapped: Option<Box<GoErr>>,
+    },
     /// Any other error, optionally wrapping another.
-    Plain { msg: String, wrapped: Option<Box<GoErr>> },
+    Plain {
+        msg: String,
+        wrapped: Option<Box<GoErr>>,
+    },
 }
 
 impl GoErr {
@@ -129,7 +141,10 @@ impl Set {
     }
 
     fn child(parent: Rc<Set>, trees: BTreeMap<String, Rc<Tree>>) -> Set {
-        let mut s = Set { parent: Some(parent), map: BTreeMap::new() };
+        let mut s = Set {
+            parent: Some(parent),
+            map: BTreeMap::new(),
+        };
         for (name, tree) in trees {
             s.associate(name, tree);
         }
@@ -172,12 +187,15 @@ impl TemplateSet {
     }
 
     fn has_function(&self, name: &str) -> bool {
-        self.funcs.contains(name) || exec::Builtin::from_name(name).is_some() || exec::HelmFn::from_name(name).is_some()
+        self.funcs.contains(name)
+            || exec::Builtin::from_name(name).is_some()
+            || exec::HelmFn::from_name(name).is_some()
     }
 
     /// Parses `text` as template `name` (Go `t.New(name).Parse(text)`).
     pub fn add(&mut self, name: &str, text: &str) -> Result<(), Error> {
-        self.add_rc(name, Rc::from(text)).map_err(|pe| parse_error(&pe, None))
+        self.add_rc(name, Rc::from(text))
+            .map_err(|pe| parse_error(&pe, None))
     }
 
     fn add_rc(&mut self, name: &str, text: Rc<str>) -> Result<(), ParseError> {
@@ -201,13 +219,23 @@ impl TemplateSet {
 
     /// Executes template `name` with `data` as `.` (Go `ExecuteTemplate`).
     pub fn execute(&self, name: &str, data: &Value, env: &mut dyn Env) -> Result<String, Error> {
-        let set = Rc::new(Set { parent: None, map: self.set.map.clone() });
+        let set = Rc::new(Set {
+            parent: None,
+            map: self.set.map.clone(),
+        });
         let Some(tree) = set.lookup(name) else {
-            let msg = format!("template: no template {} associated with template {}", quote::go_quote(name), quote::go_quote("gotpl"));
+            let msg = format!(
+                "template: no template {} associated with template {}",
+                quote::go_quote(name),
+                quote::go_quote("gotpl")
+            );
             return Err(Error::new(ErrorKind::Exec, msg));
         };
         let mut ctx = self.ctx(env);
-        let file = TemplateFile { name: name.to_string(), tree };
+        let file = TemplateFile {
+            name: name.to_string(),
+            tree,
+        };
         exec::execute(&mut ctx, set, &file, data.clone()).map_err(|f| finish_exec_error(name, *f))
     }
 
@@ -232,9 +260,16 @@ impl Engine {
 
     /// Renders a single template string with `data` as `.`, with Helm's
     /// `<no value>` cleanup. Convenience for tests and simple uses.
-    pub fn render_str(&self, name: &str, text: &str, data: &Value, env: &mut dyn Env) -> Result<String, Error> {
+    pub fn render_str(
+        &self,
+        name: &str,
+        text: &str,
+        data: &Value,
+        env: &mut dyn Env,
+    ) -> Result<String, Error> {
         let mut set = TemplateSet::new(self);
-        set.add_rc(name, Rc::from(text)).map_err(|pe| parse_error(&pe, Some(name)))?;
+        set.add_rc(name, Rc::from(text))
+            .map_err(|pe| parse_error(&pe, Some(name)))?;
         let out = set.execute(name, data, env)?;
         Ok(out.replace("<no value>", ""))
     }
@@ -242,7 +277,11 @@ impl Engine {
     /// Parses all templates into one set (so `define`s are shared) and
     /// executes every template whose base name does not start with `_`.
     /// Returns rendered output keyed by template name.
-    pub fn render(&self, env: &mut dyn Env, templates: Vec<Renderable>) -> Result<BTreeMap<String, String>, Error> {
+    pub fn render(
+        &self,
+        env: &mut dyn Env,
+        templates: Vec<Renderable>,
+    ) -> Result<BTreeMap<String, String>, Error> {
         let mut by_name: BTreeMap<String, Renderable> = BTreeMap::new();
         for t in templates {
             by_name.insert(t.name.clone(), t);
@@ -257,7 +296,10 @@ impl Engine {
             }
         }
 
-        let shared = Rc::new(Set { parent: None, map: set.set.map.clone() });
+        let shared = Rc::new(Set {
+            parent: None,
+            map: set.set.map.clone(),
+        });
         let mut rendered = BTreeMap::new();
         let mut ctx = set.ctx(env);
         for name in &keys {
@@ -272,8 +314,13 @@ impl Engine {
                 t.insert("BasePath".into(), Value::str(&r.base_path));
                 m.insert("Template", Value::map(t));
             }
-            let Some(tree) = set.files.get(name) else { continue };
-            let file = TemplateFile { name: name.clone(), tree: tree.clone() };
+            let Some(tree) = set.files.get(name) else {
+                continue;
+            };
+            let file = TemplateFile {
+                name: name.clone(),
+                tree: tree.clone(),
+            };
             match exec::execute(&mut ctx, shared.clone(), &file, r.vals.clone()) {
                 Ok(out) => {
                     rendered.insert(name.clone(), out.replace("<no value>", ""));
@@ -370,7 +417,10 @@ fn cut_template_suffix(msg: &str) -> &str {
 fn parse_template_exec_error_string(s: &str) -> Option<TraceableError> {
     let remainder = s.strip_prefix("template: ")?;
     if remainder.starts_with("no template ") {
-        return Some(TraceableError { message: s.to_string(), ..Default::default() });
+        return Some(TraceableError {
+            message: s.to_string(),
+            ..Default::default()
+        });
     }
     if let Some(i) = remainder.find(": executing ") {
         let template_name = &remainder[..i];
@@ -399,7 +449,11 @@ fn parse_template_exec_error_string(s: &str) -> Option<TraceableError> {
     if let Some(sep) = remainder.rfind(": ") {
         let template_name = &remainder[..sep];
         let err_msg = cut_template_suffix(&remainder[sep + 2..]);
-        return Some(TraceableError { location: template_name.to_string(), message: err_msg.to_string(), ..Default::default() });
+        return Some(TraceableError {
+            location: template_name.to_string(),
+            message: err_msg.to_string(),
+            ..Default::default()
+        });
     }
     None
 }
@@ -455,19 +509,37 @@ mod tests {
     #[test]
     fn basic() {
         let data = crate::map! { "a" => "x", "b" => crate::map!{ "c" => true } };
-        assert_eq!(render("hi {{ .a }} {{ if .b.c }}yes{{ end }}", data.clone()).unwrap(), "hi x yes");
-        assert_eq!(render("{{- range $k, $v := . }}{{ $k }}={{ $v }};{{ end }}", crate::map! {"x" => "1", "y" => "2"}).unwrap(), "x=1;y=2;");
+        assert_eq!(
+            render("hi {{ .a }} {{ if .b.c }}yes{{ end }}", data.clone()).unwrap(),
+            "hi x yes"
+        );
+        assert_eq!(
+            render(
+                "{{- range $k, $v := . }}{{ $k }}={{ $v }};{{ end }}",
+                crate::map! {"x" => "1", "y" => "2"}
+            )
+            .unwrap(),
+            "x=1;y=2;"
+        );
         assert_eq!(render("{{ .missing }}", data.clone()).unwrap(), "");
         let e = render("line1\n {{ .a.b.c }}", crate::map! {}).unwrap_err();
         assert_eq!(e.message, "nil pointer evaluating interface {}.b");
-        assert_eq!(e.helm_message.as_deref(), Some("t:2:6\n  executing \"t\" at <.a.b.c>:\n    nil pointer evaluating interface {}.b"));
+        assert_eq!(
+            e.helm_message.as_deref(),
+            Some(
+                "t:2:6\n  executing \"t\" at <.a.b.c>:\n    nil pointer evaluating interface {}.b"
+            )
+        );
         assert_eq!((e.line(), e.column()), (Some(2), Some(7)));
     }
 
     #[test]
     fn parse_errors() {
         let e = render("a\n{{ .x ", Value::Nil).unwrap_err();
-        assert_eq!(e.helm_message.as_deref(), Some("parse error at (t:2): unclosed action"));
+        assert_eq!(
+            e.helm_message.as_deref(),
+            Some("parse error at (t:2): unclosed action")
+        );
         assert_eq!((e.line(), e.column()), (Some(2), Some(1)));
     }
 }

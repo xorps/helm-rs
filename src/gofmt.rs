@@ -12,7 +12,12 @@
 //! `String()` is [`crate::Object::format`]; other verbs on structs cannot be
 //! reproduced field by field.
 
-#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::collapsible_match,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -28,7 +33,8 @@ pub fn sprint(args: &[Value]) -> String {
     let mut p = Printer::new();
     let mut prev_string = false;
     for (i, arg) in args.iter().enumerate() {
-        let is_string = matches!(arg, Value::String(_)) || (matches!(arg, Value::Object(o) if o.kind() == Kind::String));
+        let is_string = matches!(arg, Value::String(_))
+            || (matches!(arg, Value::Object(o) if o.kind() == Kind::String));
         if i > 0 && !is_string && !prev_string {
             p.buf.push(b' ');
         }
@@ -107,7 +113,10 @@ struct Flags {
 /// numeric verbs.
 fn duration_nanos(v: &Value) -> Option<i64> {
     match v {
-        Value::Object(o) => o.as_any().downcast_ref::<crate::funcs::duration::Duration>().map(|d| d.0),
+        Value::Object(o) => o
+            .as_any()
+            .downcast_ref::<crate::funcs::duration::Duration>()
+            .map(|d| d.0),
         _ => None,
     }
 }
@@ -137,7 +146,10 @@ fn struct_view(v: &Value) -> Option<StructView> {
             ],
         });
     }
-    if let Some(c) = o.as_any().downcast_ref::<crate::funcs::sprig::certs::Certificate>() {
+    if let Some(c) = o
+        .as_any()
+        .downcast_ref::<crate::funcs::sprig::certs::Certificate>()
+    {
         return Some(StructView {
             ptr: false,
             type_name: "sprig.certificate",
@@ -145,7 +157,11 @@ fn struct_view(v: &Value) -> Option<StructView> {
         });
     }
     let gs = o.go_struct()?;
-    Some(StructView { ptr: gs.ptr, type_name: gs.type_name, fields: gs.fields.into_iter().map(|f| (f.name, f.value)).collect() })
+    Some(StructView {
+        ptr: gs.ptr,
+        type_name: gs.type_name,
+        fields: gs.fields.into_iter().map(|f| (f.name, f.value)).collect(),
+    })
 }
 
 /// Whether an object implements `fmt.Stringer` (unknown objects are assumed
@@ -282,7 +298,11 @@ impl Printer {
         if n <= 0 {
             return;
         }
-        let pad = if self.f.zero && !self.f.minus { b'0' } else { b' ' };
+        let pad = if self.f.zero && !self.f.minus {
+            b'0'
+        } else {
+            b' '
+        };
         self.buf.resize(self.buf.len() + n as usize, pad);
     }
 
@@ -347,7 +367,11 @@ impl Printer {
 
     fn fmt_integer(&mut self, u: u64, base: u32, is_signed: bool, verb: char, digits: &[u8; 17]) {
         let negative = is_signed && (u as i64) < 0;
-        let mut u = if negative { (u as i64).wrapping_neg() as u64 } else { u };
+        let mut u = if negative {
+            (u as i64).wrapping_neg() as u64
+        } else {
+            u
+        };
         let mut prec: i64 = 0;
         if self.f.prec_present {
             prec = self.prec;
@@ -518,14 +542,22 @@ impl Printer {
     }
 
     fn fmt_c(&mut self, c: u64) {
-        let r = if c > strconv::MAX_RUNE as u64 { strconv::RUNE_ERROR } else { c as u32 };
+        let r = if c > strconv::MAX_RUNE as u64 {
+            strconv::RUNE_ERROR
+        } else {
+            c as u32
+        };
         let mut v = Vec::new();
         strconv::push_rune(&mut v, r);
         self.pad(&v);
     }
 
     fn fmt_qc(&mut self, c: u64) {
-        let r = if c > strconv::MAX_RUNE as u64 { strconv::RUNE_ERROR } else { c as u32 };
+        let r = if c > strconv::MAX_RUNE as u64 {
+            strconv::RUNE_ERROR
+        } else {
+            c as u32
+        };
         let mut v = Vec::new();
         strconv::append_quoted_rune(&mut v, r, self.f.plus);
         self.pad(&v);
@@ -689,13 +721,27 @@ impl Printer {
         true
     }
 
-    fn fmt_int(&mut self, arg: Option<&Value>, value: Option<&Value>, v: u64, is_signed: bool, verb: char) {
+    fn fmt_int(
+        &mut self,
+        arg: Option<&Value>,
+        value: Option<&Value>,
+        v: u64,
+        is_signed: bool,
+        verb: char,
+    ) {
         if !self.fmt_integer_verb(v, is_signed, verb) {
             self.bad_verb(arg, value, verb);
         }
     }
 
-    fn fmt_float(&mut self, arg: Option<&Value>, value: Option<&Value>, v: f64, size: u32, verb: char) {
+    fn fmt_float(
+        &mut self,
+        arg: Option<&Value>,
+        value: Option<&Value>,
+        v: f64,
+        size: u32,
+        verb: char,
+    ) {
         match verb {
             'v' => self.fmt_float_raw(v, size, b'g', -1),
             'b' | 'g' | 'G' | 'x' | 'X' => self.fmt_float_raw(v, size, verb as u8, -1),
@@ -925,7 +971,9 @@ impl Printer {
                 }
             }
             Value::Bool(b) => self.fmt_bool(None, Some(value), *b, verb),
-            Value::Int(i) | Value::Int64(i) => self.fmt_int(None, Some(value), *i as u64, true, verb),
+            Value::Int(i) | Value::Int64(i) => {
+                self.fmt_int(None, Some(value), *i as u64, true, verb)
+            }
             Value::Uint64(u) => self.fmt_int(None, Some(value), *u, false, verb),
             Value::Float(f) => self.fmt_float(None, Some(value), *f, 64, verb),
             Value::String(s) => self.fmt_string(None, Some(value), s.as_bytes(), verb),
@@ -955,7 +1003,11 @@ impl Printer {
                 }
             }
             Value::Map(m) => {
-                let entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                let entries: Vec<(String, Value)> = m
+                    .borrow()
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
                 if self.f.sharp_v {
                     self.buf.extend_from_slice(b"map[string]interface {}{");
                 } else {
@@ -1037,7 +1089,13 @@ impl Printer {
         }
     }
 
-    fn arg_number(&mut self, arg_num: usize, format: &[u8], i: usize, num_args: usize) -> (usize, usize, bool) {
+    fn arg_number(
+        &mut self,
+        arg_num: usize,
+        format: &[u8],
+        i: usize,
+        num_args: usize,
+    ) -> (usize, usize, bool) {
         if format.len() <= i || format[i] != b'[' {
             return (arg_num, i, false);
         }

@@ -115,7 +115,12 @@ impl MapRef {
     /// mutable storage with `self`.
     pub fn deep_clone(&self) -> MapRef {
         let m = self.0.borrow();
-        MapRef(Rc::new(RefCell::new(m.iter().map(|(k, v)| (k.clone(), v.deep_clone())).collect())), self.1)
+        MapRef(
+            Rc::new(RefCell::new(
+                m.iter().map(|(k, v)| (k.clone(), v.deep_clone())).collect(),
+            )),
+            self.1,
+        )
     }
 }
 
@@ -481,19 +486,33 @@ pub struct TypedMap {
 impl Value {
     /// A `[]string`.
     pub fn string_list(items: Vec<Value>) -> Value {
-        Value::object(TypedList { go_type: "[]string", items: Rc::new(items) })
+        Value::object(TypedList {
+            go_type: "[]string",
+            items: Rc::new(items),
+        })
     }
     /// A slice of the given Go type, e.g. `[]int`.
     pub fn typed_list(go_type: &'static str, items: Vec<Value>) -> Value {
-        Value::object(TypedList { go_type, items: Rc::new(items) })
+        Value::object(TypedList {
+            go_type,
+            items: Rc::new(items),
+        })
     }
     /// A `map[string]string`.
     pub fn string_map(map: Map) -> Value {
-        Value::object(TypedMap { go_type: "map[string]string", map: Some(MapRef::new(map)), elem_zero: Some(Value::str("")) })
+        Value::object(TypedMap {
+            go_type: "map[string]string",
+            map: Some(MapRef::new(map)),
+            elem_zero: Some(Value::str("")),
+        })
     }
     /// A nil map of the given Go type.
     pub fn nil_map(go_type: &'static str, elem_zero: Option<Value>) -> Value {
-        Value::object(TypedMap { go_type, map: None, elem_zero })
+        Value::object(TypedMap {
+            go_type,
+            map: None,
+            elem_zero,
+        })
     }
 }
 

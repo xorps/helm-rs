@@ -149,7 +149,9 @@ fn decode_head(d: &mut Dec, v: &Value) -> Head {
         }
     };
     for (k, v) in m.iter() {
-        let Some(f) = match_field(&["apiVersion", "kind", "metadata"], k) else { continue };
+        let Some(f) = match_field(&["apiVersion", "kind", "metadata"], k) else {
+            continue;
+        };
         d.push(k);
         match f {
             "apiVersion" => d.string(v, &mut h.api_version),
@@ -180,15 +182,34 @@ fn decode_head(d: &mut Dec, v: &Value) -> Head {
     h
 }
 
-fn yaml_parse_error(path: &str, msg: &str, content: &Rc<str>, offset: usize, line: Option<u32>, col: Option<u32>) -> Error {
+fn yaml_parse_error(
+    path: &str,
+    msg: &str,
+    content: &Rc<str>,
+    offset: usize,
+    line: Option<u32>,
+    col: Option<u32>,
+) -> Error {
     let base_line = content[..offset.min(content.len())].matches('\n').count() as u32;
-    let loc = location_at(path, content, base_line + line.unwrap_or(1), col.unwrap_or(1));
-    Error::new(ErrorKind::Syntax, alloc::format!("YAML parse error on {path}: {msg}")).at(loc)
+    let loc = location_at(
+        path,
+        content,
+        base_line + line.unwrap_or(1),
+        col.unwrap_or(1),
+    );
+    Error::new(
+        ErrorKind::Syntax,
+        alloc::format!("YAML parse error on {path}: {msg}"),
+    )
+    .at(loc)
 }
 
 /// `SortManifests(files, nil, InstallOrder)`: hooks and manifests, sorted by
 /// kind; partials (`_*`) and empty files are skipped.
-pub fn sort_manifests(files: &BTreeMap<String, String>, yaml: YamlParser) -> Result<(Vec<Hook>, Vec<Manifest>), Error> {
+pub fn sort_manifests(
+    files: &BTreeMap<String, String>,
+    yaml: YamlParser,
+) -> Result<(Vec<Hook>, Vec<Manifest>), Error> {
     let mut hooks = Vec::new();
     let mut generic = Vec::new();
     for (path, content) in files {
@@ -213,7 +234,11 @@ pub fn sort_manifests(files: &BTreeMap<String, String>, yaml: YamlParser) -> Res
                     None,
                 ));
             }
-            let annotations = head.metadata.as_ref().and_then(|m| m.1.as_ref()).filter(|a| !a.is_empty());
+            let annotations = head
+                .metadata
+                .as_ref()
+                .and_then(|m| m.1.as_ref())
+                .filter(|a| !a.is_empty());
             let hook_types = annotations.and_then(|a| a.get("helm.sh/hook"));
             let Some(hook_types) = hook_types else {
                 generic.push(Manifest {
@@ -225,7 +250,10 @@ pub fn sort_manifests(files: &BTreeMap<String, String>, yaml: YamlParser) -> Res
                 continue;
             };
             let a = annotations.cloned().unwrap_or_default();
-            let weight = a.get("helm.sh/hook-weight").and_then(|w| parse_go_atoi(w)).unwrap_or(0);
+            let weight = a
+                .get("helm.sh/hook-weight")
+                .and_then(|w| parse_go_atoi(w))
+                .unwrap_or(0);
             let mut events = Vec::new();
             let mut unknown = false;
             for t in hook_types.split(',') {
@@ -234,7 +262,11 @@ pub fn sort_manifests(files: &BTreeMap<String, String>, yaml: YamlParser) -> Res
                     unknown = true;
                     break;
                 }
-                events.push(if t == "test-success" { "test".to_string() } else { t });
+                events.push(if t == "test-success" {
+                    "test".to_string()
+                } else {
+                    t
+                });
             }
             if unknown {
                 continue;

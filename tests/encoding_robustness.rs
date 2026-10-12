@@ -29,14 +29,21 @@ fn exercise(input: &str) {
 
 /// Runs `f` on a thread with a 1 MiB stack.
 fn small_stack(f: impl FnOnce() + Send + 'static) {
-    std::thread::Builder::new().stack_size(1 << 20).spawn(f).unwrap().join().unwrap();
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
 fn random_bytes_do_not_panic() {
     let mut r = Rng::new(1234);
     let alphabet: Vec<char> =
-        "ab01 \t\n\r:-?,[]{}#&*!|>'\"%@`.~<=+_\\/xyz\u{feff}\u{85}\u{2028}\u{1}\u{7f}é😀".chars().collect();
+        "ab01 \t\n\r:-?,[]{}#&*!|>'\"%@`.~<=+_\\/xyz\u{feff}\u{85}\u{2028}\u{1}\u{7f}é😀"
+            .chars()
+            .collect();
     for _ in 0..20000 {
         let n = r.below(60);
         let s: String = (0..n).map(|_| alphabet[r.below(alphabet.len())]).collect();
@@ -65,7 +72,8 @@ fn deep_nesting_is_rejected_cleanly() {
         }
         let ok = format!("a: {}{}", "[".repeat(LIMIT - 2), "]".repeat(LIMIT - 2));
         assert!(yaml::from_str(&ok).is_ok());
-        let e = yaml::from_str(&format!("a: {}{}", "[".repeat(5000), "]".repeat(5000))).unwrap_err();
+        let e =
+            yaml::from_str(&format!("a: {}{}", "[".repeat(5000), "]".repeat(5000))).unwrap_err();
         assert!(e.message.contains("exceeded max depth"), "{}", e.message);
         // Block nesting.
         let mut block = String::new();
@@ -91,14 +99,19 @@ fn deep_nesting_is_rejected_cleanly() {
 
 #[test]
 fn billion_laughs_is_rejected() {
-    let mut doc = String::from("a: &a [\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\"]\n");
+    let mut doc = String::from(
+        "a: &a [\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\"]\n",
+    );
     let names = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
     for w in names.windows(2) {
         let refs = vec![format!("*{}", w[0]); 9].join(",");
         doc.push_str(&format!("{}: &{} [{refs}]\n", w[1], w[1]));
     }
     let e = yaml::from_str(&doc).unwrap_err();
-    assert_eq!(e.message, "error converting YAML to JSON: yaml: document contains excessive aliasing");
+    assert_eq!(
+        e.message,
+        "error converting YAML to JSON: yaml: document contains excessive aliasing"
+    );
 }
 
 #[test]
@@ -121,7 +134,9 @@ fn deep_and_cyclic_values_do_not_overflow() {
             // Unwrap the nesting to avoid a deep recursive drop.
             let mut cur = v;
             while let Value::List(l) = cur {
-                cur = std::rc::Rc::try_unwrap(l).map(|mut x| x.pop().unwrap_or(Value::Nil)).unwrap_or(Value::Nil);
+                cur = std::rc::Rc::try_unwrap(l)
+                    .map(|mut x| x.pop().unwrap_or(Value::Nil))
+                    .unwrap_or(Value::Nil);
             }
         }
 
@@ -130,7 +145,10 @@ fn deep_and_cyclic_values_do_not_overflow() {
             r.insert("self", m.clone());
         }
         let e = json::to_string(&m).unwrap_err();
-        assert_eq!(e.message, "json: unsupported value: encountered a cycle via map[string]interface {}");
+        assert_eq!(
+            e.message,
+            "json: unsupported value: encountered a cycle via map[string]interface {}"
+        );
         assert_eq!(enc::to_yaml(&m), "");
         assert!(enc::must_to_yaml(&m).is_err());
         assert_eq!(enc::to_yaml_pretty(&m), "");
@@ -142,9 +160,15 @@ fn deep_and_cyclic_values_do_not_overflow() {
             r.insert("self", l.clone());
         }
         let e = json::to_string(&m).unwrap_err();
-        assert_eq!(e.message, "json: unsupported value: encountered a cycle via map[string]interface {}");
+        assert_eq!(
+            e.message,
+            "json: unsupported value: encountered a cycle via map[string]interface {}"
+        );
         let e = json::to_string(&l).unwrap_err();
-        assert_eq!(e.message, "json: unsupported value: encountered a cycle via []interface {}");
+        assert_eq!(
+            e.message,
+            "json: unsupported value: encountered a cycle via []interface {}"
+        );
         if let Value::Map(r) = &m {
             r.remove("self");
         }

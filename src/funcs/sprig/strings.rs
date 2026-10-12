@@ -1,6 +1,11 @@
 //! String functions (`strings.go` and the goutils/xstrings helpers).
 
-#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::needless_range_loop,
+    clippy::collapsible_match,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -20,18 +25,50 @@ const A: Ty = Ty::Any;
 
 pub(super) fn register(f: &mut FuncMap) {
     f.add("hello", Sig::new(&[]), |_| Ok(Value::str("Hello!")));
-    f.add("abbrev", Sig::new(&[I, S]), |a| Ok(Value::string(abbrev(iarg(a, 0), sarg(a, 1)))));
-    f.add("abbrevboth", Sig::new(&[I, I, S]), |a| Ok(Value::string(abbrevboth(iarg(a, 0), iarg(a, 1), sarg(a, 2)))));
-    f.add("trunc", Sig::new(&[I, S]), |a| Ok(Value::string(trunc(iarg(a, 0), sarg(a, 1)))));
-    f.add("trim", Sig::new(&[S]), |a| Ok(Value::str(trim_space(sarg(a, 0)))));
-    f.add("upper", Sig::new(&[S]), |a| Ok(Value::string(sarg(a, 0).chars().map(gu::to_upper).collect())));
-    f.add("lower", Sig::new(&[S]), |a| Ok(Value::string(sarg(a, 0).chars().map(gu::to_lower).collect())));
-    f.add("title", Sig::new(&[S]), |a| Ok(Value::string(title(sarg(a, 0)))));
-    f.add("untitle", Sig::new(&[S]), |a| Ok(Value::string(uncapitalize(sarg(a, 0)))));
-    f.add("substr", Sig::new(&[I, I, S]), |a| substring(iarg(a, 0), iarg(a, 1), sarg(a, 2)).map(Value::string));
-    f.add("repeat", Sig::new(&[I, S]), |a| repeat(sarg(a, 1), iarg(a, 0)).map(Value::string));
-    f.add("trimall", Sig::new(&[S, S]), |a| Ok(Value::str(trim_cutset(sarg(a, 1), sarg(a, 0)))));
-    f.add("trimAll", Sig::new(&[S, S]), |a| Ok(Value::str(trim_cutset(sarg(a, 1), sarg(a, 0)))));
+    f.add("abbrev", Sig::new(&[I, S]), |a| {
+        Ok(Value::string(abbrev(iarg(a, 0), sarg(a, 1))))
+    });
+    f.add("abbrevboth", Sig::new(&[I, I, S]), |a| {
+        Ok(Value::string(abbrevboth(
+            iarg(a, 0),
+            iarg(a, 1),
+            sarg(a, 2),
+        )))
+    });
+    f.add("trunc", Sig::new(&[I, S]), |a| {
+        Ok(Value::string(trunc(iarg(a, 0), sarg(a, 1))))
+    });
+    f.add("trim", Sig::new(&[S]), |a| {
+        Ok(Value::str(trim_space(sarg(a, 0))))
+    });
+    f.add("upper", Sig::new(&[S]), |a| {
+        Ok(Value::string(
+            sarg(a, 0).chars().map(gu::to_upper).collect(),
+        ))
+    });
+    f.add("lower", Sig::new(&[S]), |a| {
+        Ok(Value::string(
+            sarg(a, 0).chars().map(gu::to_lower).collect(),
+        ))
+    });
+    f.add("title", Sig::new(&[S]), |a| {
+        Ok(Value::string(title(sarg(a, 0))))
+    });
+    f.add("untitle", Sig::new(&[S]), |a| {
+        Ok(Value::string(uncapitalize(sarg(a, 0))))
+    });
+    f.add("substr", Sig::new(&[I, I, S]), |a| {
+        substring(iarg(a, 0), iarg(a, 1), sarg(a, 2)).map(Value::string)
+    });
+    f.add("repeat", Sig::new(&[I, S]), |a| {
+        repeat(sarg(a, 1), iarg(a, 0)).map(Value::string)
+    });
+    f.add("trimall", Sig::new(&[S, S]), |a| {
+        Ok(Value::str(trim_cutset(sarg(a, 1), sarg(a, 0))))
+    });
+    f.add("trimAll", Sig::new(&[S, S]), |a| {
+        Ok(Value::str(trim_cutset(sarg(a, 1), sarg(a, 0))))
+    });
     f.add("trimSuffix", Sig::new(&[S, S]), |a| {
         let (suf, s) = (sarg(a, 0), sarg(a, 1));
         Ok(Value::str(s.strip_suffix(suf).unwrap_or(s)))
@@ -40,42 +77,122 @@ pub(super) fn register(f: &mut FuncMap) {
         let (pre, s) = (sarg(a, 0), sarg(a, 1));
         Ok(Value::str(s.strip_prefix(pre).unwrap_or(s)))
     });
-    f.add("nospace", Sig::new(&[S]), |a| Ok(Value::string(delete_white_space(sarg(a, 0)))));
-    f.add("initials", Sig::new(&[S]), |a| Ok(Value::string(initials(sarg(a, 0)))));
-    f.add_ctx("randAlphaNum", Sig::new(&[I]), |c, a| crypto_random(c, iarg(a, 0), 0, 0, true, true));
-    f.add_ctx("randAlpha", Sig::new(&[I]), |c, a| crypto_random(c, iarg(a, 0), 0, 0, true, false));
-    f.add_ctx("randAscii", Sig::new(&[I]), |c, a| crypto_random(c, iarg(a, 0), 32, 127, false, false));
-    f.add_ctx("randNumeric", Sig::new(&[I]), |c, a| crypto_random(c, iarg(a, 0), 0, 0, false, true));
-    f.add("swapcase", Sig::new(&[S]), |a| Ok(Value::string(swap_case(sarg(a, 0)))));
+    f.add("nospace", Sig::new(&[S]), |a| {
+        Ok(Value::string(delete_white_space(sarg(a, 0))))
+    });
+    f.add("initials", Sig::new(&[S]), |a| {
+        Ok(Value::string(initials(sarg(a, 0))))
+    });
+    f.add_ctx("randAlphaNum", Sig::new(&[I]), |c, a| {
+        crypto_random(c, iarg(a, 0), 0, 0, true, true)
+    });
+    f.add_ctx("randAlpha", Sig::new(&[I]), |c, a| {
+        crypto_random(c, iarg(a, 0), 0, 0, true, false)
+    });
+    f.add_ctx("randAscii", Sig::new(&[I]), |c, a| {
+        crypto_random(c, iarg(a, 0), 32, 127, false, false)
+    });
+    f.add_ctx("randNumeric", Sig::new(&[I]), |c, a| {
+        crypto_random(c, iarg(a, 0), 0, 0, false, true)
+    });
+    f.add("swapcase", Sig::new(&[S]), |a| {
+        Ok(Value::string(swap_case(sarg(a, 0))))
+    });
     f.add_ctx("shuffle", Sig::new(&[S]), shuffle);
-    f.add("snakecase", Sig::new(&[S]), |a| Ok(Value::string(camel_case_to_lower_case(sarg(a, 0), '_'))));
-    f.add("camelcase", Sig::new(&[S]), |a| Ok(Value::string(to_pascal_case(sarg(a, 0)))));
-    f.add("kebabcase", Sig::new(&[S]), |a| Ok(Value::string(camel_case_to_lower_case(sarg(a, 0), '-'))));
-    f.add("wrap", Sig::new(&[I, S]), |a| Ok(Value::string(wrap_custom(sarg(a, 1), iarg(a, 0), "", false))));
-    f.add("wrapWith", Sig::new(&[I, S, S]), |a| Ok(Value::string(wrap_custom(sarg(a, 2), iarg(a, 0), sarg(a, 1), true))));
-    f.add("contains", Sig::new(&[S, S]), |a| Ok(Value::Bool(sarg(a, 1).contains(sarg(a, 0)))));
-    f.add("hasPrefix", Sig::new(&[S, S]), |a| Ok(Value::Bool(sarg(a, 1).starts_with(sarg(a, 0)))));
-    f.add("hasSuffix", Sig::new(&[S, S]), |a| Ok(Value::Bool(sarg(a, 1).ends_with(sarg(a, 0)))));
-    f.add("quote", Sig::variadic(&[], A), |a| Ok(Value::string(quote(a))));
-    f.add("squote", Sig::variadic(&[], A), |a| Ok(Value::string(squote(a))));
+    f.add("snakecase", Sig::new(&[S]), |a| {
+        Ok(Value::string(camel_case_to_lower_case(sarg(a, 0), '_')))
+    });
+    f.add("camelcase", Sig::new(&[S]), |a| {
+        Ok(Value::string(to_pascal_case(sarg(a, 0))))
+    });
+    f.add("kebabcase", Sig::new(&[S]), |a| {
+        Ok(Value::string(camel_case_to_lower_case(sarg(a, 0), '-')))
+    });
+    f.add("wrap", Sig::new(&[I, S]), |a| {
+        Ok(Value::string(wrap_custom(
+            sarg(a, 1),
+            iarg(a, 0),
+            "",
+            false,
+        )))
+    });
+    f.add("wrapWith", Sig::new(&[I, S, S]), |a| {
+        Ok(Value::string(wrap_custom(
+            sarg(a, 2),
+            iarg(a, 0),
+            sarg(a, 1),
+            true,
+        )))
+    });
+    f.add("contains", Sig::new(&[S, S]), |a| {
+        Ok(Value::Bool(sarg(a, 1).contains(sarg(a, 0))))
+    });
+    f.add("hasPrefix", Sig::new(&[S, S]), |a| {
+        Ok(Value::Bool(sarg(a, 1).starts_with(sarg(a, 0))))
+    });
+    f.add("hasSuffix", Sig::new(&[S, S]), |a| {
+        Ok(Value::Bool(sarg(a, 1).ends_with(sarg(a, 0))))
+    });
+    f.add("quote", Sig::variadic(&[], A), |a| {
+        Ok(Value::string(quote(a)))
+    });
+    f.add("squote", Sig::variadic(&[], A), |a| {
+        Ok(Value::string(squote(a)))
+    });
     f.add("cat", Sig::variadic(&[], A), |a| {
-        let parts: Vec<String> = a.iter().filter(|v| !v.is_nil()).map(crate::gofmt::format_value).collect();
+        let parts: Vec<String> = a
+            .iter()
+            .filter(|v| !v.is_nil())
+            .map(crate::gofmt::format_value)
+            .collect();
         Ok(Value::string(parts.join(" ")))
     });
-    f.add("indent", Sig::new(&[I, S]), |a| indent(iarg(a, 0), sarg(a, 1)).map(Value::string));
-    f.add("nindent", Sig::new(&[I, S]), |a| indent(iarg(a, 0), sarg(a, 1)).map(|s| Value::string(format!("\n{s}"))));
-    f.add("replace", Sig::new(&[S, S, S]), |a| replace(sarg(a, 2), sarg(a, 0), sarg(a, 1)).map(Value::string));
-    f.add("plural", Sig::new(&[S, S, I]), |a| Ok(Value::str(if iarg(a, 2) == 1 { sarg(a, 0) } else { sarg(a, 1) })));
-    f.add("sha1sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha1::Sha1::digest(&sbytes(a, 0))))));
-    f.add("sha256sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha256::digest(&sbytes(a, 0))))));
-    f.add("sha512sum", Sig::new(&[S]), |a| Ok(Value::string(hex(&sha2::Sha512::digest(&sbytes(a, 0))))));
-    f.add("adler32sum", Sig::new(&[S]), |a| Ok(Value::string(adler32(&sbytes(a, 0)).to_string())));
-    f.add("toString", Sig::new(&[A]), |a| Ok(Value::string(strval(arg(a, 0)))));
-    f.add("split", Sig::new(&[S, S]), |a| Ok(parts_map(go_split(sarg(a, 1), sarg(a, 0), -1))));
-    f.add("splitList", Sig::new(&[S, S]), |a| Ok(str_list(go_split(sarg(a, 1), sarg(a, 0), -1))));
-    f.add("splitn", Sig::new(&[S, I, S]), |a| Ok(parts_map(go_split(sarg(a, 2), sarg(a, 0), iarg(a, 1)))));
-    f.add("toStrings", Sig::new(&[A]), |a| Ok(str_list(strslice(arg(a, 0)))));
-    f.add("join", Sig::new(&[S, A]), |a| Ok(Value::string(strslice(arg(a, 1)).join(sarg(a, 0)))));
+    f.add("indent", Sig::new(&[I, S]), |a| {
+        indent(iarg(a, 0), sarg(a, 1)).map(Value::string)
+    });
+    f.add("nindent", Sig::new(&[I, S]), |a| {
+        indent(iarg(a, 0), sarg(a, 1)).map(|s| Value::string(format!("\n{s}")))
+    });
+    f.add("replace", Sig::new(&[S, S, S]), |a| {
+        replace(sarg(a, 2), sarg(a, 0), sarg(a, 1)).map(Value::string)
+    });
+    f.add("plural", Sig::new(&[S, S, I]), |a| {
+        Ok(Value::str(if iarg(a, 2) == 1 {
+            sarg(a, 0)
+        } else {
+            sarg(a, 1)
+        }))
+    });
+    f.add("sha1sum", Sig::new(&[S]), |a| {
+        Ok(Value::string(hex(&sha1::Sha1::digest(sbytes(a, 0)))))
+    });
+    f.add("sha256sum", Sig::new(&[S]), |a| {
+        Ok(Value::string(hex(&sha2::Sha256::digest(sbytes(a, 0)))))
+    });
+    f.add("sha512sum", Sig::new(&[S]), |a| {
+        Ok(Value::string(hex(&sha2::Sha512::digest(sbytes(a, 0)))))
+    });
+    f.add("adler32sum", Sig::new(&[S]), |a| {
+        Ok(Value::string(adler32(&sbytes(a, 0)).to_string()))
+    });
+    f.add("toString", Sig::new(&[A]), |a| {
+        Ok(Value::string(strval(arg(a, 0))))
+    });
+    f.add("split", Sig::new(&[S, S]), |a| {
+        Ok(parts_map(go_split(sarg(a, 1), sarg(a, 0), -1)))
+    });
+    f.add("splitList", Sig::new(&[S, S]), |a| {
+        Ok(str_list(go_split(sarg(a, 1), sarg(a, 0), -1)))
+    });
+    f.add("splitn", Sig::new(&[S, I, S]), |a| {
+        Ok(parts_map(go_split(sarg(a, 2), sarg(a, 0), iarg(a, 1))))
+    });
+    f.add("toStrings", Sig::new(&[A]), |a| {
+        Ok(str_list(strslice(arg(a, 0))))
+    });
+    f.add("join", Sig::new(&[S, A]), |a| {
+        Ok(Value::string(strslice(arg(a, 1)).join(sarg(a, 0))))
+    });
     f.add("sortAlpha", Sig::new(&[A]), |a| {
         let v = arg(a, 0);
         let mut items = match v {
@@ -87,14 +204,18 @@ pub(super) fn register(f: &mut FuncMap) {
         }
         Ok(str_list(items))
     });
-    f.add("b64enc", Sig::new(&[S]), |a| Ok(Value::string(base64_encode(&sbytes(a, 0)))));
+    f.add("b64enc", Sig::new(&[S]), |a| {
+        Ok(Value::string(base64_encode(&sbytes(a, 0))))
+    });
     f.add("b64dec", Sig::new(&[S]), |a| {
         Ok(Value::string(match base64_decode(sarg(a, 0).as_bytes()) {
             Ok(b) => strconv::lossy_vec(b),
             Err(e) => e,
         }))
     });
-    f.add("b32enc", Sig::new(&[S]), |a| Ok(Value::string(base32_encode(&sbytes(a, 0)))));
+    f.add("b32enc", Sig::new(&[S]), |a| {
+        Ok(Value::string(base32_encode(&sbytes(a, 0))))
+    });
     f.add("b32dec", Sig::new(&[S]), |a| {
         Ok(Value::string(match base32_decode(sarg(a, 0).as_bytes()) {
             Ok(b) => strconv::lossy_vec(b),
@@ -102,7 +223,9 @@ pub(super) fn register(f: &mut FuncMap) {
         }))
     });
     f.add("env", Sig::new(&[S]), |_| Ok(Value::str("")));
-    f.add("expandenv", Sig::new(&[S]), |a| Ok(Value::string(expand_env(sarg(a, 0)))));
+    f.add("expandenv", Sig::new(&[S]), |a| {
+        Ok(Value::string(expand_env(sarg(a, 0))))
+    });
 }
 
 pub(crate) fn hex(b: &[u8]) -> String {
@@ -171,7 +294,11 @@ fn indent(spaces: i64, v: &str) -> Result<String, FuncError> {
 }
 
 fn replace(src: &str, old: &str, new: &str) -> Result<String, FuncError> {
-    let n = if old.is_empty() { src.chars().count() + 1 } else { src.matches(old).count() };
+    let n = if old.is_empty() {
+        src.chars().count() + 1
+    } else {
+        src.matches(old).count()
+    };
     if (n as u128) * (new.len() as u128) + src.len() as u128 > MAX_OUTPUT as u128 {
         return Err(too_large("strings.Replace"));
     }
@@ -247,7 +374,9 @@ fn slice_err_alen(x: i64, len: usize) -> FuncError {
     if x < 0 {
         FuncError::new(format!("runtime error: slice bounds out of range [:{x}]"))
     } else {
-        FuncError::new(format!("runtime error: slice bounds out of range [:{x}] with length {len}"))
+        FuncError::new(format!(
+            "runtime error: slice bounds out of range [:{x}] with length {len}"
+        ))
     }
 }
 
@@ -255,7 +384,9 @@ fn slice_err_b(x: i64, y: i64) -> FuncError {
     if x < 0 {
         FuncError::new(format!("runtime error: slice bounds out of range [{x}:]"))
     } else {
-        FuncError::new(format!("runtime error: slice bounds out of range [{x}:{y}]"))
+        FuncError::new(format!(
+            "runtime error: slice bounds out of range [{x}:{y}]"
+        ))
     }
 }
 
@@ -442,8 +573,11 @@ fn quote(args: &[Value]) -> String {
 }
 
 fn squote(args: &[Value]) -> String {
-    let parts: Vec<String> =
-        args.iter().filter(|v| !v.is_nil()).map(|v| format!("'{}'", crate::gofmt::format_value(v))).collect();
+    let parts: Vec<String> = args
+        .iter()
+        .filter(|v| !v.is_nil())
+        .map(|v| format!("'{}'", crate::gofmt::format_value(v)))
+        .collect();
     parts.join(" ")
 }
 
@@ -493,20 +627,34 @@ pub(crate) fn strslice(v: &Value) -> Vec<String> {
     }
 }
 
-fn crypto_random(ctx: &mut CallCtx<'_>, count: i64, start: u32, end: u32, letters: bool, numbers: bool) -> FuncResult {
+fn crypto_random(
+    ctx: &mut CallCtx<'_>,
+    count: i64,
+    start: u32,
+    end: u32,
+    letters: bool,
+    numbers: bool,
+) -> FuncResult {
     if count <= 0 {
         return Ok(Value::str(""));
     }
     if count as u128 * 4 > MAX_OUTPUT as u128 {
         return Err(too_large("randString"));
     }
-    let (start, end) = if start == 0 && end == 0 { (b' ' as u32, b'z' as u32 + 1) } else { (start, end) };
+    let (start, end) = if start == 0 && end == 0 {
+        (b' ' as u32, b'z' as u32 + 1)
+    } else {
+        (start, end)
+    };
     let gap = (end - start) as u64;
     let mut out = String::with_capacity(count as usize);
     let mut n = 0;
     while n < count {
         let ch = (super::rand_below(ctx, gap) as u32 + start) as u8 as char;
-        if (letters && ch.is_ascii_alphabetic()) || (numbers && ch.is_ascii_digit()) || (!letters && !numbers) {
+        if (letters && ch.is_ascii_alphabetic())
+            || (numbers && ch.is_ascii_digit())
+            || (!letters && !numbers)
+        {
             out.push(ch);
             n += 1;
         }
@@ -715,7 +863,8 @@ fn next_word(s: &str) -> (WordType, &str, &str) {
         remaining = &remaining[size..];
         while !remaining.is_empty() {
             (r, size) = next_valid_rune(remaining, r);
-            if size == 0 || is_connector(r) || is_alphabet(r) || gu::is_number(r) || gu::is_punct(r) {
+            if size == 0 || is_connector(r) || is_alphabet(r) || gu::is_number(r) || gu::is_punct(r)
+            {
                 break;
             }
             offset += size;
@@ -813,12 +962,24 @@ const B32: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 pub(crate) fn base64_encode(src: &[u8]) -> String {
     let mut out = String::with_capacity(src.len().div_ceil(3) * 4);
     for chunk in src.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let v = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         out.push(B64[(v >> 18) as usize & 63] as char);
         out.push(B64[(v >> 12) as usize & 63] as char);
-        out.push(if chunk.len() > 1 { B64[(v >> 6) as usize & 63] as char } else { '=' });
-        out.push(if chunk.len() > 2 { B64[v as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 1 {
+            B64[(v >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            B64[v as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -893,7 +1054,10 @@ pub(crate) fn base64_decode(src: &[u8]) -> Result<Vec<u8>, String> {
             dlen = j;
             break;
         }
-        let val = ((dbuf[0] as u32) << 18) | ((dbuf[1] as u32) << 12) | ((dbuf[2] as u32) << 6) | dbuf[3] as u32;
+        let val = ((dbuf[0] as u32) << 18)
+            | ((dbuf[1] as u32) << 12)
+            | ((dbuf[2] as u32) << 6)
+            | dbuf[3] as u32;
         let bytes = [(val >> 16) as u8, (val >> 8) as u8, val as u8];
         dst.extend_from_slice(&bytes[..dlen - 1]);
         if let Some(e) = err {
@@ -908,7 +1072,11 @@ fn base32_encode(src: &[u8]) -> String {
     for chunk in src.chunks(5) {
         let mut b = [0u8; 5];
         b[..chunk.len()].copy_from_slice(chunk);
-        let v = ((b[0] as u64) << 32) | ((b[1] as u64) << 24) | ((b[2] as u64) << 16) | ((b[3] as u64) << 8) | b[4] as u64;
+        let v = ((b[0] as u64) << 32)
+            | ((b[1] as u64) << 24)
+            | ((b[2] as u64) << 16)
+            | ((b[3] as u64) << 8)
+            | b[4] as u64;
         let nchars = match chunk.len() {
             1 => 2,
             2 => 4,
@@ -929,7 +1097,11 @@ fn base32_encode(src: &[u8]) -> String {
 
 /// `base32.StdEncoding.DecodeString`.
 fn base32_decode(src: &[u8]) -> Result<Vec<u8>, String> {
-    let src: Vec<u8> = src.iter().copied().filter(|&c| c != b'\n' && c != b'\r').collect();
+    let src: Vec<u8> = src
+        .iter()
+        .copied()
+        .filter(|&c| c != b'\n' && c != b'\r')
+        .collect();
     let olen = src.len();
     let mut s = &src[..];
     let mut dst = Vec::new();
@@ -998,7 +1170,12 @@ fn base32_decode(src: &[u8]) -> Result<Vec<u8>, String> {
 
 fn expand_env(s: &str) -> String {
     let b = s.as_bytes();
-    let special = |c: u8| matches!(c, b'*' | b'#' | b'$' | b'@' | b'!' | b'?' | b'-' | b'0'..=b'9');
+    let special = |c: u8| {
+        matches!(
+            c,
+            b'*' | b'#' | b'$' | b'@' | b'!' | b'?' | b'-' | b'0'..=b'9'
+        )
+    };
     let alnum = |c: u8| c == b'_' || c.is_ascii_alphanumeric();
     let mut buf: Option<Vec<u8>> = None;
     let mut i = 0;

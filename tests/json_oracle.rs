@@ -130,14 +130,18 @@ fn corpus() -> Vec<String> {
 #[test]
 fn from_json_corpus_matches_helm() {
     let inputs = without_null(corpus());
-    let Some(m) = diff_inputs(&inputs, &from_json_probe, &json_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_json_probe, &json_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
 #[test]
 fn from_json_array_corpus_matches_helm() {
     let inputs = without_null(corpus());
-    let Some(m) = diff_inputs(&inputs, &from_json_array_probe, &json_array_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_json_array_probe, &json_array_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }
 
@@ -175,7 +179,9 @@ fn gen_json(r: &mut Rng, depth: usize) -> String {
                     '"' => out.push_str("\\\""),
                     '\\' => out.push_str("\\\\"),
                     c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-                    c if r.chance(5) && (c as u32) < 0x10000 => out.push_str(&format!("\\u{:04X}", c as u32)),
+                    c if r.chance(5) && (c as u32) < 0x10000 => {
+                        out.push_str(&format!("\\u{:04X}", c as u32))
+                    }
                     c => out.push(c),
                 }
             }
@@ -189,17 +195,33 @@ fn gen_json(r: &mut Rng, depth: usize) -> String {
             let n = r.below(5);
             let items: Vec<String> = (0..n)
                 .map(|i| {
-                    let key =
-                        if r.chance(70) { format!("k{}", r.below(6) + i) } else { format!("{:?}", rand_string(r)) };
-                    let key = if key.starts_with('"') { key } else { format!("\"{key}\"") };
-                    format!("{}{}{}:{}{}", ws(r), key, ws(r), ws(r), gen_json(r, depth + 1))
+                    let key = if r.chance(70) {
+                        format!("k{}", r.below(6) + i)
+                    } else {
+                        format!("{:?}", rand_string(r))
+                    };
+                    let key = if key.starts_with('"') {
+                        key
+                    } else {
+                        format!("\"{key}\"")
+                    };
+                    format!(
+                        "{}{}{}:{}{}",
+                        ws(r),
+                        key,
+                        ws(r),
+                        ws(r),
+                        gen_json(r, depth + 1)
+                    )
                 })
                 .collect();
             format!("{{{}{}}}", items.join(","), ws(r))
         }
         _ => {
             let n = r.below(5);
-            let items: Vec<String> = (0..n).map(|_| format!("{}{}", ws(r), gen_json(r, depth + 1))).collect();
+            let items: Vec<String> = (0..n)
+                .map(|_| format!("{}{}", ws(r), gen_json(r, depth + 1)))
+                .collect();
             format!("[{}{}]", items.join(","), ws(r))
         }
     }
@@ -208,23 +230,36 @@ fn gen_json(r: &mut Rng, depth: usize) -> String {
 #[test]
 fn random_json_matches_helm() {
     let mut r = Rng::new(99);
-    let n: usize = std::env::var("YAML_FUZZ_CASES").ok().and_then(|s| s.parse().ok()).unwrap_or(3000);
+    let n: usize = std::env::var("YAML_FUZZ_CASES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3000);
     let inputs: Vec<String> = (0..n)
         .map(|i| {
             let doc = if r.chance(80) {
                 let n = r.below(4);
-                let items: Vec<String> = (0..n).map(|j| format!("\"k{j}\": {}", gen_json(&mut r, 1))).collect();
+                let items: Vec<String> = (0..n)
+                    .map(|j| format!("\"k{j}\": {}", gen_json(&mut r, 1)))
+                    .collect();
                 format!("{{{}}}", items.join(", "))
             } else {
                 gen_json(&mut r, 0)
             };
-            if i % 3 == 0 { mutate(&mut r, &doc) } else { doc }
+            if i % 3 == 0 {
+                mutate(&mut r, &doc)
+            } else {
+                doc
+            }
         })
         .collect();
     let inputs = without_null(inputs);
-    let Some(m) = diff_inputs(&inputs, &from_json_probe, &json_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_json_probe, &json_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
     // The same documents parsed as YAML (JSON is YAML).
-    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else { return };
+    let Some(m) = diff_inputs(&inputs, &from_yaml_probe, &from_yaml_probe_rust) else {
+        return;
+    };
     report(&m, inputs.len());
 }

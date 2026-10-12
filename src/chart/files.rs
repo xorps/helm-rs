@@ -22,19 +22,29 @@ pub struct Files {
 
 impl Files {
     pub fn new(files: impl IntoIterator<Item = (String, Rc<[u8]>)>) -> Files {
-        Files { files: files.into_iter().collect() }
+        Files {
+            files: files.into_iter().collect(),
+        }
     }
 
     /// `files.GetBytes`.
     pub fn get_bytes(&self, name: &str) -> Rc<[u8]> {
-        self.files.get(name).cloned().unwrap_or_else(|| Rc::from(&[][..]))
+        self.files
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| Rc::from(&[][..]))
     }
 
     /// `files.Glob`: invalid patterns match everything (Helm falls back to `**`).
     pub fn glob(&self, pattern: &str) -> Files {
         let g = Glob::compile(pattern).or_else(|_| Glob::compile("**"));
         let files = match g {
-            Ok(g) => self.files.iter().filter(|(n, _)| g.matches(n)).map(|(n, d)| (n.clone(), d.clone())).collect(),
+            Ok(g) => self
+                .files
+                .iter()
+                .filter(|(n, _)| g.matches(n))
+                .map(|(n, d)| (n.clone(), d.clone()))
+                .collect(),
             Err(_) => self.files.clone(),
         };
         Files { files }
@@ -53,7 +63,11 @@ impl Files {
     }
 
     fn as_yaml(&self, f: impl Fn(&[u8]) -> String) -> String {
-        let m: Map = self.files.iter().map(|(k, v)| (String::from(base(k)), Value::string(f(v)))).collect();
+        let m: Map = self
+            .files
+            .iter()
+            .map(|(k, v)| (String::from(base(k)), Value::string(f(v))))
+            .collect();
         match crate::yaml::to_string(&Value::map(m)) {
             Ok(s) => String::from(s.strip_suffix('\n').unwrap_or(&s)),
             Err(_) => String::new(),
@@ -80,8 +94,16 @@ pub(crate) fn base64_std(data: &[u8]) -> String {
         let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
         out.push(T[(n >> 18) as usize & 63] as char);
         out.push(T[(n >> 12) as usize & 63] as char);
-        out.push(if c.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if c.len() > 2 { T[n as usize & 63] as char } else { '=' });
+        out.push(if c.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -112,7 +134,9 @@ impl Object for Files {
             "Get" => Ok(Value::go_string(&self.get_bytes(arg()))),
             "GetBytes" => Ok(Value::Bytes(self.get_bytes(arg()))),
             "Glob" => Ok(Value::object(self.glob(arg()))),
-            "Lines" => Ok(Value::string_list(self.lines(arg()).into_iter().map(Value::string).collect())),
+            "Lines" => Ok(Value::string_list(
+                self.lines(arg()).into_iter().map(Value::string).collect(),
+            )),
             "AsConfig" => Ok(Value::string(self.as_config())),
             "AsSecrets" => Ok(Value::string(self.as_secrets())),
             _ => Err(FuncError::new(alloc::format!("no method {name}"))),
@@ -139,7 +163,12 @@ impl Object for Files {
     }
     /// The map of file names to bytes (what `range`, `len` and `toJson` see).
     fn to_data(&self) -> Value {
-        Value::map(self.files.iter().map(|(k, v)| (k.clone(), Value::Bytes(v.clone()))).collect())
+        Value::map(
+            self.files
+                .iter()
+                .map(|(k, v)| (k.clone(), Value::Bytes(v.clone())))
+                .collect(),
+        )
     }
     fn truthy(&self) -> bool {
         !self.files.is_empty()
@@ -155,7 +184,10 @@ mod tests {
 
     #[test]
     fn lines_and_b64() {
-        let f = Files::new([("a.txt".into(), Rc::from(&b"x\ny\n"[..])), ("b/c".into(), Rc::from(&b""[..]))]);
+        let f = Files::new([
+            ("a.txt".into(), Rc::from(&b"x\ny\n"[..])),
+            ("b/c".into(), Rc::from(&b""[..])),
+        ]);
         assert_eq!(f.lines("a.txt"), ["x", "y"]);
         assert!(f.lines("b/c").is_empty());
         assert_eq!(base64_std(b"hello"), "aGVsbG8=");

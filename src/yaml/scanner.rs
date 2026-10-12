@@ -212,7 +212,9 @@ impl<'a> Scanner<'a> {
         c == b'\r'
             || c == b'\n'
             || c == 0xC2 && self.at(k + 1) == 0x85
-            || c == 0xE2 && self.at(k + 1) == 0x80 && (self.at(k + 2) == 0xA8 || self.at(k + 2) == 0xA9)
+            || c == 0xE2
+                && self.at(k + 1) == 0x80
+                && (self.at(k + 2) == 0xA8 || self.at(k + 2) == 0xA9)
     }
     fn is_breakz(&self, k: usize) -> bool {
         self.is_break(k) || self.is_z(k)
@@ -243,7 +245,9 @@ impl<'a> Scanner<'a> {
     /// Go's `is_bom(buffer, pos)` which, quirkily, looks at the start of the
     /// buffer rather than at `pos`.
     fn is_bom_quirk(&self) -> bool {
-        self.buffer.first() == Some(&0xEF) && self.buffer.get(1) == Some(&0xBB) && self.buffer.get(2) == Some(&0xBF)
+        self.buffer.first() == Some(&0xEF)
+            && self.buffer.get(1) == Some(&0xBB)
+            && self.buffer.get(2) == Some(&0xBF)
     }
 
     #[inline]
@@ -337,7 +341,8 @@ impl<'a> Scanner<'a> {
             return;
         }
         let n = (RAW_BUFFER_SIZE - self.raw.len()).min(self.input.len() - self.input_pos);
-        self.raw.extend_from_slice(&self.input[self.input_pos..self.input_pos + n]);
+        self.raw
+            .extend_from_slice(&self.input[self.input_pos..self.input_pos + n]);
         self.input_pos += n;
     }
 
@@ -381,7 +386,8 @@ impl<'a> Scanner<'a> {
                 }
                 if w > raw_unread {
                     if self.eof {
-                        return self.set_reader_error("incomplete UTF-8 octet sequence", self.offset);
+                        return self
+                            .set_reader_error("incomplete UTF-8 octet sequence", self.offset);
                     }
                     break;
                 }
@@ -394,7 +400,8 @@ impl<'a> Scanner<'a> {
                 for k in 1..w {
                     let o = self.raw[self.raw_pos + k];
                     if o & 0xC0 != 0x80 {
-                        return self.set_reader_error("invalid trailing UTF-8 octet", self.offset + k);
+                        return self
+                            .set_reader_error("invalid trailing UTF-8 octet", self.offset + k);
                     }
                     value = (value << 6) + (o & 0x3F) as u32;
                 }
@@ -405,7 +412,8 @@ impl<'a> Scanner<'a> {
                     _ => value >= 0x10000,
                 };
                 if !ok_len {
-                    return self.set_reader_error("invalid length of a UTF-8 sequence", self.offset);
+                    return self
+                        .set_reader_error("invalid length of a UTF-8 sequence", self.offset);
                 }
                 if (0xD800..=0xDFFF).contains(&value) || value > 0x10FFFF {
                     return self.set_reader_error("invalid Unicode character", self.offset);
@@ -419,9 +427,11 @@ impl<'a> Scanner<'a> {
                     || (0xE000..=0xFFFD).contains(&value)
                     || (0x10000..=0x10FFFF).contains(&value);
                 if !allowed {
-                    return self.set_reader_error("control characters are not allowed", self.offset);
+                    return self
+                        .set_reader_error("control characters are not allowed", self.offset);
                 }
-                self.buffer.extend_from_slice(&self.raw[self.raw_pos..self.raw_pos + w]);
+                self.buffer
+                    .extend_from_slice(&self.raw[self.raw_pos..self.raw_pos + w]);
                 self.raw_pos += w;
                 self.offset += w;
                 self.unread += 1;
@@ -464,8 +474,17 @@ impl<'a> Scanner<'a> {
         false
     }
 
-    fn set_scanner_tag_error(&mut self, directive: bool, context_mark: Mark, problem: &str) -> bool {
-        let context = if directive { "while parsing a %TAG directive" } else { "while parsing a tag" };
+    fn set_scanner_tag_error(
+        &mut self,
+        directive: bool,
+        context_mark: Mark,
+        problem: &str,
+    ) -> bool {
+        let context = if directive {
+            "while parsing a %TAG directive"
+        } else {
+            "while parsing a tag"
+        };
         self.set_scanner_error(context, context_mark, problem)
     }
 
@@ -512,10 +531,20 @@ impl<'a> Scanner<'a> {
         if self.mark.column == 0 && c == b'%' {
             return self.fetch_directive();
         }
-        if self.mark.column == 0 && c == b'-' && self.at(1) == b'-' && self.at(2) == b'-' && self.is_blankz(3) {
+        if self.mark.column == 0
+            && c == b'-'
+            && self.at(1) == b'-'
+            && self.at(2) == b'-'
+            && self.is_blankz(3)
+        {
             return self.fetch_document_indicator(TokenType::DocumentStart);
         }
-        if self.mark.column == 0 && c == b'.' && self.at(1) == b'.' && self.at(2) == b'.' && self.is_blankz(3) {
+        if self.mark.column == 0
+            && c == b'.'
+            && self.at(1) == b'.'
+            && self.at(2) == b'.'
+            && self.is_blankz(3)
+        {
             return self.fetch_document_indicator(TokenType::DocumentEnd);
         }
         match c {
@@ -573,7 +602,11 @@ impl<'a> Scanner<'a> {
             return self.fetch_plain_scalar();
         }
         let m = self.mark;
-        self.set_scanner_error("while scanning for the next token", m, "found character that cannot start any token")
+        self.set_scanner_error(
+            "while scanning for the next token",
+            m,
+            "found character that cannot start any token",
+        )
     }
 
     /// `None` on error, otherwise whether the key is still valid.
@@ -587,7 +620,11 @@ impl<'a> Scanner<'a> {
         }
         if key.mark.line < self.mark.line || key.mark.index + 1024 < self.mark.index {
             if key.required {
-                self.set_scanner_error("while scanning a simple key", key.mark, "could not find expected ':'");
+                self.set_scanner_error(
+                    "while scanning a simple key",
+                    key.mark,
+                    "could not find expected ':'",
+                );
                 return None;
             }
             self.simple_keys[idx].possible = false;
@@ -620,7 +657,11 @@ impl<'a> Scanner<'a> {
         if self.simple_keys[i].possible {
             if self.simple_keys[i].required {
                 let m = self.simple_keys[i].mark;
-                return self.set_scanner_error("while scanning a simple key", m, "could not find expected ':'");
+                return self.set_scanner_error(
+                    "while scanning a simple key",
+                    m,
+                    "could not find expected ':'",
+                );
             }
             self.simple_keys[i].possible = false;
             let tn = self.simple_keys[i].token_number;
@@ -657,7 +698,13 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn roll_indent(&mut self, column: i64, number: Option<usize>, typ: TokenType, mark: Mark) -> bool {
+    fn roll_indent(
+        &mut self,
+        column: i64,
+        number: Option<usize>,
+        typ: TokenType,
+        mark: Mark,
+    ) -> bool {
         if self.flow_level > 0 {
             return true;
         }
@@ -672,7 +719,12 @@ impl<'a> Scanner<'a> {
                     &format!("exceeded max depth of {MAX_INDENTS}"),
                 );
             }
-            let token = Token { typ, start_mark: mark, end_mark: mark, ..Default::default() };
+            let token = Token {
+                typ,
+                start_mark: mark,
+                end_mark: mark,
+                ..Default::default()
+            };
             let pos = number.map(|n| n.saturating_sub(self.tokens_parsed));
             self.insert_token(pos, token);
         }
@@ -684,8 +736,12 @@ impl<'a> Scanner<'a> {
             return;
         }
         while self.indent > column {
-            let token =
-                Token { typ: TokenType::BlockEnd, start_mark: self.mark, end_mark: self.mark, ..Default::default() };
+            let token = Token {
+                typ: TokenType::BlockEnd,
+                start_mark: self.mark,
+                end_mark: self.mark,
+                ..Default::default()
+            };
             self.insert_token(None, token);
             self.indent = self.indents.pop().unwrap_or(-1);
         }
@@ -697,8 +753,12 @@ impl<'a> Scanner<'a> {
         self.simple_keys_by_tok.clear();
         self.simple_key_allowed = true;
         self.stream_start_produced = true;
-        let token =
-            Token { typ: TokenType::StreamStart, start_mark: self.mark, end_mark: self.mark, ..Default::default() };
+        let token = Token {
+            typ: TokenType::StreamStart,
+            start_mark: self.mark,
+            end_mark: self.mark,
+            ..Default::default()
+        };
         self.insert_token(None, token);
     }
 
@@ -712,8 +772,12 @@ impl<'a> Scanner<'a> {
             return false;
         }
         self.simple_key_allowed = false;
-        let token =
-            Token { typ: TokenType::StreamEnd, start_mark: self.mark, end_mark: self.mark, ..Default::default() };
+        let token = Token {
+            typ: TokenType::StreamEnd,
+            start_mark: self.mark,
+            end_mark: self.mark,
+            ..Default::default()
+        };
         self.insert_token(None, token);
         true
     }
@@ -743,7 +807,15 @@ impl<'a> Scanner<'a> {
         self.skip();
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -758,7 +830,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -771,7 +851,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -783,7 +871,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ: TokenType::FlowEntry, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ: TokenType::FlowEntry,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -791,7 +887,11 @@ impl<'a> Scanner<'a> {
         if self.flow_level == 0 {
             if !self.simple_key_allowed {
                 let m = self.mark;
-                return self.set_scanner_error("", m, "block sequence entries are not allowed in this context");
+                return self.set_scanner_error(
+                    "",
+                    m,
+                    "block sequence entries are not allowed in this context",
+                );
             }
             let (col, m) = (self.mark.column as i64, self.mark);
             if !self.roll_indent(col, None, TokenType::BlockSequenceStart, m) {
@@ -805,7 +905,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ: TokenType::BlockEntry, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ: TokenType::BlockEntry,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -813,7 +921,11 @@ impl<'a> Scanner<'a> {
         if self.flow_level == 0 {
             if !self.simple_key_allowed {
                 let m = self.mark;
-                return self.set_scanner_error("", m, "mapping keys are not allowed in this context");
+                return self.set_scanner_error(
+                    "",
+                    m,
+                    "mapping keys are not allowed in this context",
+                );
             }
             let (col, m) = (self.mark.column as i64, self.mark);
             if !self.roll_indent(col, None, TokenType::BlockMappingStart, m) {
@@ -827,7 +939,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ: TokenType::Key, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ: TokenType::Key,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -837,8 +957,16 @@ impl<'a> Scanner<'a> {
             None => return false,
             Some(true) => {
                 let sk = self.simple_keys[idx];
-                let token = Token { typ: TokenType::Key, start_mark: sk.mark, end_mark: sk.mark, ..Default::default() };
-                self.insert_token(Some(sk.token_number.saturating_sub(self.tokens_parsed)), token);
+                let token = Token {
+                    typ: TokenType::Key,
+                    start_mark: sk.mark,
+                    end_mark: sk.mark,
+                    ..Default::default()
+                };
+                self.insert_token(
+                    Some(sk.token_number.saturating_sub(self.tokens_parsed)),
+                    token,
+                );
                 if !self.roll_indent(
                     sk.mark.column as i64,
                     Some(sk.token_number),
@@ -855,7 +983,11 @@ impl<'a> Scanner<'a> {
                 if self.flow_level == 0 {
                     if !self.simple_key_allowed {
                         let m = self.mark;
-                        return self.set_scanner_error("", m, "mapping values are not allowed in this context");
+                        return self.set_scanner_error(
+                            "",
+                            m,
+                            "mapping values are not allowed in this context",
+                        );
                     }
                     let (col, m) = (self.mark.column as i64, self.mark);
                     if !self.roll_indent(col, None, TokenType::BlockMappingStart, m) {
@@ -868,7 +1000,15 @@ impl<'a> Scanner<'a> {
         let start_mark = self.mark;
         self.skip();
         let end_mark = self.mark;
-        self.insert_token(None, Token { typ: TokenType::Value, start_mark, end_mark, ..Default::default() });
+        self.insert_token(
+            None,
+            Token {
+                typ: TokenType::Value,
+                start_mark,
+                end_mark,
+                ..Default::default()
+            },
+        );
         true
     }
 
@@ -948,7 +1088,9 @@ impl<'a> Scanner<'a> {
             if !self.cache(1) {
                 return false;
             }
-            while self.ch() == b' ' || ((self.flow_level > 0 || !self.simple_key_allowed) && self.ch() == b'\t') {
+            while self.ch() == b' '
+                || ((self.flow_level > 0 || !self.simple_key_allowed) && self.ch() == b'\t')
+            {
                 self.skip();
                 if !self.cache(1) {
                     return false;
@@ -1011,7 +1153,11 @@ impl<'a> Scanner<'a> {
                 ..Default::default()
             };
         } else {
-            return self.set_scanner_error("while scanning a directive", start_mark, "found unknown directive name");
+            return self.set_scanner_error(
+                "while scanning a directive",
+                start_mark,
+                "found unknown directive name",
+            );
         }
         if !self.cache(1) {
             return false;
@@ -1075,7 +1221,12 @@ impl<'a> Scanner<'a> {
         true
     }
 
-    fn scan_version_directive_value(&mut self, start_mark: Mark, major: &mut i8, minor: &mut i8) -> bool {
+    fn scan_version_directive_value(
+        &mut self,
+        start_mark: Mark,
+        major: &mut i8,
+        minor: &mut i8,
+    ) -> bool {
         if !self.cache(1) {
             return false;
         }
@@ -1113,7 +1264,9 @@ impl<'a> Scanner<'a> {
                     "found extremely long version number",
                 );
             }
-            value = value.wrapping_mul(10).wrapping_add((self.ch() - b'0') as i8);
+            value = value
+                .wrapping_mul(10)
+                .wrapping_add((self.ch() - b'0') as i8);
             self.skip();
             if !self.cache(1) {
                 return false;
@@ -1130,7 +1283,12 @@ impl<'a> Scanner<'a> {
         true
     }
 
-    fn scan_tag_directive_value(&mut self, start_mark: Mark, handle: &mut Vec<u8>, prefix: &mut Vec<u8>) -> bool {
+    fn scan_tag_directive_value(
+        &mut self,
+        start_mark: Mark,
+        handle: &mut Vec<u8>,
+        prefix: &mut Vec<u8>,
+    ) -> bool {
         if !self.cache(1) {
             return false;
         }
@@ -1194,15 +1352,28 @@ impl<'a> Scanner<'a> {
         }
         let end_mark = self.mark;
         let c = self.ch();
-        if s.is_empty() || !(self.is_blankz(0) || matches!(c, b'?' | b':' | b',' | b']' | b'}' | b'%' | b'@' | b'`')) {
-            let context = if typ == TokenType::Anchor { "while scanning an anchor" } else { "while scanning an alias" };
+        if s.is_empty()
+            || !(self.is_blankz(0)
+                || matches!(c, b'?' | b':' | b',' | b']' | b'}' | b'%' | b'@' | b'`'))
+        {
+            let context = if typ == TokenType::Anchor {
+                "while scanning an anchor"
+            } else {
+                "while scanning an alias"
+            };
             return self.set_scanner_error(
                 context,
                 start_mark,
                 "did not find expected alphabetic or numeric character",
             );
         }
-        *token = Token { typ, start_mark, end_mark, value: s, ..Default::default() };
+        *token = Token {
+            typ,
+            start_mark,
+            end_mark,
+            value: s,
+            ..Default::default()
+        };
         true
     }
 
@@ -1220,7 +1391,11 @@ impl<'a> Scanner<'a> {
                 return false;
             }
             if self.ch() != b'>' {
-                return self.set_scanner_error("while scanning a tag", start_mark, "did not find the expected '>'");
+                return self.set_scanner_error(
+                    "while scanning a tag",
+                    start_mark,
+                    "did not find the expected '>'",
+                );
             }
             self.skip();
         } else {
@@ -1252,8 +1427,14 @@ impl<'a> Scanner<'a> {
                 "did not find expected whitespace or line break",
             );
         }
-        *token =
-            Token { typ: TokenType::Tag, start_mark, end_mark: self.mark, value: handle, suffix, ..Default::default() };
+        *token = Token {
+            typ: TokenType::Tag,
+            start_mark,
+            end_mark: self.mark,
+            value: handle,
+            suffix,
+            ..Default::default()
+        };
         true
     }
 
@@ -1284,7 +1465,13 @@ impl<'a> Scanner<'a> {
         true
     }
 
-    fn scan_tag_uri(&mut self, directive: bool, head: Option<&[u8]>, start_mark: Mark, uri: &mut Vec<u8>) -> bool {
+    fn scan_tag_uri(
+        &mut self,
+        directive: bool,
+        head: Option<&[u8]>,
+        start_mark: Mark,
+        uri: &mut Vec<u8>,
+    ) -> bool {
         let mut s = Vec::new();
         let head = head.unwrap_or(&[]);
         let mut has_tag = !head.is_empty();
@@ -1335,7 +1522,11 @@ impl<'a> Scanner<'a> {
             has_tag = true;
         }
         if !has_tag {
-            return self.set_scanner_tag_error(directive, start_mark, "did not find expected tag URI");
+            return self.set_scanner_tag_error(
+                directive,
+                start_mark,
+                "did not find expected tag URI",
+            );
         }
         *uri = s;
         true
@@ -1348,16 +1539,28 @@ impl<'a> Scanner<'a> {
                 return false;
             }
             if !(self.ch() == b'%' && self.is_hex(1) && self.is_hex(2)) {
-                return self.set_scanner_tag_error(directive, start_mark, "did not find URI escaped octet");
+                return self.set_scanner_tag_error(
+                    directive,
+                    start_mark,
+                    "did not find URI escaped octet",
+                );
             }
             let octet = ((self.as_hex(1) << 4) + self.as_hex(2)) as u8;
             if w == 1024 {
                 w = width(octet);
                 if w == 0 {
-                    return self.set_scanner_tag_error(directive, start_mark, "found an incorrect leading UTF-8 octet");
+                    return self.set_scanner_tag_error(
+                        directive,
+                        start_mark,
+                        "found an incorrect leading UTF-8 octet",
+                    );
                 }
             } else if octet & 0xC0 != 0x80 {
-                return self.set_scanner_tag_error(directive, start_mark, "found an incorrect trailing UTF-8 octet");
+                return self.set_scanner_tag_error(
+                    directive,
+                    start_mark,
+                    "found an incorrect trailing UTF-8 octet",
+                );
             }
             s.push(octet);
             self.skip();
@@ -1444,12 +1647,21 @@ impl<'a> Scanner<'a> {
         let mut end_mark = self.mark;
         let mut indent: i64 = 0;
         if increment > 0 {
-            indent = if self.indent >= 0 { self.indent + increment } else { increment };
+            indent = if self.indent >= 0 {
+                self.indent + increment
+            } else {
+                increment
+            };
         }
         let mut s = Vec::new();
         let mut leading_break = Vec::new();
         let mut trailing_breaks = Vec::new();
-        if !self.scan_block_scalar_breaks(&mut indent, &mut trailing_breaks, start_mark, &mut end_mark) {
+        if !self.scan_block_scalar_breaks(
+            &mut indent,
+            &mut trailing_breaks,
+            start_mark,
+            &mut end_mark,
+        ) {
             return false;
         }
         if !self.cache(1) {
@@ -1458,7 +1670,11 @@ impl<'a> Scanner<'a> {
         let mut leading_blank = false;
         while self.mark.column as i64 == indent && !self.is_z(0) {
             let trailing_blank = self.is_blank(0);
-            if !literal && !leading_blank && !trailing_blank && leading_break.first() == Some(&b'\n') {
+            if !literal
+                && !leading_blank
+                && !trailing_blank
+                && leading_break.first() == Some(&b'\n')
+            {
                 if trailing_breaks.is_empty() {
                     s.push(b' ');
                 }
@@ -1479,7 +1695,12 @@ impl<'a> Scanner<'a> {
                 return false;
             }
             self.read_line(&mut leading_break);
-            if !self.scan_block_scalar_breaks(&mut indent, &mut trailing_breaks, start_mark, &mut end_mark) {
+            if !self.scan_block_scalar_breaks(
+                &mut indent,
+                &mut trailing_breaks,
+                start_mark,
+                &mut end_mark,
+            ) {
                 return false;
             }
         }
@@ -1494,7 +1715,11 @@ impl<'a> Scanner<'a> {
             start_mark,
             end_mark,
             value: s,
-            style: if literal { ScalarStyle::Literal } else { ScalarStyle::Folded },
+            style: if literal {
+                ScalarStyle::Literal
+            } else {
+                ScalarStyle::Folded
+            },
             ..Default::default()
         };
         true
@@ -1720,7 +1945,11 @@ impl<'a> Scanner<'a> {
             start_mark,
             end_mark: self.mark,
             value: s,
-            style: if single { ScalarStyle::SingleQuoted } else { ScalarStyle::DoubleQuoted },
+            style: if single {
+                ScalarStyle::SingleQuoted
+            } else {
+                ScalarStyle::DoubleQuoted
+            },
             ..Default::default()
         };
         true

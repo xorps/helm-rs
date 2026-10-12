@@ -51,7 +51,10 @@ pub struct Arg {
 
 impl Arg {
     pub fn new(value: Value, tmpl: impl Into<String>) -> Arg {
-        Arg { value, tmpl: tmpl.into() }
+        Arg {
+            value,
+            tmpl: tmpl.into(),
+        }
     }
 }
 
@@ -72,7 +75,13 @@ pub fn float_arg(f: f64) -> Arg {
     if f.is_finite() {
         Arg::new(Value::Float(f), format!("{f:e}"))
     } else {
-        let s = if f.is_nan() { "NaN" } else if f > 0.0 { "+Inf" } else { "-Inf" };
+        let s = if f.is_nan() {
+            "NaN"
+        } else if f > 0.0 {
+            "+Inf"
+        } else {
+            "-Inf"
+        };
         Arg::new(Value::Float(f), format!("(float64 {})", lit(s)))
     }
 }
@@ -81,9 +90,19 @@ pub fn list_arg(items: Vec<Arg>) -> Arg {
     let tmpl = if items.is_empty() {
         "(list)".to_string()
     } else {
-        format!("(list {})", items.iter().map(|a| a.tmpl.as_str()).collect::<Vec<_>>().join(" "))
+        format!(
+            "(list {})",
+            items
+                .iter()
+                .map(|a| a.tmpl.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
     };
-    Arg::new(Value::list(items.into_iter().map(|a| a.value).collect()), tmpl)
+    Arg::new(
+        Value::list(items.into_iter().map(|a| a.value).collect()),
+        tmpl,
+    )
 }
 
 pub fn dict_arg(items: Vec<(String, Arg)>) -> Arg {
@@ -93,15 +112,20 @@ pub fn dict_arg(items: Vec<(String, Arg)>) -> Arg {
         parts.push(format!("{} {}", lit(&k), v.tmpl));
         m.insert(k, v.value);
     }
-    let tmpl = if parts.is_empty() { "(dict)".to_string() } else { format!("(dict {})", parts.join(" ")) };
+    let tmpl = if parts.is_empty() {
+        "(dict)".to_string()
+    } else {
+        format!("(dict {})", parts.join(" "))
+    };
     Arg::new(Value::map(m), tmpl)
 }
 
 const STR_ALPHABET: &[&str] = &[
-    "a", "b", "z", "A", "Z", "0", "9", " ", "  ", "\t", "\n", "-", "_", ".", ",", "/", "\\", "\"", "'", "`", "%", "{",
-    "}", "é", "ß", "ǅ", "日本", "€", "😀", "\u{0}", "\u{7f}", "\u{ad}", "\u{feff}", "\u{2028}", "\u{a0}", "İ", "x", "y",
-    "hello", "World", "foo_bar", "fooBar", "FOO", "http", "://", "=", "+", "*", "?", "(", ")", "[", "]", "|", "^", "$",
-    "\u{1F80}", "ǆ", "Ⅻ", "١", "µ", "ﬀ",
+    "a", "b", "z", "A", "Z", "0", "9", " ", "  ", "\t", "\n", "-", "_", ".", ",", "/", "\\", "\"",
+    "'", "`", "%", "{", "}", "é", "ß", "ǅ", "日本", "€", "😀", "\u{0}", "\u{7f}", "\u{ad}",
+    "\u{feff}", "\u{2028}", "\u{a0}", "İ", "x", "y", "hello", "World", "foo_bar", "fooBar", "FOO",
+    "http", "://", "=", "+", "*", "?", "(", ")", "[", "]", "|", "^", "$", "\u{1F80}", "ǆ", "Ⅻ",
+    "١", "µ", "ﬀ",
 ];
 
 pub fn rand_string(rng: &mut Rng, max_parts: u64) -> String {
@@ -126,7 +150,17 @@ pub fn rand_float(rng: &mut Rng) -> f64 {
         }
         6 => rng.range(-100000, 100000) as f64 / 1000.0,
         7 => 10f64.powi(rng.range(-30, 30) as i32) * (rng.range(1, 99) as f64),
-        8 => *rng.pick(&[f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e21, 1e20, 123456789.0, 0.1, 0.000001, 1e-7]),
+        8 => *rng.pick(&[
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            1e21,
+            1e20,
+            123456789.0,
+            0.1,
+            0.000001,
+            1e-7,
+        ]),
         _ => rng.range(-5, 5) as f64 + 0.5,
     }
 }
@@ -137,14 +171,28 @@ pub fn rand_int(rng: &mut Rng) -> i64 {
         1 => rng.range(-20, 20),
         2 => rng.range(-100000, 100000),
         3 => rng.next() as i64,
-        4 => *rng.pick(&[i64::MAX, i64::MIN + 1, 255, 256, 65, 0x1F600, 0x10FFFF, 0x110000, -1]),
+        4 => *rng.pick(&[
+            i64::MAX,
+            i64::MIN + 1,
+            255,
+            256,
+            65,
+            0x1F600,
+            0x10FFFF,
+            0x110000,
+            -1,
+        ]),
         _ => rng.range(0, 1000),
     }
 }
 
 /// A random argument of any kind; `depth` limits nesting.
 pub fn rand_arg(rng: &mut Rng, depth: u32) -> Arg {
-    let k = if depth == 0 { rng.below(8) } else { rng.below(11) };
+    let k = if depth == 0 {
+        rng.below(8)
+    } else {
+        rng.below(11)
+    };
     match k {
         0 | 1 => int_arg(rand_int(rng)),
         2 | 3 => float_arg(rand_float(rng)),
@@ -167,11 +215,22 @@ pub fn rand_arg(rng: &mut Rng, depth: u32) -> Arg {
         }
         9 => {
             let n = rng.below(4);
-            dict_arg((0..n).map(|_| (rand_string(rng, 2), rand_arg(rng, depth - 1))).collect())
+            dict_arg(
+                (0..n)
+                    .map(|_| (rand_string(rng, 2), rand_arg(rng, depth - 1)))
+                    .collect(),
+            )
         }
         _ => {
-            let u = if rng.chance(1, 2) { rng.next() } else { rng.below(300) };
-            Arg::new(Value::Uint64(u), format!("(semver {}).Major", lit(&format!("{u}.0.0"))))
+            let u = if rng.chance(1, 2) {
+                rng.next()
+            } else {
+                rng.below(300)
+            };
+            Arg::new(
+                Value::Uint64(u),
+                format!("(semver {}).Major", lit(&format!("{u}.0.0"))),
+            )
         }
     }
 }
@@ -192,11 +251,15 @@ pub fn func_error_message(err: &str) -> String {
 /// Expressions that fail are isolated by bisection and reported as `Err`.
 /// Returns `None` when the oracle is unavailable.
 pub fn helm_eval_many(exprs: &[String], values_yaml: &str) -> Option<Vec<Result<String, String>>> {
-    let tmpl: String = exprs.iter().map(|e| format!("{{{{ {e} }}}}{SEP}")).collect();
+    let tmpl: String = exprs
+        .iter()
+        .map(|e| format!("{{{{ {e} }}}}{SEP}"))
+        .collect();
     let out = common::helm_render_one(&tmpl, values_yaml)?;
     match out {
         Ok(text) => {
-            let mut parts: Vec<Result<String, String>> = text.split(SEP).map(|s| Ok(s.to_string())).collect();
+            let mut parts: Vec<Result<String, String>> =
+                text.split(SEP).map(|s| Ok(s.to_string())).collect();
             parts.pop(); // trailing empty piece
             if parts.len() != exprs.len() {
                 // Some output contained the separator; fall back to one by one.
@@ -224,7 +287,9 @@ pub fn helm_eval_many(exprs: &[String], values_yaml: &str) -> Option<Vec<Result<
 
 /// Calls a registered function directly.
 pub fn call(funcs: &FuncMap, name: &str, args: &[Value]) -> Result<Value, String> {
-    let f = funcs.get(name).unwrap_or_else(|| panic!("no function {name}"));
+    let f = funcs
+        .get(name)
+        .unwrap_or_else(|| panic!("no function {name}"));
     let mut env = DeterministicEnv::default();
     let mut ctx = CallCtx { env: &mut env };
     (f.imp)(&mut ctx, args).map_err(|e| e.message)
@@ -249,7 +314,10 @@ pub fn compare(
             Err(e) => Err(func_error_message(e)),
         };
         if ours[i] != h {
-            bad.push(format!("{}\n   ours: {:?}\n   helm: {:?}", labels[i], ours[i], h));
+            bad.push(format!(
+                "{}\n   ours: {:?}\n   helm: {:?}",
+                labels[i], ours[i], h
+            ));
         }
     }
     bad
@@ -263,7 +331,11 @@ pub fn report(name: &str, total: usize, bad: &[String]) {
             "{name}: {} of {} cases differ from Helm:\n{}",
             bad.len(),
             total,
-            shown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n")
+            shown
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
         );
     }
 }

@@ -65,12 +65,18 @@ fn unescape(s: &str, mode: u8) -> Result<String, String> {
                     return Err(format!("invalid URL escape {}", strconv::quote_bytes(rest)));
                 }
                 if mode == ENCODE_HOST && unhex(b[i + 1]) < 8 && &b[i..i + 3] != b"%25" {
-                    return Err(format!("invalid URL escape {}", strconv::quote_bytes(&b[i..i + 3])));
+                    return Err(format!(
+                        "invalid URL escape {}",
+                        strconv::quote_bytes(&b[i..i + 3])
+                    ));
                 }
                 if mode == ENCODE_ZONE {
                     let v = (unhex(b[i + 1]) << 4) | unhex(b[i + 2]);
                     if &b[i..i + 3] != b"%25" && v != b' ' && should_escape(v, ENCODE_HOST) {
-                        return Err(format!("invalid URL escape {}", strconv::quote_bytes(&b[i..i + 3])));
+                        return Err(format!(
+                            "invalid URL escape {}",
+                            strconv::quote_bytes(&b[i..i + 3])
+                        ));
                     }
                 }
                 i += 3;
@@ -80,7 +86,10 @@ fn unescape(s: &str, mode: u8) -> Result<String, String> {
                 i += 1;
             }
             c => {
-                if (mode == ENCODE_HOST || mode == ENCODE_ZONE) && c < 0x80 && should_escape(c, mode) {
+                if (mode == ENCODE_HOST || mode == ENCODE_ZONE)
+                    && c < 0x80
+                    && should_escape(c, mode)
+                {
                     return Err(format!(
                         "invalid character {} in host name",
                         strconv::quote(&strconv::lossy(&b[i..i + 1]))
@@ -93,7 +102,11 @@ fn unescape(s: &str, mode: u8) -> Result<String, String> {
     if n == 0 && !has_plus {
         return Ok(s.to_string());
     }
-    let plus = if mode == ENCODE_QUERY_COMPONENT { b' ' } else { b'+' };
+    let plus = if mode == ENCODE_QUERY_COMPONENT {
+        b' '
+    } else {
+        b'+'
+    };
     let mut t: Vec<u8> = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
@@ -185,14 +198,35 @@ fn valid_optional_port(port: &str) -> bool {
     if port.is_empty() {
         return true;
     }
-    let Some(rest) = port.strip_prefix(':') else { return false };
+    let Some(rest) = port.strip_prefix(':') else {
+        return false;
+    };
     rest.bytes().all(|b| b.is_ascii_digit())
 }
 
 fn valid_userinfo(s: &str) -> bool {
     s.chars().all(|r| {
         r.is_ascii_alphanumeric()
-            || matches!(r, '-' | '.' | '_' | ':' | '~' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' | '@')
+            || matches!(
+                r,
+                '-' | '.'
+                    | '_'
+                    | ':'
+                    | '~'
+                    | '!'
+                    | '$'
+                    | '&'
+                    | '\''
+                    | '('
+                    | ')'
+                    | '*'
+                    | '+'
+                    | ','
+                    | ';'
+                    | '='
+                    | '%'
+                    | '@'
+            )
     })
 }
 
@@ -204,16 +238,34 @@ fn parse_ipv6(s: &str) -> Result<(), String> {
         None => (s, None),
     };
     if zone == Some("") {
-        return Err(format!("ParseAddr({}): zone must be a non-empty string", strconv::quote(s)));
+        return Err(format!(
+            "ParseAddr({}): zone must be a non-empty string",
+            strconv::quote(s)
+        ));
     }
-    let bad = || Err(format!("ParseAddr({}): unable to parse IP", strconv::quote(s)));
+    let bad = || {
+        Err(format!(
+            "ParseAddr({}): unable to parse IP",
+            strconv::quote(s)
+        ))
+    };
     if addr.is_empty() {
-        return Err(format!("ParseAddr({}): unable to parse IP", strconv::quote(s)));
+        return Err(format!(
+            "ParseAddr({}): unable to parse IP",
+            strconv::quote(s)
+        ));
     }
     if !addr.contains(':') {
         // IPv4 (rejected by the caller) or garbage.
         let parts: Vec<&str> = addr.split('.').collect();
-        if parts.len() == 4 && parts.iter().all(|p| !p.is_empty() && p.len() <= 3 && p.bytes().all(|c| c.is_ascii_digit()) && p.parse::<u16>().is_ok_and(|v| v <= 255)) {
+        if parts.len() == 4
+            && parts.iter().all(|p| {
+                !p.is_empty()
+                    && p.len() <= 3
+                    && p.bytes().all(|c| c.is_ascii_digit())
+                    && p.parse::<u16>().is_ok_and(|v| v <= 255)
+            })
+        {
             return Ok(());
         }
         return bad();
@@ -228,7 +280,11 @@ fn parse_ipv6(s: &str) -> Result<(), String> {
         for (k, p) in parts.iter().enumerate() {
             if k == parts.len() - 1 && p.contains('.') {
                 let q: Vec<&str> = p.split('.').collect();
-                if q.len() != 4 || !q.iter().all(|x| !x.is_empty() && x.len() <= 3 && x.parse::<u16>().is_ok_and(|v| v <= 255)) {
+                if q.len() != 4
+                    || !q.iter().all(|x| {
+                        !x.is_empty() && x.len() <= 3 && x.parse::<u16>().is_ok_and(|v| v <= 255)
+                    })
+                {
                     return None;
                 }
                 n += 2;
@@ -262,10 +318,15 @@ fn parse_host(scheme: &str, host: &str) -> Result<String, String> {
         if open > 0 {
             return Err("invalid IP-literal".into());
         }
-        let Some(close) = host.rfind(']') else { return Err("missing ']' in host".into()) };
+        let Some(close) = host.rfind(']') else {
+            return Err("missing ']' in host".into());
+        };
         let colon_port = &host[close + 1..];
         if !valid_optional_port(colon_port) {
-            return Err(format!("invalid port {} after host", strconv::quote(colon_port)));
+            return Err(format!(
+                "invalid port {} after host",
+                strconv::quote(colon_port)
+            ));
         }
         let unescaped_port = unescape(colon_port, ENCODE_HOST)?;
         if close < 1 {
@@ -293,7 +354,10 @@ fn parse_host(scheme: &str, host: &str) -> Result<String, String> {
         }
         let colon_port = &host[i..];
         if !valid_optional_port(colon_port) {
-            return Err(format!("invalid port {} after host", strconv::quote(colon_port)));
+            return Err(format!(
+                "invalid port {} after host",
+                strconv::quote(colon_port)
+            ));
         }
     }
     unescape(host, ENCODE_HOST)
@@ -311,7 +375,10 @@ fn parse_authority(scheme: &str, authority: &str) -> Result<(Option<Userinfo>, S
         return Err("net/url: invalid userinfo".into());
     }
     let user = match userinfo.split_once(':') {
-        None => Userinfo { username: unescape(userinfo, ENCODE_USER_PASSWORD)?, ..Default::default() },
+        None => Userinfo {
+            username: unescape(userinfo, ENCODE_USER_PASSWORD)?,
+            ..Default::default()
+        },
         Some((u, p)) => Userinfo {
             username: unescape(u, ENCODE_USER_PASSWORD)?,
             password: unescape(p, ENCODE_USER_PASSWORD)?,
@@ -324,14 +391,22 @@ fn parse_authority(scheme: &str, authority: &str) -> Result<(Option<Userinfo>, S
 impl Url {
     fn set_path(&mut self, p: &str) -> Result<(), String> {
         let path = unescape(p, ENCODE_PATH)?;
-        self.raw_path = if escape(&path, ENCODE_PATH) == p { String::new() } else { p.to_string() };
+        self.raw_path = if escape(&path, ENCODE_PATH) == p {
+            String::new()
+        } else {
+            p.to_string()
+        };
         self.path = path;
         Ok(())
     }
 
     fn set_fragment(&mut self, f: &str) -> Result<(), String> {
         let frag = unescape(f, ENCODE_FRAGMENT)?;
-        self.raw_fragment = if escape(&frag, ENCODE_FRAGMENT) == f { String::new() } else { f.to_string() };
+        self.raw_fragment = if escape(&frag, ENCODE_FRAGMENT) == f {
+            String::new()
+        } else {
+            f.to_string()
+        };
         self.fragment = frag;
         Ok(())
     }
@@ -398,7 +473,11 @@ impl Url {
                 }
             }
             let mut path = self.escaped_path();
-            if self.omit_host && self.host.is_empty() && self.user.is_none() && path.starts_with("//") {
+            if self.omit_host
+                && self.host.is_empty()
+                && self.user.is_none()
+                && path.starts_with("//")
+            {
                 buf.push_str("%2F");
                 path = path[1..].to_string();
             }
@@ -427,8 +506,24 @@ impl Url {
 
 fn valid_encoded(s: &str, mode: u8) -> bool {
     s.bytes().all(|c| {
-        matches!(c, b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' | b':' | b'@' | b'[' | b']' | b'%')
-            || !should_escape(c, mode)
+        matches!(
+            c,
+            b'!' | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'@'
+                | b'['
+                | b']'
+                | b'%'
+        ) || !should_escape(c, mode)
     })
 }
 
@@ -488,7 +583,8 @@ fn parse(raw: &str) -> Result<Url, String> {
     if frag.is_empty() {
         return Ok(url);
     }
-    url.set_fragment(frag).map_err(|e| format!("parse {}: {e}", strconv::quote(raw)))?;
+    url.set_fragment(frag)
+        .map_err(|e| format!("parse {}: {e}", strconv::quote(raw)))?;
     Ok(url)
 }
 
@@ -502,7 +598,10 @@ fn url_parse(a: &[Value]) -> FuncResult {
     m.insert("query".into(), Value::str(&u.raw_query));
     m.insert("opaque".into(), Value::str(&u.opaque));
     m.insert("fragment".into(), Value::str(&u.fragment));
-    m.insert("userinfo".into(), Value::string(u.user.as_ref().map(Userinfo::string).unwrap_or_default()));
+    m.insert(
+        "userinfo".into(),
+        Value::string(u.user.as_ref().map(Userinfo::string).unwrap_or_default()),
+    );
     Ok(Value::map(m))
 }
 

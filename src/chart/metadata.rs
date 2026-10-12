@@ -93,14 +93,24 @@ const METADATA_FIELDS: &[&str] = &[
     "type",
 ];
 
-const DEPENDENCY_FIELDS: &[&str] =
-    &["name", "version", "repository", "condition", "tags", "enabled", "import-values", "alias"];
+const DEPENDENCY_FIELDS: &[&str] = &[
+    "name",
+    "version",
+    "repository",
+    "condition",
+    "tags",
+    "enabled",
+    "import-values",
+    "alias",
+];
 
 const MAINTAINER_FIELDS: &[&str] = &["name", "email", "url"];
 
 pub(crate) fn decode_maintainer(d: &mut Dec, m: &Map, out: &mut Maintainer) {
     for (k, v) in m.iter() {
-        let Some(f) = match_field(MAINTAINER_FIELDS, k) else { continue };
+        let Some(f) = match_field(MAINTAINER_FIELDS, k) else {
+            continue;
+        };
         d.push(k);
         match f {
             "name" => d.string(v, &mut out.name),
@@ -113,7 +123,9 @@ pub(crate) fn decode_maintainer(d: &mut Dec, m: &Map, out: &mut Maintainer) {
 
 pub(crate) fn decode_dependency(d: &mut Dec, m: &Map, out: &mut Dependency) {
     for (k, v) in m.iter() {
-        let Some(f) = match_field(DEPENDENCY_FIELDS, k) else { continue };
+        let Some(f) = match_field(DEPENDENCY_FIELDS, k) else {
+            continue;
+        };
         d.push(k);
         match f {
             "name" => d.string(v, &mut out.name),
@@ -130,7 +142,13 @@ pub(crate) fn decode_dependency(d: &mut Dec, m: &Map, out: &mut Dependency) {
 }
 
 fn decode_dependencies(d: &mut Dec, v: &Value, out: &mut Option<Vec<Option<Dependency>>>) {
-    d.struct_ptr_list(v, out, "[]*v2.Dependency", "v2.Dependency", decode_dependency);
+    d.struct_ptr_list(
+        v,
+        out,
+        "[]*v2.Dependency",
+        "v2.Dependency",
+        decode_dependency,
+    );
 }
 
 impl RawMetadata {
@@ -143,7 +161,9 @@ impl RawMetadata {
         };
         let md = &mut self.md;
         for (k, v) in m.iter() {
-            let Some(f) = match_field(METADATA_FIELDS, k) else { continue };
+            let Some(f) = match_field(METADATA_FIELDS, k) else {
+                continue;
+            };
             d.push(k);
             match f {
                 "name" => d.string(v, &mut md.name),
@@ -203,25 +223,38 @@ impl RawMetadata {
             return Err(verr("chart.metadata.name is required".into()));
         }
         if md.name == "." || md.name == ".." {
-            return Err(verr(alloc::format!("chart.metadata.name {} is not allowed", quote(&md.name))));
+            return Err(verr(alloc::format!(
+                "chart.metadata.name {} is not allowed",
+                quote(&md.name)
+            )));
         }
         if md.name != base(&md.name) {
-            return Err(verr(alloc::format!("chart.metadata.name {} is invalid", quote(&md.name))));
+            return Err(verr(alloc::format!(
+                "chart.metadata.name {} is invalid",
+                quote(&md.name)
+            )));
         }
         if md.version.is_empty() {
             return Err(verr("chart.metadata.version is required".into()));
         }
         if !is_valid_semver(&md.version) {
-            return Err(verr(alloc::format!("chart.metadata.version {} is invalid", quote(&md.version))));
+            return Err(verr(alloc::format!(
+                "chart.metadata.version {} is invalid",
+                quote(&md.version)
+            )));
         }
         if !matches!(md.chart_type.as_str(), "" | "application" | "library") {
-            return Err(verr("chart.metadata.type must be application or library".into()));
+            return Err(verr(
+                "chart.metadata.type must be application or library".into(),
+            ));
         }
         if let Some(ms) = self.maintainers.take() {
             let mut out = Vec::with_capacity(ms.len());
             for m in ms {
                 let Some(mut m) = m else {
-                    return Err(verr("maintainers must not contain empty or null nodes".into()));
+                    return Err(verr(
+                        "maintainers must not contain empty or null nodes".into(),
+                    ));
                 };
                 m.name = sanitize(&m.name);
                 m.email = sanitize(&m.email);
@@ -234,12 +267,27 @@ impl RawMetadata {
             let mut out: Vec<Dependency> = Vec::with_capacity(deps.len());
             for dep in deps {
                 let Some(mut dep) = dep else {
-                    return Err(verr("dependencies must not contain empty or null nodes".into()));
+                    return Err(verr(
+                        "dependencies must not contain empty or null nodes".into(),
+                    ));
                 };
                 validate_dependency(&mut dep)?;
-                let key = if dep.alias.is_empty() { &dep.name } else { &dep.alias };
-                if out.iter().any(|o| (if o.alias.is_empty() { &o.name } else { &o.alias }) == key) {
-                    return Err(verr(alloc::format!("more than one dependency with name or alias {}", quote(key))));
+                let key = if dep.alias.is_empty() {
+                    &dep.name
+                } else {
+                    &dep.alias
+                };
+                if out.iter().any(|o| {
+                    (if o.alias.is_empty() {
+                        &o.name
+                    } else {
+                        &o.alias
+                    }) == key
+                }) {
+                    return Err(verr(alloc::format!(
+                        "more than one dependency with name or alias {}",
+                        quote(key)
+                    )));
                 }
                 out.push(dep);
             }
@@ -259,8 +307,16 @@ fn validate_dependency(d: &mut Dependency) -> Result<(), String> {
             *t = sanitize(t);
         }
     }
-    if !d.alias.is_empty() && !d.alias.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
-        return Err(alloc::format!("validation: dependency {} has disallowed characters in the alias", quote(&d.name)));
+    if !d.alias.is_empty()
+        && !d
+            .alias
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
+        return Err(alloc::format!(
+            "validation: dependency {} has disallowed characters in the alias",
+            quote(&d.name)
+        ));
     }
     Ok(())
 }
@@ -296,10 +352,14 @@ impl Lock {
             other => return d.type_err(other, "v2.Lock"),
         };
         let lock = out.get_or_insert_with(Lock::default);
-        let mut deps: Option<Vec<Option<Dependency>>> =
-            lock.dependencies.take().map(|v| v.into_iter().map(Some).collect());
+        let mut deps: Option<Vec<Option<Dependency>>> = lock
+            .dependencies
+            .take()
+            .map(|v| v.into_iter().map(Some).collect());
         for (k, v) in m.iter() {
-            let Some(f) = match_field(&["generated", "digest", "dependencies"], k) else { continue };
+            let Some(f) = match_field(&["generated", "digest", "dependencies"], k) else {
+                continue;
+            };
             d.push(k);
             match f {
                 "generated" => match v {
@@ -371,14 +431,22 @@ impl Metadata {
         m.insert("Deprecated".into(), Value::Bool(self.deprecated));
         // Go `map[string]string`; nil when absent.
         let ann = match &self.annotations {
-            Some(a) => Value::string_map(a.iter().map(|(k, v)| (k.clone(), Value::str(v))).collect()),
+            Some(a) => {
+                Value::string_map(a.iter().map(|(k, v)| (k.clone(), Value::str(v))).collect())
+            }
             None => Value::nil_map("map[string]string", Some(Value::str(""))),
         };
         m.insert("Annotations".into(), ann);
         m.insert("KubeVersion".into(), Value::str(&self.kube_version));
         m.insert(
             "Dependencies".into(),
-            Value::list(self.dependencies.iter().flatten().map(Dependency::as_map).collect()),
+            Value::list(
+                self.dependencies
+                    .iter()
+                    .flatten()
+                    .map(Dependency::as_map)
+                    .collect(),
+            ),
         );
         m.insert("Type".into(), Value::str(&self.chart_type));
         Value::map(m)
@@ -392,7 +460,9 @@ impl Metadata {
         let mut d = Dec::new();
         raw.decode(&mut d, v);
         if let Some(e) = d.err {
-            return Err(alloc::format!("error unmarshaling JSON: while decoding JSON: {e}"));
+            return Err(alloc::format!(
+                "error unmarshaling JSON: while decoding JSON: {e}"
+            ));
         }
         if raw.md.api_version.is_empty() {
             raw.md.api_version = "v1".to_string();

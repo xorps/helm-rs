@@ -13,9 +13,9 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::Write as _;
 
+use regex_automata::Input;
 use regex_automata::meta::Regex;
 use regex_automata::util::captures::Captures;
-use regex_automata::Input;
 
 use crate::gofmt::strconv;
 
@@ -52,9 +52,18 @@ enum Node {
     EndText,
     WordB,
     NoWordB,
-    Class { items: Vec<ClassItem>, negated: bool, fold: bool },
+    Class {
+        items: Vec<ClassItem>,
+        negated: bool,
+        fold: bool,
+    },
     Capture(Box<Node>),
-    Repeat { min: i64, max: i64, greedy: bool, sub: Box<Node> },
+    Repeat {
+        min: i64,
+        max: i64,
+        greedy: bool,
+        sub: Box<Node>,
+    },
     Concat(Vec<Node>),
     Alt(Vec<Node>),
 }
@@ -74,7 +83,10 @@ pub struct SyntaxError {
 
 impl SyntaxError {
     fn new(code: &'static str, expr: &str) -> SyntaxError {
-        SyntaxError { code, expr: expr.to_string() }
+        SyntaxError {
+            code,
+            expr: expr.to_string(),
+        }
     }
     /// `(*syntax.Error).Error()`.
     pub fn message(&self) -> String {
@@ -219,7 +231,12 @@ fn parse_escape(s: &str) -> Result<(char, &str), SyntaxError> {
         return Err(SyntaxError::new(ERR_TRAILING_BACKSLASH, ""));
     }
     let (c, mut t) = next_char(t);
-    let bad = |t: &str| Err(SyntaxError::new(ERR_INVALID_ESCAPE, &s[..s.len() - t.len()]));
+    let bad = |t: &str| {
+        Err(SyntaxError::new(
+            ERR_INVALID_ESCAPE,
+            &s[..s.len() - t.len()],
+        ))
+    };
     match c {
         '1'..='7' if t.is_empty() || !(b'0'..=b'7').contains(&t.as_bytes()[0]) => bad(t),
         '0'..='7' => {
@@ -269,7 +286,11 @@ fn parse_escape(s: &str) -> Result<(char, &str), SyntaxError> {
                 return Ok((char::from_u32(r as u32).unwrap_or('\u{FFFD}'), t));
             }
             let x = unhex(c);
-            let (c, t2) = if t.is_empty() { ('\u{FFFD}', t) } else { next_char(t) };
+            let (c, t2) = if t.is_empty() {
+                ('\u{FFFD}', t)
+            } else {
+                next_char(t)
+            };
             t = t2;
             let y = unhex(c);
             if x < 0 || y < 0 {
@@ -368,7 +389,13 @@ impl<'a> Parser<'a> {
         let subs: Vec<Node> = self
             .stack
             .drain(i..)
-            .filter_map(|it| if let Item::Node(n) = it { Some(n) } else { None })
+            .filter_map(|it| {
+                if let Item::Node(n) = it {
+                    Some(n)
+                } else {
+                    None
+                }
+            })
             .collect();
         let n = match subs.len() {
             0 => Node::Empty,
@@ -395,7 +422,13 @@ impl<'a> Parser<'a> {
         let subs: Vec<Node> = self
             .stack
             .drain(i..)
-            .filter_map(|it| if let Item::Node(n) = it { Some(n) } else { None })
+            .filter_map(|it| {
+                if let Item::Node(n) = it {
+                    Some(n)
+                } else {
+                    None
+                }
+            })
             .collect();
         let n = match subs.len() {
             0 => Node::NoMatch,
@@ -417,7 +450,10 @@ impl<'a> Parser<'a> {
     /// `swapVerticalBar` without the char-class merging optimization.
     fn swap_vertical_bar(&mut self) -> bool {
         let n = self.stack.len();
-        if n >= 2 && matches!(self.stack[n - 2], Item::Bar) && matches!(self.stack[n - 1], Item::Node(_)) {
+        if n >= 2
+            && matches!(self.stack[n - 2], Item::Bar)
+            && matches!(self.stack[n - 1], Item::Node(_))
+        {
             self.stack.swap(n - 2, n - 1);
             return true;
         }
@@ -472,17 +508,34 @@ impl<'a> Parser<'a> {
             non_greedy = !non_greedy;
         }
         if !last_repeat.is_empty() {
-            return Err(SyntaxError::new(ERR_INVALID_REPEAT_OP, &last_repeat[..last_repeat.len() - after.len()]));
+            return Err(SyntaxError::new(
+                ERR_INVALID_REPEAT_OP,
+                &last_repeat[..last_repeat.len() - after.len()],
+            ));
         }
         if self.top_is_pseudo_or_empty() {
-            return Err(SyntaxError::new(ERR_MISSING_REPEAT_ARGUMENT, &before[..before.len() - after.len()]));
+            return Err(SyntaxError::new(
+                ERR_MISSING_REPEAT_ARGUMENT,
+                &before[..before.len() - after.len()],
+            ));
         }
         let Some(Item::Node(sub)) = self.stack.pop() else {
-            return Err(SyntaxError::new(ERR_MISSING_REPEAT_ARGUMENT, &before[..before.len() - after.len()]));
+            return Err(SyntaxError::new(
+                ERR_MISSING_REPEAT_ARGUMENT,
+                &before[..before.len() - after.len()],
+            ));
         };
-        let node = Node::Repeat { min, max, greedy: !non_greedy, sub: Box::new(sub) };
+        let node = Node::Repeat {
+            min,
+            max,
+            greedy: !non_greedy,
+            sub: Box::new(sub),
+        };
         if before.starts_with('{') && (min >= 2 || max >= 2) && !repeat_is_valid(&node, 1000) {
-            return Err(SyntaxError::new(ERR_INVALID_REPEAT_SIZE, &before[..before.len() - after.len()]));
+            return Err(SyntaxError::new(
+                ERR_INVALID_REPEAT_SIZE,
+                &before[..before.len() - after.len()],
+            ));
         }
         self.push(node);
         Ok(after)
@@ -499,13 +552,20 @@ impl<'a> Parser<'a> {
                 return Err(SyntaxError::new(ERR_INVALID_NAMED_CAPTURE, s));
             };
             let capture = &t[..end + 1];
-            let name = if expr_start <= end { &t[expr_start..end] } else { "" };
+            let name = if expr_start <= end {
+                &t[expr_start..end]
+            } else {
+                ""
+            };
             if name.is_empty() || !name.chars().all(|c| c == '_' || is_alnum(c)) {
                 return Err(SyntaxError::new(ERR_INVALID_NAMED_CAPTURE, capture));
             }
             self.num_cap += 1;
             self.names.push(Some(name.to_string()));
-            self.stack.push(Item::LeftParen { cap: self.num_cap, flags: self.flags });
+            self.stack.push(Item::LeftParen {
+                cap: self.num_cap,
+                flags: self.flags,
+            });
             return Ok(&t[end + 1..]);
         }
         let mut t = &t[2..];
@@ -545,7 +605,10 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     if c == ':' {
-                        self.stack.push(Item::LeftParen { cap: 0, flags: self.flags });
+                        self.stack.push(Item::LeftParen {
+                            cap: 0,
+                            flags: self.flags,
+                        });
                     }
                     self.flags = flags;
                     return Ok(t);
@@ -553,7 +616,10 @@ impl<'a> Parser<'a> {
                 _ => break,
             }
         }
-        Err(SyntaxError::new(ERR_INVALID_PERL_OP, &s[..s.len() - t.len()]))
+        Err(SyntaxError::new(
+            ERR_INVALID_PERL_OP,
+            &s[..s.len() - t.len()],
+        ))
     }
 
     /// `parseUnicodeClass`: Ok(None) if `s` is not a `\p`/`\P` escape.
@@ -647,13 +713,20 @@ impl<'a> Parser<'a> {
                 t = rest;
                 hi = h;
                 if hi < lo {
-                    return Err(SyntaxError::new(ERR_INVALID_CHAR_RANGE, &rng[..rng.len() - t.len()]));
+                    return Err(SyntaxError::new(
+                        ERR_INVALID_CHAR_RANGE,
+                        &rng[..rng.len() - t.len()],
+                    ));
                 }
             }
             items.push(ClassItem::Range(lo as u32, hi as u32));
         }
         t = &t[1..];
-        self.push(Node::Class { items, negated, fold });
+        self.push(Node::Class {
+            items,
+            negated,
+            fold,
+        });
         Ok(t)
     }
 }
@@ -750,11 +823,17 @@ fn size(n: &Node) -> i64 {
         Node::Lit(..) => 1,
         Node::Capture(s) => 2i64.saturating_add(size(s)),
         Node::Concat(v) => v.iter().fold(0i64, |a, s| a.saturating_add(size(s))),
-        Node::Alt(v) => v.iter().fold(v.len() as i64 - 1, |a, s| a.saturating_add(size(s))),
+        Node::Alt(v) => v
+            .iter()
+            .fold(v.len() as i64 - 1, |a, s| a.saturating_add(size(s))),
         Node::Repeat { min, max, sub, .. } => {
             let sub = size(sub);
             if *max == -1 {
-                if *min == 0 { 2i64.saturating_add(sub) } else { 1i64.saturating_add(min.saturating_mul(sub)) }
+                if *min == 0 {
+                    2i64.saturating_add(sub)
+                } else {
+                    1i64.saturating_add(min.saturating_mul(sub))
+                }
             } else {
                 max.saturating_mul(sub).saturating_add(max - min)
             }
@@ -767,7 +846,12 @@ fn size(n: &Node) -> i64 {
 /// Parses a Go regexp (with `syntax.Perl` flags) into an AST.
 fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
     let mut p = Parser {
-        flags: Flags { fold: false, one_line: true, dot_nl: false, non_greedy: false },
+        flags: Flags {
+            fold: false,
+            one_line: true,
+            dot_nl: false,
+            non_greedy: false,
+        },
         stack: Vec::new(),
         num_cap: 0,
         names: alloc::vec![None],
@@ -785,7 +869,10 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                 } else {
                     p.num_cap += 1;
                     p.names.push(None);
-                    p.stack.push(Item::LeftParen { cap: p.num_cap, flags: p.flags });
+                    p.stack.push(Item::LeftParen {
+                        cap: p.num_cap,
+                        flags: p.flags,
+                    });
                     t = &t[1..];
                 }
             }
@@ -798,15 +885,27 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                 t = &t[1..];
             }
             b'^' => {
-                p.push(if p.flags.one_line { Node::BeginText } else { Node::BeginLine });
+                p.push(if p.flags.one_line {
+                    Node::BeginText
+                } else {
+                    Node::BeginLine
+                });
                 t = &t[1..];
             }
             b'$' => {
-                p.push(if p.flags.one_line { Node::EndText } else { Node::EndLine });
+                p.push(if p.flags.one_line {
+                    Node::EndText
+                } else {
+                    Node::EndLine
+                });
                 t = &t[1..];
             }
             b'.' => {
-                p.push(if p.flags.dot_nl { Node::Any } else { Node::AnyNotNl });
+                p.push(if p.flags.dot_nl {
+                    Node::Any
+                } else {
+                    Node::AnyNotNl
+                });
                 t = &t[1..];
             }
             b'[' => {
@@ -832,7 +931,10 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                     }
                     Some((min, max, after)) => {
                         if !(0..=1000).contains(&min) || max > 1000 || (max >= 0 && min > max) {
-                            return Err(SyntaxError::new(ERR_INVALID_REPEAT_SIZE, &before[..before.len() - after.len()]));
+                            return Err(SyntaxError::new(
+                                ERR_INVALID_REPEAT_SIZE,
+                                &before[..before.len() - after.len()],
+                            ));
                         }
                         t = p.repeat(min, max, before, after, last_repeat)?;
                         repeat = before;
@@ -879,11 +981,19 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                 if !handled {
                     let fold = p.flags.fold;
                     if let Some((item, rest)) = p.parse_unicode_class(t)? {
-                        p.push(Node::Class { items: alloc::vec![item], negated: false, fold });
+                        p.push(Node::Class {
+                            items: alloc::vec![item],
+                            negated: false,
+                            fold,
+                        });
                         t = rest;
                     } else if let Some((neg, class)) = perl_group(t) {
                         let items = group_items(neg, class, fold);
-                        p.push(Node::Class { items, negated: false, fold });
+                        p.push(Node::Class {
+                            items,
+                            negated: false,
+                            fold,
+                        });
                         t = &t[2..];
                     } else {
                         let (c, rest) = parse_escape(t)?;
@@ -945,7 +1055,11 @@ fn emit(n: &Node, out: &mut String) {
         Node::EndText => out.push_str("\\z"),
         Node::WordB => out.push_str("(?-u:\\b)"),
         Node::NoWordB => out.push_str("(?-u:\\B)"),
-        Node::Class { items, negated, fold } => {
+        Node::Class {
+            items,
+            negated,
+            fold,
+        } => {
             out.push_str(if *fold { "(?i:[" } else { "(?:[" });
             if *negated {
                 out.push('^');
@@ -977,7 +1091,12 @@ fn emit(n: &Node, out: &mut String) {
             emit(s, out);
             out.push(')');
         }
-        Node::Repeat { min, max, greedy, sub } => {
+        Node::Repeat {
+            min,
+            max,
+            greedy,
+            sub,
+        } => {
             out.push_str("(?:");
             emit(sub, out);
             out.push(')');
@@ -1032,15 +1151,27 @@ pub fn compile(expr: &str) -> Result<GoRegex, String> {
     let mut pat = String::new();
     emit(&node, &mut pat);
     let re = Regex::builder()
-        .configure(Regex::config().nfa_size_limit(Some(256 << 20)).hybrid_cache_capacity(8 << 20))
+        .configure(
+            Regex::config()
+                .nfa_size_limit(Some(256 << 20))
+                .hybrid_cache_capacity(8 << 20),
+        )
         .build(&pat)
         .map_err(|_| SyntaxError::new(ERR_LARGE, expr).message())?;
-    Ok(GoRegex { re, names, expr_empty: expr.is_empty() })
+    Ok(GoRegex {
+        re,
+        names,
+        expr_empty: expr.is_empty(),
+    })
 }
 
 /// `regexp.MustCompile`'s panic message for a bad pattern.
 pub fn must_compile_message(expr: &str, err: &str) -> String {
-    let q = if strconv::can_backquote(expr.as_bytes()) { format!("`{expr}`") } else { strconv::quote(expr) };
+    let q = if strconv::can_backquote(expr.as_bytes()) {
+        format!("`{expr}`")
+    } else {
+        strconv::quote(expr)
+    };
     format!("regexp: Compile({q}): {err}")
 }
 
@@ -1084,7 +1215,9 @@ impl GoRegex {
         let end = s.len();
         let mut i = 0;
         while i < n && pos <= end {
-            let Some(m) = self.re.search(&Input::new(s).span(pos..end)) else { break };
+            let Some(m) = self.re.search(&Input::new(s).span(pos..end)) else {
+                break;
+            };
             let (a, b) = (m.start(), m.end());
             let mut accept = true;
             if b == pos {
@@ -1106,7 +1239,10 @@ impl GoRegex {
 
     /// `FindAllString(s, n)`.
     pub fn find_all_string<'h>(&self, s: &'h str, n: i64) -> Vec<&'h str> {
-        self.find_all_index(s, n).into_iter().map(|(a, b)| &s[a..b]).collect()
+        self.find_all_index(s, n)
+            .into_iter()
+            .map(|(a, b)| &s[a..b])
+            .collect()
     }
 
     /// `Split(s, n)`.

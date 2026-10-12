@@ -95,9 +95,15 @@ pub(crate) fn pem_decode(data: &[u8]) -> Option<PemBlock> {
             continue;
         }
         let after = &rest[pos + 11..];
-        let line_end = after.iter().position(|&c| c == b'\n').unwrap_or(after.len());
+        let line_end = after
+            .iter()
+            .position(|&c| c == b'\n')
+            .unwrap_or(after.len());
         let mut type_line = &after[..line_end];
-        while type_line.last().is_some_and(|c| *c == b'\r' || *c == b' ' || *c == b'\t') {
+        while type_line
+            .last()
+            .is_some_and(|c| *c == b'\r' || *c == b' ' || *c == b'\t')
+        {
             type_line = &type_line[..type_line.len() - 1];
         }
         let Some(ty) = type_line.strip_suffix(b"-----") else {
@@ -119,7 +125,11 @@ pub(crate) fn pem_decode(data: &[u8]) -> Option<PemBlock> {
                 content = &content[blank + 2..];
             }
         }
-        let b64: Vec<u8> = content.iter().copied().filter(|c| !c.is_ascii_whitespace()).collect();
+        let b64: Vec<u8> = content
+            .iter()
+            .copied()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
         match super::strings::base64_decode(&b64) {
             Ok(bytes) => return Some(PemBlock { ty, bytes }),
             Err(_) => {
@@ -262,7 +272,14 @@ pub(crate) mod der {
         if b.len() < hdr + len {
             return None;
         }
-        Some((Tlv { tag, content: &b[hdr..hdr + len], full: &b[..hdr + len] }, &b[hdr + len..]))
+        Some((
+            Tlv {
+                tag,
+                content: &b[hdr..hdr + len],
+                full: &b[..hdr + len],
+            },
+            &b[hdr + len..],
+        ))
     }
 
     /// Reads all TLVs in a constructed content.
@@ -275,7 +292,6 @@ pub(crate) mod der {
         }
         Some(out)
     }
-
 }
 
 const OID_RSA: &[u64] = &[1, 2, 840, 113549, 1, 1, 1];
@@ -293,11 +309,23 @@ mod imp {
     use super::*;
 
     fn unsupported(_: &[Value]) -> crate::func::FuncResult {
-        Err(FuncError::new("key and certificate generation requires the `certs` feature of helm-rs"))
+        Err(FuncError::new(
+            "key and certificate generation requires the `certs` feature of helm-rs",
+        ))
     }
 
     pub(super) fn register(f: &mut FuncMap, s: Ty, i: Ty, l: Ty, c: Ty) {
-        let _ = (OID_RSA, OID_SHA256_RSA, OID_EC_PUBLIC_KEY, OID_P256, OID_P384, OID_ECDSA_SHA256, OID_ECDSA_SHA384, OID_ED25519, OID_DSA);
+        let _ = (
+            OID_RSA,
+            OID_SHA256_RSA,
+            OID_EC_PUBLIC_KEY,
+            OID_P256,
+            OID_P384,
+            OID_ECDSA_SHA256,
+            OID_ECDSA_SHA384,
+            OID_ED25519,
+            OID_DSA,
+        );
         let sig = |p: &'static [Ty]| Sig::new(p);
         let _ = (s, i, l, c, sig);
         const S: Ty = Ty::String;
@@ -309,9 +337,17 @@ mod imp {
         f.add("genCA", Sig::new(&[S, I]), unsupported);
         f.add("genCAWithKey", Sig::new(&[S, I, S]), unsupported);
         f.add("genSelfSignedCert", Sig::new(&[S, L, L, I]), unsupported);
-        f.add("genSelfSignedCertWithKey", Sig::new(&[S, L, L, I, S]), unsupported);
+        f.add(
+            "genSelfSignedCertWithKey",
+            Sig::new(&[S, L, L, I, S]),
+            unsupported,
+        );
         f.add("genSignedCert", Sig::new(&[S, L, L, I, C]), unsupported);
-        f.add("genSignedCertWithKey", Sig::new(&[S, L, L, I, C, S]), unsupported);
+        f.add(
+            "genSignedCertWithKey",
+            Sig::new(&[S, L, L, I, C, S]),
+            unsupported,
+        );
     }
 }
 
@@ -470,28 +506,40 @@ mod imp {
                 }
                 Key::P256(k) => {
                     let sk = p256::ecdsa::SigningKey::from(k);
-                    let sig: p256::ecdsa::Signature = sk.try_sign_with_rng(rng, tbs).map_err(|e| format!("{e}"))?;
+                    let sig: p256::ecdsa::Signature =
+                        sk.try_sign_with_rng(rng, tbs).map_err(|e| format!("{e}"))?;
                     let (r, s) = sig.split_bytes();
-                    Ok((der::seq(&[&der::oid(OID_ECDSA_SHA256)]), der::seq(&[&der::uint(&r), &der::uint(&s)])))
+                    Ok((
+                        der::seq(&[&der::oid(OID_ECDSA_SHA256)]),
+                        der::seq(&[&der::uint(&r), &der::uint(&s)]),
+                    ))
                 }
                 Key::P384(k) => {
                     let sk = p384::ecdsa::SigningKey::from(k);
-                    let sig: p384::ecdsa::Signature = sk.try_sign_with_rng(rng, tbs).map_err(|e| format!("{e}"))?;
+                    let sig: p384::ecdsa::Signature =
+                        sk.try_sign_with_rng(rng, tbs).map_err(|e| format!("{e}"))?;
                     let (r, s) = sig.split_bytes();
-                    Ok((der::seq(&[&der::oid(OID_ECDSA_SHA384)]), der::seq(&[&der::uint(&r), &der::uint(&s)])))
+                    Ok((
+                        der::seq(&[&der::oid(OID_ECDSA_SHA384)]),
+                        der::seq(&[&der::uint(&r), &der::uint(&s)]),
+                    ))
                 }
                 Key::Ed25519(k) => {
                     let sig = k.sign(tbs).to_bytes().to_vec();
                     Ok((der::seq(&[&der::oid(OID_ED25519)]), sig))
                 }
-                Key::Dsa(_) => Err("x509: certificate private key does not implement crypto.Signer".into()),
+                Key::Dsa(_) => {
+                    Err("x509: certificate private key does not implement crypto.Signer".into())
+                }
             }
         }
     }
 
     fn gen_rsa(ctx: &mut CallCtx<'_>, bits: usize) -> Result<Key, String> {
         let mut rng = EnvRng(ctx.env);
-        rsa::RsaPrivateKey::new(&mut rng, bits).map(Key::Rsa).map_err(|e| format!("{e}"))
+        rsa::RsaPrivateKey::new(&mut rng, bits)
+            .map(Key::Rsa)
+            .map_err(|e| format!("{e}"))
     }
 
     // ----- PEM key parsing (sprig's parsePrivateKeyPEM) -----
@@ -510,7 +558,9 @@ mod imp {
                 return Err("x509: invalid private key length".into());
             }
             buf[32 - scalar.len()..].copy_from_slice(scalar);
-            return p256::SecretKey::from_slice(&buf).map(Key::P256).map_err(|_| "x509: invalid elliptic curve private key value".into());
+            return p256::SecretKey::from_slice(&buf)
+                .map(Key::P256)
+                .map_err(|_| "x509: invalid elliptic curve private key value".into());
         }
         if curve == der::oid(OID_P384).as_slice() {
             let mut buf = [0u8; 48];
@@ -518,14 +568,17 @@ mod imp {
                 return Err("x509: invalid private key length".into());
             }
             buf[48 - scalar.len()..].copy_from_slice(scalar);
-            return p384::SecretKey::from_slice(&buf).map(Key::P384).map_err(|_| "x509: invalid elliptic curve private key value".into());
+            return p384::SecretKey::from_slice(&buf)
+                .map(Key::P384)
+                .map_err(|_| "x509: invalid elliptic curve private key value".into());
         }
         Err("x509: unknown elliptic curve".into())
     }
 
     /// SEC1 `ECPrivateKey`; `named_curve` overrides a missing curve.
     fn parse_sec1(b: &[u8], named_curve: Option<&[u8]>) -> Result<Key, String> {
-        let malformed = || String::from("x509: failed to parse EC private key: asn1: structure error");
+        let malformed =
+            || String::from("x509: failed to parse EC private key: asn1: structure error");
         let (outer, _) = der::read(b).ok_or_else(malformed)?;
         if outer.tag != 0x30 {
             return Err(malformed());
@@ -558,19 +611,30 @@ mod imp {
             return Err(malformed());
         }
         let alg = der::read_all(items[1].content).ok_or_else(malformed)?;
-        let Some(oid) = alg.first() else { return Err(malformed()) };
+        let Some(oid) = alg.first() else {
+            return Err(malformed());
+        };
         let key = items[2].content;
         if oid.full == der::oid(OID_RSA).as_slice() {
-            return parse_pkcs1(key).map_err(|_| String::from("x509: failed to parse RSA private key embedded in PKCS#8"));
+            return parse_pkcs1(key).map_err(|_| {
+                String::from("x509: failed to parse RSA private key embedded in PKCS#8")
+            });
         }
         if oid.full == der::oid(OID_EC_PUBLIC_KEY).as_slice() {
             let curve = alg.get(1).map(|c| c.full);
-            return parse_sec1(key, curve).map_err(|e| format!("x509: failed to parse EC private key embedded in PKCS#8: {e}"));
+            return parse_sec1(key, curve).map_err(|e| {
+                format!("x509: failed to parse EC private key embedded in PKCS#8: {e}")
+            });
         }
         if oid.full == der::oid(OID_ED25519).as_slice() {
-            let (inner, _) = der::read(key).ok_or_else(|| String::from("x509: invalid Ed25519 private key: asn1: syntax error"))?;
+            let (inner, _) = der::read(key).ok_or_else(|| {
+                String::from("x509: invalid Ed25519 private key: asn1: syntax error")
+            })?;
             if inner.tag != 0x04 || inner.content.len() != 32 {
-                return Err(format!("x509: invalid Ed25519 private key length: {}", inner.content.len()));
+                return Err(format!(
+                    "x509: invalid Ed25519 private key length: {}",
+                    inner.content.len()
+                ));
             }
             let mut seed = [0u8; 32];
             seed.copy_from_slice(inner.content);
@@ -593,17 +657,25 @@ mod imp {
     }
 
     fn parse_private_key_pem(pem: &str) -> Result<Key, String> {
-        let Some(block) = pem_decode(pem.as_bytes()) else { return Err("no PEM data in input".into()) };
+        let Some(block) = pem_decode(pem.as_bytes()) else {
+            return Err("no PEM data in input".into());
+        };
         if block.ty == "PRIVATE KEY" {
             return parse_pkcs8(&block.bytes).map_err(|e| format!("decoding PEM as PKCS#8: {e}"));
         }
         let Some(prefix) = block.ty.strip_suffix(" PRIVATE KEY") else {
-            return Err(format!("no private key data in PEM block of type {}", block.ty));
+            return Err(format!(
+                "no private key data in PEM block of type {}",
+                block.ty
+            ));
         };
         match prefix {
-            "RSA" => parse_pkcs1(&block.bytes).map_err(|e| format!("parsing RSA private key from PEM: {e}")),
-            "EC" => parse_sec1(&block.bytes, None).map_err(|e| format!("parsing EC private key from PEM: {e}")),
-            "DSA" => parse_dsa(&block.bytes).map_err(|e| format!("parsing DSA private key from PEM: {e}")),
+            "RSA" => parse_pkcs1(&block.bytes)
+                .map_err(|e| format!("parsing RSA private key from PEM: {e}")),
+            "EC" => parse_sec1(&block.bytes, None)
+                .map_err(|e| format!("parsing EC private key from PEM: {e}")),
+            "DSA" => parse_dsa(&block.bytes)
+                .map_err(|e| format!("parsing DSA private key from PEM: {e}")),
             _ => Err(format!("invalid private key type {}", block.ty)),
         }
     }
@@ -623,10 +695,12 @@ mod imp {
             return Err(malformed());
         }
         let parts = der::read_all(cert.content).ok_or_else(malformed)?;
-        if parts.len() != 3 || parts[0].tag != 0x30 || parts[1].tag != 0x30 || parts[2].tag != 0x03 {
+        if parts.len() != 3 || parts[0].tag != 0x30 || parts[1].tag != 0x30 || parts[2].tag != 0x03
+        {
             return Err(malformed());
         }
-        let tbs = der::read_all(parts[0].content).ok_or_else(|| String::from("x509: malformed tbs certificate"))?;
+        let tbs = der::read_all(parts[0].content)
+            .ok_or_else(|| String::from("x509: malformed tbs certificate"))?;
         let mut i = 0;
         if tbs.first().is_some_and(|t| t.tag == 0xa0) {
             i += 1;
@@ -656,10 +730,17 @@ mod imp {
         let mut ski = Vec::new();
         for t in &tbs[i + 6..] {
             if t.tag == 0xa3 {
-                let (exts, _) = der::read(t.content).ok_or_else(|| String::from("x509: malformed extensions"))?;
-                for ext in der::read_all(exts.content).ok_or_else(|| String::from("x509: malformed extension"))? {
-                    let fields = der::read_all(ext.content).ok_or_else(|| String::from("x509: malformed extension"))?;
-                    if fields.first().is_some_and(|o| o.full == der::oid(&[2, 5, 29, 14]).as_slice()) {
+                let (exts, _) = der::read(t.content)
+                    .ok_or_else(|| String::from("x509: malformed extensions"))?;
+                for ext in der::read_all(exts.content)
+                    .ok_or_else(|| String::from("x509: malformed extension"))?
+                {
+                    let fields = der::read_all(ext.content)
+                        .ok_or_else(|| String::from("x509: malformed extension"))?;
+                    if fields
+                        .first()
+                        .is_some_and(|o| o.full == der::oid(&[2, 5, 29, 14]).as_slice())
+                    {
                         if let Some(v) = fields.last() {
                             if let Some((inner, _)) = der::read(v.content) {
                                 ski = inner.content.to_vec();
@@ -669,7 +750,11 @@ mod imp {
                 }
             }
         }
-        Ok(ParsedCert { raw_subject: tbs[i + 4].full.to_vec(), spki: tbs[i + 5].full.to_vec(), subject_key_id: ski })
+        Ok(ParsedCert {
+            raw_subject: tbs[i + 4].full.to_vec(),
+            spki: tbs[i + 5].full.to_vec(),
+            subject_key_id: ski,
+        })
     }
 
     // ----- Certificate creation -----
@@ -690,7 +775,11 @@ mod imp {
     const KU_CERT_SIGN: u16 = 1 << 5;
 
     fn is_printable(c: u8) -> bool {
-        c.is_ascii_alphanumeric() || matches!(c, b' ' | b'\'' | b'(' | b')' | b'+' | b',' | b'-' | b'.' | b'/' | b':' | b'=' | b'?')
+        c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                b' ' | b'\'' | b'(' | b')' | b'+' | b',' | b'-' | b'.' | b'/' | b':' | b'=' | b'?'
+            )
     }
 
     /// `pkix.Name{CommonName: cn}` as an RDNSequence.
@@ -698,13 +787,20 @@ mod imp {
         if cn.is_empty() {
             return der::seq(&[]);
         }
-        let tag = if cn.bytes().all(is_printable) { 0x13 } else { 0x0c };
+        let tag = if cn.bytes().all(is_printable) {
+            0x13
+        } else {
+            0x0c
+        };
         let atv = der::seq(&[&der::oid(&[2, 5, 4, 3]), &der::tlv(tag, cn.as_bytes())]);
         der::seq(&[&der::set(&[&atv])])
     }
 
     fn time_der(unix: i64) -> Vec<u8> {
-        let t = crate::funcs::sprig::time::Time::from_unix(unix, crate::funcs::sprig::time::Location::Utc);
+        let t = crate::funcs::sprig::time::Time::from_unix(
+            unix,
+            crate::funcs::sprig::time::Location::Utc,
+        );
         let (y, _, _) = t.ymd();
         if (1950..2050).contains(&y) {
             der::tlv(0x17, t.format("060102150405Z").as_bytes())
@@ -722,7 +818,11 @@ mod imp {
             }
             let mut out = [0u8; 4];
             for (i, p) in parts.iter().enumerate() {
-                if p.is_empty() || p.len() > 3 || !p.bytes().all(|c| c.is_ascii_digit()) || (p.len() > 1 && p.starts_with('0')) {
+                if p.is_empty()
+                    || p.len() > 3
+                    || !p.bytes().all(|c| c.is_ascii_digit())
+                    || (p.len() > 1 && p.starts_with('0'))
+                {
                     return None;
                 }
                 let v: u32 = p.parse().ok()?;
@@ -792,12 +892,21 @@ mod imp {
         Some(out)
     }
 
-    fn get_base_template(ctx: &mut CallCtx<'_>, cn: &str, ips: &Value, dns: &Value, days: i64) -> Result<Template, String> {
+    fn get_base_template(
+        ctx: &mut CallCtx<'_>,
+        cn: &str,
+        ips: &Value,
+        dns: &Value,
+        days: i64,
+    ) -> Result<Template, String> {
         let mut ip_bytes = Vec::new();
         if let Value::List(l) = ips {
             for ip in l.iter() {
                 let Value::String(s) = ip else {
-                    return Err(format!("error parsing ip: {} is not a string", crate::gofmt::format_value(ip)));
+                    return Err(format!(
+                        "error parsing ip: {} is not a string",
+                        crate::gofmt::format_value(ip)
+                    ));
                 };
                 ip_bytes.push(parse_ip(s).ok_or_else(|| format!("error parsing ip: {s}"))?);
             }
@@ -818,7 +927,8 @@ mod imp {
         let mut serial = [0u8; 16];
         ctx.env.fill_random(&mut serial);
         let now = ctx.env.now().unix_seconds;
-        let after = (now as i128 + (days as i128) * 86400).clamp(i64::MIN as i128 / 2, i64::MAX as i128 / 2) as i64;
+        let after = (now as i128 + (days as i128) * 86400)
+            .clamp(i64::MIN as i128 / 2, i64::MAX as i128 / 2) as i64;
         Ok(Template {
             serial: serial.to_vec(),
             subject: subject(cn),
@@ -886,24 +996,40 @@ mod imp {
         let l = if a[1] != 0 { 2 } else { 1 };
         let bits = &a[..l];
         let last = bits[l - 1];
-        let unused = if last == 0 { 0 } else { last.trailing_zeros() as u8 };
+        let unused = if last == 0 {
+            0
+        } else {
+            last.trailing_zeros() as u8
+        };
         let mut bs = alloc::vec![unused];
         bs.extend_from_slice(bits);
         exts.push(extension(&[2, 5, 29, 15], true, &der::tlv(0x03, &bs)));
         // ExtKeyUsage: serverAuth, clientAuth.
-        let eku = der::seq(&[&der::oid(&[1, 3, 6, 1, 5, 5, 7, 3, 1]), &der::oid(&[1, 3, 6, 1, 5, 5, 7, 3, 2])]);
+        let eku = der::seq(&[
+            &der::oid(&[1, 3, 6, 1, 5, 5, 7, 3, 1]),
+            &der::oid(&[1, 3, 6, 1, 5, 5, 7, 3, 2]),
+        ]);
         exts.push(extension(&[2, 5, 29, 37], false, &eku));
         // BasicConstraints.
-        let bc = if t.is_ca { der::seq(&[&der::boolean(true)]) } else { der::seq(&[]) };
+        let bc = if t.is_ca {
+            der::seq(&[&der::boolean(true)])
+        } else {
+            der::seq(&[])
+        };
         exts.push(extension(&[2, 5, 29, 19], true, &bc));
         if !ski.is_empty() {
             exts.push(extension(&[2, 5, 29, 14], false, &der::octets(&ski)));
         }
         if !aki.is_empty() {
-            exts.push(extension(&[2, 5, 29, 35], false, &der::seq(&[&der::tlv(0x80, &aki)])));
+            exts.push(extension(
+                &[2, 5, 29, 35],
+                false,
+                &der::seq(&[&der::tlv(0x80, &aki)]),
+            ));
         }
         if !t.dns.is_empty() || !t.ips.is_empty() {
-            let mut names: Vec<Vec<u8>> = t.dns.iter().map(|d| der::tlv(0x82, d.as_bytes())).collect();
+            let mut names: Vec<Vec<u8>> =
+                t.dns.iter().map(|d| der::tlv(0x82, d.as_bytes())).collect();
             names.extend(t.ips.iter().map(|ip| der::tlv(0x87, ip)));
             let refs: Vec<&[u8]> = names.iter().map(|v| v.as_slice()).collect();
             let subject_empty = t.subject == der::seq(&[]);
@@ -922,9 +1048,14 @@ mod imp {
             &spki,
             &der::tlv(0xa3, &der::seq(&ext_refs)),
         ]);
-        let (alg, sig) = signer.sign(&tbs, &mut rng).map_err(|e| format!("error creating certificate: {e}"))?;
+        let (alg, sig) = signer
+            .sign(&tbs, &mut rng)
+            .map_err(|e| format!("error creating certificate: {e}"))?;
         let cert = der::seq(&[&tbs, &alg, &der::bitstring(&sig)]);
-        Ok(Certificate { cert: pem_encode("CERTIFICATE", &cert), key: signee.pem() })
+        Ok(Certificate {
+            cert: pem_encode("CERTIFICATE", &cert),
+            key: signee.pem(),
+        })
     }
 
     fn ok_cert(c: Certificate) -> FuncResult {
@@ -936,8 +1067,14 @@ mod imp {
         let key = match typ {
             "" | "rsa" => gen_rsa(ctx, 4096),
             "ecdsa" => Ok(Key::P256(p256::SecretKey::random(&mut EnvRng(ctx.env)))),
-            "ed25519" => Ok(Key::Ed25519(ed25519_dalek::SigningKey::generate(&mut EnvRng(ctx.env)))),
-            "dsa" => return Ok(Value::str("failed to generate dsa params: DSA key generation is not supported by helm-rs")),
+            "ed25519" => Ok(Key::Ed25519(ed25519_dalek::SigningKey::generate(
+                &mut EnvRng(ctx.env),
+            ))),
+            "dsa" => {
+                return Ok(Value::str(
+                    "failed to generate dsa params: DSA key generation is not supported by helm-rs",
+                ));
+            }
             _ => return Ok(Value::string(format!("Unknown type {typ}"))),
         };
         Ok(Value::string(match key {
@@ -955,15 +1092,21 @@ mod imp {
     }
 
     fn gen_ca(ctx: &mut CallCtx<'_>, cn: &str, days: i64, key: Key) -> FuncResult {
-        let mut t = get_base_template(ctx, cn, &Value::Nil, &Value::Nil, days).map_err(FuncError::new)?;
+        let mut t =
+            get_base_template(ctx, cn, &Value::Nil, &Value::Nil, days).map_err(FuncError::new)?;
         t.key_usage = KU_KEY_ENCIPHERMENT | KU_DIGITAL_SIGNATURE | KU_CERT_SIGN;
         t.is_ca = true;
-        cert_and_key(ctx, &t, &key, None, &key).map_err(FuncError::new).and_then(ok_cert)
+        cert_and_key(ctx, &t, &key, None, &key)
+            .map_err(FuncError::new)
+            .and_then(ok_cert)
     }
 
     fn gen_self_signed(ctx: &mut CallCtx<'_>, a: &[Value], key: Key) -> FuncResult {
-        let t = get_base_template(ctx, sarg(a, 0), arg(a, 1), arg(a, 2), iarg(a, 3)).map_err(FuncError::new)?;
-        cert_and_key(ctx, &t, &key, None, &key).map_err(FuncError::new).and_then(ok_cert)
+        let t = get_base_template(ctx, sarg(a, 0), arg(a, 1), arg(a, 2), iarg(a, 3))
+            .map_err(FuncError::new)?;
+        cert_and_key(ctx, &t, &key, None, &key)
+            .map_err(FuncError::new)
+            .and_then(ok_cert)
     }
 
     fn gen_signed(ctx: &mut CallCtx<'_>, a: &[Value], key: Key) -> FuncResult {
@@ -971,15 +1114,25 @@ mod imp {
             Value::Object(o) => o.as_any().downcast_ref::<Certificate>().cloned(),
             _ => None,
         }
-        .unwrap_or(Certificate { cert: String::new(), key: String::new() });
+        .unwrap_or(Certificate {
+            cert: String::new(),
+            key: String::new(),
+        });
         let Some(block) = pem_decode(ca.cert.as_bytes()) else {
             return Err(FuncError::new("unable to decode certificate"));
         };
-        let parent = parse_certificate(&block.bytes)
-            .map_err(|e| FuncError::new(format!("error parsing certificate: decodedSignerCert.Bytes: {e}")))?;
-        let signer = parse_private_key_pem(&ca.key).map_err(|e| FuncError::new(format!("error parsing private key: {e}")))?;
-        let t = get_base_template(ctx, sarg(a, 0), arg(a, 1), arg(a, 2), iarg(a, 3)).map_err(FuncError::new)?;
-        cert_and_key(ctx, &t, &key, Some(&parent), &signer).map_err(FuncError::new).and_then(ok_cert)
+        let parent = parse_certificate(&block.bytes).map_err(|e| {
+            FuncError::new(format!(
+                "error parsing certificate: decodedSignerCert.Bytes: {e}"
+            ))
+        })?;
+        let signer = parse_private_key_pem(&ca.key)
+            .map_err(|e| FuncError::new(format!("error parsing private key: {e}")))?;
+        let t = get_base_template(ctx, sarg(a, 0), arg(a, 1), arg(a, 2), iarg(a, 3))
+            .map_err(FuncError::new)?;
+        cert_and_key(ctx, &t, &key, Some(&parent), &signer)
+            .map_err(FuncError::new)
+            .and_then(ok_cert)
     }
 
     fn build_custom_cert(a: &[Value]) -> FuncResult {
@@ -987,12 +1140,19 @@ mod imp {
             .map_err(|_| FuncError::new("unable to decode base64 certificate"))?;
         let key = super::super::strings::base64_decode(sarg(a, 1).as_bytes())
             .map_err(|_| FuncError::new("unable to decode base64 private key"))?;
-        let Some(block) = pem_decode(&cert) else { return Err(FuncError::new("unable to decode certificate")) };
-        parse_certificate(&block.bytes)
-            .map_err(|e| FuncError::new(format!("error parsing certificate: decodedCert.Bytes: {e}")))?;
+        let Some(block) = pem_decode(&cert) else {
+            return Err(FuncError::new("unable to decode certificate"));
+        };
+        parse_certificate(&block.bytes).map_err(|e| {
+            FuncError::new(format!("error parsing certificate: decodedCert.Bytes: {e}"))
+        })?;
         let key_s = crate::gofmt::strconv::lossy(&key);
-        parse_private_key_pem(&key_s).map_err(|e| FuncError::new(format!("error parsing private key: {e}")))?;
-        ok_cert(Certificate { cert: crate::gofmt::strconv::lossy(&cert), key: key_s })
+        parse_private_key_pem(&key_s)
+            .map_err(|e| FuncError::new(format!("error parsing private key: {e}")))?;
+        ok_cert(Certificate {
+            cert: crate::gofmt::strconv::lossy(&cert),
+            key: key_s,
+        })
     }
 
     pub(super) fn register(f: &mut FuncMap, s: Ty, i: Ty, l: Ty, c: Ty) {
@@ -1015,17 +1175,25 @@ mod imp {
             let key = rsa2048(ctx).map_err(FuncError::new)?;
             gen_self_signed(ctx, a, key)
         });
-        f.add_ctx("genSelfSignedCertWithKey", Sig::new(&[S, L, L, I, S]), |ctx, a| {
-            let key = with_key(sarg(a, 4)).map_err(FuncError::new)?;
-            gen_self_signed(ctx, a, key)
-        });
+        f.add_ctx(
+            "genSelfSignedCertWithKey",
+            Sig::new(&[S, L, L, I, S]),
+            |ctx, a| {
+                let key = with_key(sarg(a, 4)).map_err(FuncError::new)?;
+                gen_self_signed(ctx, a, key)
+            },
+        );
         f.add_ctx("genSignedCert", Sig::new(&[S, L, L, I, C]), |ctx, a| {
             let key = rsa2048(ctx).map_err(FuncError::new)?;
             gen_signed(ctx, a, key)
         });
-        f.add_ctx("genSignedCertWithKey", Sig::new(&[S, L, L, I, C, S]), |ctx, a| {
-            let key = with_key(sarg(a, 5)).map_err(FuncError::new)?;
-            gen_signed(ctx, a, key)
-        });
+        f.add_ctx(
+            "genSignedCertWithKey",
+            Sig::new(&[S, L, L, I, C, S]),
+            |ctx, a| {
+                let key = with_key(sarg(a, 5)).map_err(FuncError::new)?;
+                gen_signed(ctx, a, key)
+            },
+        );
     }
 }

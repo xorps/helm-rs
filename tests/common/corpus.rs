@@ -79,10 +79,15 @@ pub fn selected() -> Vec<ChartEntry> {
     let all = lock();
     if let Some(f) = &filter {
         for name in f {
-            assert!(all.iter().any(|c| &c.name == name), "HELM_RS_CHARTS: unknown chart {name:?}");
+            assert!(
+                all.iter().any(|c| &c.name == name),
+                "HELM_RS_CHARTS: unknown chart {name:?}"
+            );
         }
     }
-    all.into_iter().filter(|c| filter.as_ref().is_none_or(|f| f.contains(&c.name))).collect()
+    all.into_iter()
+        .filter(|c| filter.as_ref().is_none_or(|f| f.contains(&c.name)))
+        .collect()
 }
 
 /// Selected charts whose .tgz is in the cache. Prints a skip message for
@@ -92,7 +97,10 @@ pub fn available() -> Vec<ChartEntry> {
     let (have, missing): (Vec<_>, Vec<_>) = sel.into_iter().partition(|c| c.tgz_path().exists());
     if !missing.is_empty() {
         let names: Vec<_> = missing.iter().map(|c| c.name.as_str()).collect();
-        let msg = format!("charts not in cache (run scripts/fetch-charts.sh): {}", names.join(", "));
+        let msg = format!(
+            "charts not in cache (run scripts/fetch-charts.sh): {}",
+            names.join(", ")
+        );
         if std::env::var_os("HELM_RS_CHARTS_REQUIRED").is_some() {
             panic!("{msg}");
         }
@@ -107,7 +115,8 @@ impl ChartEntry {
     }
 
     pub fn tgz_bytes(&self) -> Vec<u8> {
-        std::fs::read(self.tgz_path()).unwrap_or_else(|e| panic!("read {}: {e}", self.tgz_path().display()))
+        std::fs::read(self.tgz_path())
+            .unwrap_or_else(|e| panic!("read {}: {e}", self.tgz_path().display()))
     }
 
     pub fn values_path(&self) -> Option<PathBuf> {
@@ -117,14 +126,18 @@ impl ChartEntry {
     /// The user values the corpus renders this chart with ("" if none).
     pub fn values_yaml(&self) -> String {
         self.values_path()
-            .map(|p| std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display())))
+            .map(|p| {
+                std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()))
+            })
             .unwrap_or_default()
     }
 
     /// Extracts the chart (and any packaged subcharts in `charts/*.tgz`) into
     /// a scratch directory, once; returns the chart root directory.
     pub fn extracted(&self) -> PathBuf {
-        let base = repo_root().join("target/tmp/charts-extracted").join(format!("{}-{}", self.name, self.version));
+        let base = repo_root()
+            .join("target/tmp/charts-extracted")
+            .join(format!("{}-{}", self.name, self.version));
         let root = base.join(&self.chart);
         let marker = base.join(".done");
         static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -142,13 +155,21 @@ impl ChartEntry {
 }
 
 fn untar(tgz: &Path, into: &Path) {
-    let st = Command::new("tar").arg("-xzf").arg(tgz).arg("-C").arg(into).status().expect("run tar");
+    let st = Command::new("tar")
+        .arg("-xzf")
+        .arg(tgz)
+        .arg("-C")
+        .arg(into)
+        .status()
+        .expect("run tar");
     assert!(st.success(), "tar -xzf {} failed", tgz.display());
 }
 
 fn extract_subcharts(chart: &Path) {
     let charts = chart.join("charts");
-    let Ok(rd) = std::fs::read_dir(&charts) else { return };
+    let Ok(rd) = std::fs::read_dir(&charts) else {
+        return;
+    };
     let mut entries: Vec<_> = rd.flatten().map(|e| e.path()).collect();
     entries.sort();
     for p in entries {
@@ -168,13 +189,19 @@ fn extract_subcharts(chart: &Path) {
 /// All regular files under `dir`, as (relative path with `/`, bytes), sorted.
 pub fn walk_files(dir: &Path) -> Vec<(String, Vec<u8>)> {
     fn go(base: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) {
-        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in rd.flatten() {
             let p = e.path();
             if p.is_dir() {
                 go(base, &p, out);
             } else if p.is_file() {
-                let rel = p.strip_prefix(base).unwrap().to_string_lossy().replace('\\', "/");
+                let rel = p
+                    .strip_prefix(base)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
                 out.push((rel, std::fs::read(&p).unwrap()));
             }
         }
@@ -192,6 +219,16 @@ pub fn sha256_file(path: &Path) -> Option<String> {
         .output()
         .ok()
         .filter(|o| o.status.success())
-        .or_else(|| Command::new("shasum").args(["-a", "256"]).arg(path).output().ok().filter(|o| o.status.success()))?;
-    String::from_utf8_lossy(&out.stdout).split_whitespace().next().map(str::to_string)
+        .or_else(|| {
+            Command::new("shasum")
+                .args(["-a", "256"])
+                .arg(path)
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+        })?;
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .next()
+        .map(str::to_string)
 }

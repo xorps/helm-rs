@@ -115,7 +115,11 @@ fn uuid(s: &str) -> R {
     }
     for (i, g) in groups.iter().enumerate() {
         if g.len() != lens[i] {
-            return err(alloc::format!("element {} must be {} characters long", i + 1, lens[i]));
+            return err(alloc::format!(
+                "element {} must be {} characters long",
+                i + 1,
+                lens[i]
+            ));
         }
         for ch in g.chars() {
             if !ch.is_ascii_hexdigit() {
@@ -127,7 +131,9 @@ fn uuid(s: &str) -> R {
 }
 
 fn duration(s: &str) -> R {
-    let Some(s) = s.strip_prefix('P') else { return err("must start with P") };
+    let Some(s) = s.strip_prefix('P') else {
+        return err("must start with P");
+    };
     if s.is_empty() {
         return err("nothing after P");
     }
@@ -156,7 +162,9 @@ fn duration(s: &str) -> R {
                 return err("missing number");
             }
             p = &p[digits..];
-            let Some(unit) = p.chars().next() else { return err("missing unit") };
+            let Some(unit) = p.chars().next() else {
+                return err("missing unit");
+            };
             match units.find(unit) {
                 Some(j) => units = &units[j + 1..],
                 None => {
@@ -175,7 +183,9 @@ fn duration(s: &str) -> R {
 }
 
 fn period(s: &str) -> R {
-    let Some(slash) = s.find('/') else { return err("missing slash") };
+    let Some(slash) = s.find('/') else {
+        return err("missing slash");
+    };
     let (start, end) = (&s[..slash], &s[slash + 1..]);
     if start.starts_with('P') {
         duration(start).map_err(|e| alloc::format!("invalid start duration: {e}"))?;
@@ -195,9 +205,13 @@ fn period(s: &str) -> R {
 fn atoi(s: &str) -> Result<i64, String> {
     let digits = s.strip_prefix(['+', '-']).unwrap_or(s);
     if digits.is_empty() || !digits.bytes().all(|c| c.is_ascii_digit()) {
-        return Err(alloc::format!("strconv.Atoi: parsing {}: invalid syntax", quote(s)));
+        return Err(alloc::format!(
+            "strconv.Atoi: parsing {}: invalid syntax",
+            quote(s)
+        ));
     }
-    s.parse::<i64>().map_err(|_| alloc::format!("strconv.Atoi: parsing {}: value out of range", quote(s)))
+    s.parse::<i64>()
+        .map_err(|_| alloc::format!("strconv.Atoi: parsing {}: value out of range", quote(s)))
 }
 
 fn ipv4(s: &str) -> R {
@@ -231,7 +245,11 @@ fn parse_ipv4_fields(input: &str, s: &[u8]) -> Result<(), String> {
         let c = s[i];
         if c.is_ascii_digit() {
             if dig_len == 1 && val == 0 {
-                return Err(addr_err(input, "IPv4 field has octet with leading zero", ""));
+                return Err(addr_err(
+                    input,
+                    "IPv4 field has octet with leading zero",
+                    "",
+                ));
             }
             val = val * 10 + u32::from(c - b'0');
             dig_len += 1;
@@ -240,7 +258,11 @@ fn parse_ipv4_fields(input: &str, s: &[u8]) -> Result<(), String> {
             }
         } else if c == b'.' {
             if i == 0 || i == s.len() - 1 || s[i - 1] == b'.' {
-                return Err(addr_err(input, "IPv4 field must have at least one digit", &String::from_utf8_lossy(&s[i..])));
+                return Err(addr_err(
+                    input,
+                    "IPv4 field must have at least one digit",
+                    &String::from_utf8_lossy(&s[i..]),
+                ));
             }
             if pos == 3 {
                 return Err(addr_err(input, "IPv4 address too long", ""));
@@ -249,7 +271,11 @@ fn parse_ipv4_fields(input: &str, s: &[u8]) -> Result<(), String> {
             val = 0;
             dig_len = 0;
         } else {
-            return Err(addr_err(input, "unexpected character", &String::from_utf8_lossy(&s[i..])));
+            return Err(addr_err(
+                input,
+                "unexpected character",
+                &String::from_utf8_lossy(&s[i..]),
+            ));
         }
     }
     if pos < 3 {
@@ -262,7 +288,9 @@ fn parse_ipv4_fields(input: &str, s: &[u8]) -> Result<(), String> {
 fn parse_addr(input: &str) -> Result<(String, bool), String> {
     for c in input.bytes() {
         match c {
-            b'.' => return parse_ipv4_fields(input, input.as_bytes()).map(|_| (String::new(), true)),
+            b'.' => {
+                return parse_ipv4_fields(input, input.as_bytes()).map(|_| (String::new(), true));
+            }
             b':' => return parse_ipv6(input).map(|z| (z, false)),
             b'%' => return Err(addr_err(input, "missing IPv6 address", "")),
             _ => {}
@@ -304,7 +332,11 @@ fn parse_ipv6(input: &str) -> Result<String, String> {
             };
             acc = (acc << 4) + u32::from(d);
             if off > 3 {
-                return Err(addr_err(input, "each group must have 4 or less digits", &at(s)));
+                return Err(addr_err(
+                    input,
+                    "each group must have 4 or less digits",
+                    &at(s),
+                ));
             }
             if acc > 0xFFFF {
                 return Err(addr_err(input, "IPv6 field has value >=2^16", &at(s)));
@@ -312,11 +344,19 @@ fn parse_ipv6(input: &str) -> Result<String, String> {
             off += 1;
         }
         if off == 0 {
-            return Err(addr_err(input, "each colon-separated field must have at least one digit", &at(s)));
+            return Err(addr_err(
+                input,
+                "each colon-separated field must have at least one digit",
+                &at(s),
+            ));
         }
         if off < s.len() && s[off] == b'.' {
             if ellipsis < 0 && i != 12 {
-                return Err(addr_err(input, "embedded IPv4 address must replace the final 2 fields of the address", &at(s)));
+                return Err(addr_err(
+                    input,
+                    "embedded IPv4 address must replace the final 2 fields of the address",
+                    &at(s),
+                ));
             }
             if i + 4 > 16 {
                 return Err(addr_err(
@@ -341,7 +381,11 @@ fn parse_ipv6(input: &str) -> Result<String, String> {
         if s[0] != b':' {
             return Err(addr_err(input, "unexpected character, want colon", &at(s)));
         } else if s.len() == 1 {
-            return Err(addr_err(input, "colon must be followed by more characters", &at(s)));
+            return Err(addr_err(
+                input,
+                "colon must be followed by more characters",
+                &at(s),
+            ));
         }
         s = &s[1..];
         if s[0] == b':' {
@@ -363,7 +407,11 @@ fn parse_ipv6(input: &str) -> Result<String, String> {
             return Err(addr_err(input, "address string too short", ""));
         }
     } else if ellipsis >= 0 {
-        return Err(addr_err(input, "the :: must expand to at least one field of zeros", ""));
+        return Err(addr_err(
+            input,
+            "the :: must expand to at least one field of zeros",
+            "",
+        ));
     }
     Ok(zone)
 }
@@ -407,7 +455,9 @@ fn email(s: &str) -> R {
     if s.len() > 254 {
         return err("more than 255 characters long");
     }
-    let Some(at) = s.rfind('@') else { return err("missing @") };
+    let Some(at) = s.rfind('@') else {
+        return err("missing @");
+    };
     let (local, domain) = (&s[..at], &s[at + 1..]);
     if local.len() > 64 {
         return err("local part more than 64 characters long");
@@ -505,7 +555,10 @@ fn date(s: &[u8]) -> R {
     if !v[..4].iter().all(u8::is_ascii_digit) {
         return cannot(v, "2006");
     }
-    let year: i64 = core::str::from_utf8(&v[..4]).ok().and_then(|y| y.parse().ok()).unwrap_or(0);
+    let year: i64 = core::str::from_utf8(&v[..4])
+        .ok()
+        .and_then(|y| y.parse().ok())
+        .unwrap_or(0);
     v = &v[4..];
     let num2 = |v: &[u8]| -> Option<(u32, usize)> {
         if !digit(v, 0) || !digit(v, 1) {
@@ -518,23 +571,37 @@ fn date(s: &[u8]) -> R {
         return cannot(v, "-");
     }
     v = &v[1..];
-    let Some((month, n)) = num2(v) else { return cannot(v, "01") };
+    let Some((month, n)) = num2(v) else {
+        return cannot(v, "01");
+    };
     v = &v[n..];
     if !(1..=12).contains(&month) {
-        return Err(alloc::format!("parsing time {}: month out of range", tquote(s)));
+        return Err(alloc::format!(
+            "parsing time {}: month out of range",
+            tquote(s)
+        ));
     }
     // -02
     if v.first() != Some(&b'-') {
         return cannot(v, "-");
     }
     v = &v[1..];
-    let Some((day, n)) = num2(v) else { return cannot(v, "02") };
+    let Some((day, n)) = num2(v) else {
+        return cannot(v, "02");
+    };
     v = &v[n..];
     if !v.is_empty() {
-        return Err(alloc::format!("parsing time {}: extra text: {}", tquote(s), tquote(v)));
+        return Err(alloc::format!(
+            "parsing time {}: extra text: {}",
+            tquote(s),
+            tquote(v)
+        ));
     }
     if day < 1 || day > days_in(month, year) {
-        return Err(alloc::format!("parsing time {}: day out of range", tquote(s)));
+        return Err(alloc::format!(
+            "parsing time {}: day out of range",
+            tquote(s)
+        ));
     }
     Ok(())
 }
@@ -553,7 +620,9 @@ fn time(s: &[u8]) -> R {
     }
     let mut hms = Vec::new();
     for tok in s[..8].splitn(3, |c| *c == b':') {
-        let Some(i) = atoi_bytes(tok) else { return err("invalid hour/min/sec") };
+        let Some(i) = atoi_bytes(tok) else {
+            return err("invalid hour/min/sec");
+        };
         if i < 0 {
             return err("non-positive hour/min/sec");
         }
@@ -589,7 +658,9 @@ fn time(s: &[u8]) -> R {
         }
         let mut zhm = Vec::new();
         for tok in str.splitn(2, |c| *c == b':') {
-            let Some(i) = atoi_bytes(tok) else { return err("invalid hour/min in offset") };
+            let Some(i) = atoi_bytes(tok) else {
+                return err("invalid hour/min in offset");
+            };
             if i < 0 {
                 return err("non-positive hour/min in offset");
             }
@@ -642,7 +713,25 @@ fn should_escape_host(c: u8) -> bool {
     if c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'.' | b'~') {
         return false;
     }
-    !matches!(c, b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' | b':' | b'[' | b']' | b'<' | b'>' | b'"')
+    !matches!(
+        c,
+        b'!' | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'['
+            | b']'
+            | b'<'
+            | b'>'
+            | b'"'
+    )
 }
 
 /// `url.unescape` error checks only.
@@ -659,13 +748,19 @@ fn unescape(s: &[u8], mode: Mode) -> Result<(), String> {
                 }
                 let hi = (s[i + 1] as char).to_digit(16).unwrap_or(0);
                 if mode == Mode::Host && hi < 8 && &s[i..i + 3] != b"%25" {
-                    return Err(alloc::format!("invalid URL escape {}", quote_bytes(&s[i..i + 3])));
+                    return Err(alloc::format!(
+                        "invalid URL escape {}",
+                        quote_bytes(&s[i..i + 3])
+                    ));
                 }
                 i += 3;
             }
             c => {
                 if (mode == Mode::Host || mode == Mode::Zone) && c < 0x80 && should_escape_host(c) {
-                    return Err(alloc::format!("invalid character {} in host name", quote_bytes(&s[i..i + 1])));
+                    return Err(alloc::format!(
+                        "invalid character {} in host name",
+                        quote_bytes(&s[i..i + 1])
+                    ));
                 }
                 i += 1;
             }
@@ -689,7 +784,10 @@ fn parse_host(scheme: &str, host: &[u8]) -> Result<String, String> {
             };
             let colon_port = &host[close + 1..];
             if !valid_optional_port(colon_port) {
-                return Err(alloc::format!("invalid port {} after host", quote_bytes(colon_port)));
+                return Err(alloc::format!(
+                    "invalid port {} after host",
+                    quote_bytes(colon_port)
+                ));
             }
             let hostname = &host[1..close.max(1)];
             let zi = hostname.windows(3).position(|w| w == b"%25");
@@ -716,7 +814,10 @@ fn parse_host(scheme: &str, host: &[u8]) -> Result<String, String> {
                 }
                 let colon_port = &host[i..];
                 if !valid_optional_port(colon_port) {
-                    return Err(alloc::format!("invalid port {} after host", quote_bytes(colon_port)));
+                    return Err(alloc::format!(
+                        "invalid port {} after host",
+                        quote_bytes(colon_port)
+                    ));
                 }
             }
         }
@@ -730,7 +831,8 @@ fn percent_decode(s: &[u8]) -> String {
     let mut i = 0;
     while i < s.len() {
         if s[i] == b'%' && i + 2 < s.len() && ishex(s[i + 1]) && ishex(s[i + 2]) {
-            let v = (s[i + 1] as char).to_digit(16).unwrap_or(0) * 16 + (s[i + 2] as char).to_digit(16).unwrap_or(0);
+            let v = (s[i + 1] as char).to_digit(16).unwrap_or(0) * 16
+                + (s[i + 2] as char).to_digit(16).unwrap_or(0);
             out.push(v as u8);
             i += 3;
         } else {
@@ -765,7 +867,11 @@ fn url_parse_inner(raw: &str) -> Result<Url, String> {
     if raw.bytes().any(|c| c < 0x20 || c == 0x7f) {
         return Err("net/url: invalid control character in URL".into());
     }
-    let mut url = Url { scheme: String::new(), host: String::new(), raw_path: String::new() };
+    let mut url = Url {
+        scheme: String::new(),
+        host: String::new(),
+        raw_path: String::new(),
+    };
     if raw == "*" {
         return Ok(url);
     }
@@ -820,9 +926,9 @@ fn url_parse_inner(raw: &str) -> Result<Url, String> {
         url.host = parse_host(&url.scheme, host)?;
         if let Some(i) = at {
             let userinfo = &ab[..i];
-            let valid = userinfo.iter().all(|c| {
-                c.is_ascii_alphanumeric() || b"-._:~!$&'()*+,;=%@".contains(c)
-            });
+            let valid = userinfo
+                .iter()
+                .all(|c| c.is_ascii_alphanumeric() || b"-._:~!$&'()*+,;=%@".contains(c));
             if !valid {
                 return Err("net/url: invalid userinfo".into());
             }
@@ -907,7 +1013,10 @@ fn semver(s: &str) -> R {
             }
             for ch in id.chars() {
                 if !(ch.is_ascii_alphanumeric() || ch == '-') {
-                    return err(alloc::format!("invalid character {} in build identifier", qr(ch)));
+                    return err(alloc::format!(
+                        "invalid character {} in build identifier",
+                        qr(ch)
+                    ));
                 }
             }
         }
@@ -924,7 +1033,10 @@ fn semver(s: &str) -> R {
                 } else if ch.is_ascii_alphabetic() || ch == '-' {
                     all_digits = false;
                 } else {
-                    return err(alloc::format!("invalid character {} in pre-release identifier", qr(ch)));
+                    return err(alloc::format!(
+                        "invalid character {} in pre-release identifier",
+                        qr(ch)
+                    ));
                 }
             }
             if all_digits && id.len() > 1 && id.starts_with('0') {

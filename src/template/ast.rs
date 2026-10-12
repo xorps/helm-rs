@@ -145,14 +145,29 @@ pub struct NumberNode {
 pub enum Arg {
     Field(FieldNode),
     Chain(Box<ChainNode>),
-    Identifier { pos: Pos, name: Rc<str>, span: Span },
+    Identifier {
+        pos: Pos,
+        name: Rc<str>,
+        span: Span,
+    },
     Pipe(Box<PipeNode>),
     Variable(VariableNode),
-    Dot { pos: Pos },
-    Nil { pos: Pos },
-    Bool { pos: Pos, val: bool },
+    Dot {
+        pos: Pos,
+    },
+    Nil {
+        pos: Pos,
+    },
+    Bool {
+        pos: Pos,
+        val: bool,
+    },
     Number(Box<NumberNode>),
-    String { pos: Pos, quoted: Rc<str>, text: Rc<str> },
+    String {
+        pos: Pos,
+        quoted: Rc<str>,
+        text: Rc<str>,
+    },
 }
 
 impl Arg {
@@ -178,7 +193,14 @@ impl Arg {
             Arg::Identifier { span, .. } => span.clone(),
             Arg::Pipe(p) => p.span.clone(),
             Arg::Variable(v) => v.span.clone(),
-            Arg::Dot { pos } | Arg::Nil { pos } => *pos..*pos + if matches!(self, Arg::Dot { .. }) { 1 } else { 3 },
+            Arg::Dot { pos } | Arg::Nil { pos } => {
+                *pos..*pos
+                    + if matches!(self, Arg::Dot { .. }) {
+                        1
+                    } else {
+                        3
+                    }
+            }
             Arg::Bool { pos, val } => *pos..*pos + if *val { 4 } else { 5 },
             Arg::Number(n) => n.span.clone(),
             Arg::String { pos, quoted, .. } => *pos..*pos + quoted.len(),
@@ -332,5 +354,8 @@ pub(crate) fn is_empty_list(l: &ListNode, text: &str) -> bool {
 
 /// `bytes.TrimSpace` whitespace (Unicode White_Space).
 fn is_go_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{85}' | '\u{a0}') || (c as u32 > 0xff && c.is_whitespace())
+    matches!(
+        c,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{85}' | '\u{a0}'
+    ) || (c as u32 > 0xff && c.is_whitespace())
 }
