@@ -718,6 +718,106 @@ fn crypto_deterministic() {
     t.run("crypto_deterministic");
 }
 
+#[test]
+fn url_random() {
+    let mut rng = Rng::new(1234);
+    let mut t = Batch::new();
+    let pieces = [
+        "http", "https", "ftp", "mailto", ":", "//", "/", "?", "#", "@", "[", "]", "::1", "%", "%20", "%2F", "%zz", "a", "b",
+        "host", ".", "..", "8080", ":80", "user", "pass", " ", "+", "=", "&", "é", "~", "*", ";", ",", "!", "$", "'",
+        "(", ")", "%25", "1.2.3.4", "x-y", "_",
+    ];
+    for _ in 0..3000 {
+        let n = rng.range(0, 8);
+        let u: String = (0..n).map(|_| *rng.pick(&pieces)).collect();
+        t.add("urlParse", vec![s(&u)]);
+    }
+    let keys = ["scheme", "host", "path", "query", "opaque", "fragment", "userinfo"];
+    for _ in 0..1000 {
+        let mut items = Vec::new();
+        for k in keys {
+            if rng.chance(1, 2) {
+                let n = rng.range(0, 4);
+                let v: String = (0..n).map(|_| *rng.pick(&pieces)).collect();
+                items.push((k, s(&v)));
+            }
+        }
+        t.add("urlJoin", vec![d(items)]);
+    }
+    t.run("url_random");
+}
+
+#[test]
+fn merge_random() {
+    let mut rng = Rng::new(4321);
+    let mut t = Batch::new();
+    fn rand_tree(rng: &mut Rng, depth: u32) -> Arg {
+        let n = rng.range(0, 3);
+        let mut items = Vec::new();
+        for _ in 0..n {
+            let k = ["a", "b", "c"][rng.below(3) as usize];
+            let v = match rng.below(9) {
+                0 if depth > 0 => rand_tree(rng, depth - 1),
+                1 if depth > 0 => rand_tree(rng, depth - 1),
+                2 => list_arg(vec![]),
+                3 => list_arg(vec![int_arg(rng.range(0, 2))]),
+                4 => Arg::new(Value::Nil, "nil"),
+                5 => str_arg(["", "x"][rng.below(2) as usize]),
+                6 => int_arg(rng.range(0, 1)),
+                7 => Arg::new(Value::Bool(rng.chance(1, 2)), "").fix_bool(),
+                _ => float_arg([0.0, 1.5][rng.below(2) as usize]),
+            };
+            items.push((k.to_string(), v));
+        }
+        dict_arg(items)
+    }
+    for _ in 0..2500 {
+        let f = ["merge", "mergeOverwrite"][rng.below(2) as usize];
+        let n = rng.range(1, 3);
+        let args: Vec<Arg> = (0..n).map(|_| rand_tree(&mut rng, 2)).collect();
+        t.add(f, args);
+    }
+    t.run("merge_random");
+}
+
+#[test]
+fn numeric_random() {
+    let mut rng = Rng::new(6789);
+    let mut t = Batch::new();
+    for _ in 0..3000 {
+        let num = |rng: &mut Rng| -> Arg {
+            match rng.below(5) {
+                0 => int_arg(rand_int(rng)),
+                1 => float_arg(rand_float(rng)),
+                2 => s(&format!("{}", rng.range(-1000, 1000))),
+                3 => s(&format!("{}.{}", rng.range(-100, 100), rng.range(0, 99))),
+                _ => i64a(rand_int(rng)),
+            }
+        };
+        let f = *rng.pick(&["add", "sub", "mul", "div", "mod", "max", "min", "maxf", "minf", "addf", "subf", "mulf", "divf", "round", "floor", "ceil", "int", "int64", "float64", "add1", "add1f", "toDecimal"]);
+        let args = match f {
+            "round" => vec![num(&mut rng), i(rng.range(-3, 5))],
+            "floor" | "ceil" | "int" | "int64" | "float64" | "add1" | "add1f" | "toDecimal" => vec![num(&mut rng)],
+            "sub" | "div" | "mod" => vec![num(&mut rng), num(&mut rng)],
+            _ => (0..rng.range(1, 4)).map(|_| num(&mut rng)).collect(),
+        };
+        t.add(f, args);
+    }
+    t.run("numeric_random");
+}
+
+trait FixBool {
+    fn fix_bool(self) -> Arg;
+}
+impl FixBool for Arg {
+    fn fix_bool(mut self) -> Arg {
+        if let Value::Bool(b) = self.value {
+            self.tmpl = if b { "true".into() } else { "false".into() };
+        }
+        self
+    }
+}
+
 /// `toPrettyJson`/`toRawJson` are implemented as post-processing of
 /// `json.Marshal` output; check that against Helm on random values.
 #[test]

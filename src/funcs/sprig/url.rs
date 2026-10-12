@@ -62,15 +62,15 @@ fn unescape(s: &str, mode: u8) -> Result<String, String> {
                 if i + 2 >= b.len() || !ishex(b[i + 1]) || !ishex(b[i + 2]) {
                     let rest = &b[i..];
                     let rest = &rest[..rest.len().min(3)];
-                    return Err(format!("invalid URL escape {}", strconv::quote(&strconv::lossy(rest))));
+                    return Err(format!("invalid URL escape {}", strconv::quote_bytes(rest)));
                 }
                 if mode == ENCODE_HOST && unhex(b[i + 1]) < 8 && &b[i..i + 3] != b"%25" {
-                    return Err(format!("invalid URL escape {}", strconv::quote(&strconv::lossy(&b[i..i + 3]))));
+                    return Err(format!("invalid URL escape {}", strconv::quote_bytes(&b[i..i + 3])));
                 }
                 if mode == ENCODE_ZONE {
                     let v = (unhex(b[i + 1]) << 4) | unhex(b[i + 2]);
                     if &b[i..i + 3] != b"%25" && v != b' ' && should_escape(v, ENCODE_HOST) {
-                        return Err(format!("invalid URL escape {}", strconv::quote(&strconv::lossy(&b[i..i + 3]))));
+                        return Err(format!("invalid URL escape {}", strconv::quote_bytes(&b[i..i + 3])));
                     }
                 }
                 i += 3;

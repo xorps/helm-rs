@@ -248,6 +248,13 @@ pub fn quote(s: &str) -> String {
     lossy_vec(b)
 }
 
+/// `strconv.Quote` of raw bytes (invalid UTF-8 becomes `\xNN`).
+pub fn quote_bytes(s: &[u8]) -> String {
+    let mut b = Vec::with_capacity(s.len() + 2);
+    append_quoted(&mut b, s, b'"', false);
+    lossy_vec(b)
+}
+
 /// `strconv.CanBackquote`.
 pub fn can_backquote(mut s: &[u8]) -> bool {
     while !s.is_empty() {
