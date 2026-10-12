@@ -2,7 +2,11 @@ module github.com/xorps/helm-rs/oracle
 
 go 1.26.0
 
-require helm.sh/helm/v4 v4.3.0
+require (
+	github.com/gobwas/glob v0.2.3
+	helm.sh/helm/v4 v4.3.0
+	sigs.k8s.io/yaml v1.6.0
+)
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
@@ -45,7 +49,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.27.1 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.1 // indirect
-	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
@@ -118,5 +121,4 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )

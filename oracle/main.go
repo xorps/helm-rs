@@ -62,6 +62,13 @@ type Request struct {
 	FixedTime bool `json:"fixed_time,omitempty"`
 	// "batch" only.
 	Requests []Request `json:"requests,omitempty"`
+	// Chart-level ops (see chartops.go).
+	FilesB64  map[string]string `json:"files_b64,omitempty"`
+	SkipTests bool              `json:"skip_tests,omitempty"`
+	Schema    string            `json:"schema,omitempty"`
+	Pattern   string            `json:"pattern,omitempty"`
+	Names     []string          `json:"names,omitempty"`
+	Rendered  map[string]string `json:"rendered,omitempty"`
 }
 
 type Response struct {
@@ -164,6 +171,9 @@ func handle(req Request) (resp Response) {
 		}
 		return Response{Results: results}
 	default:
+		if resp, ok := handleChartOp(req); ok {
+			return resp
+		}
 		return fail("request", fmt.Errorf("unknown op %q", req.Op))
 	}
 }

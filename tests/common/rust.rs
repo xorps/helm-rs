@@ -86,8 +86,9 @@ pub fn default_capabilities() -> Capabilities {
             kube_version: get("kube_version").unwrap_or_else(|| "v1.37.0".into()),
             api_versions: get("api_versions")
                 .map(|s| s.split(',').filter(|x| !x.is_empty()).map(str::to_string).collect())
-                .unwrap_or_default(),
+                .unwrap_or_else(|| Capabilities::default().api_versions),
             helm_version: get("helm_version").unwrap_or_else(|| "v4.3.0".into()),
+            ..Capabilities::default()
         }
     })
     .clone()
@@ -111,6 +112,8 @@ pub fn render_options(opts: &Opts) -> RenderOptions {
         capabilities: caps,
         strict: opts.strict,
         skip_schema_validation: opts.skip_schema,
+        include_crds: opts.include_crds,
+        skip_tests: false,
     }
 }
 
