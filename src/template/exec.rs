@@ -25,7 +25,7 @@ use super::{GoErr, Set, TemplateFile};
 use crate::error::{Error, ErrorKind, Frame, Location};
 use crate::func::{CallCtx, Env, Func, FuncError, FuncMap, Ty};
 use crate::gofmt;
-use crate::value::{MapRef, Value};
+use crate::value::{Map, MapKind, MapRef, Value};
 
 /// An evaluated value with its Go static-type state.
 #[derive(Clone, Debug)]
@@ -586,6 +586,14 @@ impl<'s, 'e> State<'s, 'e> {
             Ev::Invalid => unreachable!(),
         };
         // Methods first.
+        if let Value::Map(m) = &value
+            && m.kind() == MapKind::HelmValues
+            && let Some(meth) = ValuesMethod::from_name(field_name)
+        {
+            let call_args = if args.is_empty() { None } else { Some(args) };
+            let name = field_name.to_string();
+            return self.eval_call(dot, CallTarget::Values(m.clone(), meth), None, node.at(), &name, call_args, fin);
+        }
         if let Value::Object(o) = &value
             && let Some(sig) = o.method(field_name)
         {
@@ -772,6 +780,7 @@ impl<'s, 'e> State<'s, 'e> {
                 let vals = values(argv);
                 self.call_helm(h, &vals, call_span.clone())
             }
+            CallTarget::Values(m, meth) => meth.call(&m, &values(argv)).map_err(CallErr::Plain),
         }
     }
 
@@ -1037,6 +1046,7 @@ impl CallSig {
 
 enum CallTarget<'a> {
     Builtin(Builtin),
+    Values(MapRef, ValuesMethod),
     Helm(HelmFn),
     Func(Func),
     Method(&'a dyn crate::value::Object, crate::func::Sig, &'a str),
@@ -1047,6 +1057,7 @@ impl CallTarget<'_> {
         match self {
             CallTarget::Builtin(b) => b.sig(),
             CallTarget::Helm(h) => h.sig(),
+            CallTarget::Values(_, m) => m.sig(),
             CallTarget::Func(f) => CallSig { fixed: f.sig.params.iter().map(|t| PTy::Ty(*t)).collect(), variadic: f.sig.variadic.map(PTy::Ty) },
             CallTarget::Method(_, s, _) => CallSig { fixed: s.params.iter().map(|t| PTy::Ty(*t)).collect(), variadic: s.variadic.map(PTy::Ty) },
         }
@@ -1787,5 +1798,90 @@ pub(crate) fn execute(ctx: &mut Ctx<'_>, set: Rc<Set>, file: &TemplateFile, dot:
     }
 }
 
-#[allow(dead_code)]
-fn _assert_map(_: MapRef) {}
+/// Methods of Helm's `common.Values` map type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ValuesMethod {
+    Yaml,
+    Table,
+    AsMap,
+    PathValue,
+    Encode,
+}
+
+impl ValuesMethod {
+    fn from_name(name: &str) -> Option<ValuesMethod> {
+        Some(match name {
+            "YAML" => ValuesMethod::Yaml,
+            "Table" => ValuesMethod::Table,
+            "AsMap" => ValuesMethod::AsMap,
+            "PathValue" => ValuesMethod::PathValue,
+            "Encode" => ValuesMethod::Encode,
+            _ => return None,
+        })
+    }
+
+    fn sig(self) -> CallSig {
+        let fixed = match self {
+            ValuesMethod::Yaml | ValuesMethod::AsMap => vec![],
+            ValuesMethod::Table | ValuesMethod::PathValue => vec![PTy::Ty(Ty::String)],
+            ValuesMethod::Encode => vec![PTy::Ty(Ty::Object("io.Writer"))],
+        };
+        CallSig { fixed, variadic: None }
+    }
+
+    fn call(self, m: &MapRef, args: &[Value]) -> Result<Ev, FuncError> {
+        match self {
+            ValuesMethod::Yaml => {
+                let s = crate::yaml::to_string(&Value::Map(m.clone())).map_err(|e| FuncError::new(e.message))?;
+                Ok(Ev::Val(Value::string(s)))
+            }
+            ValuesMethod::AsMap => {
+                if m.is_empty() {
+                    return Ok(Ev::Val(Value::empty_map()));
+                }
+                Ok(Ev::Val(Value::Map(m.with_kind(MapKind::Plain))))
+            }
+            ValuesMethod::Table => {
+                let name = args[0].as_str().unwrap_or("");
+                values_table(m, name).map(|t| Ev::Val(Value::Map(t)))
+            }
+            ValuesMethod::PathValue => {
+                let path = args[0].as_str().unwrap_or("");
+                if path.is_empty() {
+                    return Err(FuncError::new("YAML path cannot be empty"));
+                }
+                let parts: Vec<&str> = path.split('.').collect();
+                let no_value = |k: &str| FuncError::new(format!("{} is not a value", go_quote(k)));
+                let is_table = |v: &Value| matches!(v, Value::Map(_));
+                if parts.len() == 1 {
+                    return match m.get(parts[0]) {
+                        Some(v) if !is_table(&v) => Ok(Ev::of_result(v)),
+                        _ => Err(no_value(parts[0])),
+                    };
+                }
+                let key = parts[parts.len() - 1];
+                let table = values_table(m, &parts[..parts.len() - 1].join(".")).map_err(|_| no_value(key))?;
+                match table.get(key) {
+                    Some(v) if !is_table(&v) => Ok(Ev::of_result(v)),
+                    _ => Err(no_value(key)),
+                }
+            }
+            ValuesMethod::Encode => Err(FuncError::new("runtime error: invalid memory address or nil pointer dereference")),
+        }
+    }
+}
+
+/// `common.Values.Table`.
+fn values_table(m: &MapRef, name: &str) -> Result<MapRef, FuncError> {
+    let mut table = m.clone();
+    for n in name.split('.') {
+        let next = match table.get(n) {
+            None => return Err(FuncError::new(format!("{} is not a table", go_quote(n)))),
+            Some(Value::Map(t)) => t.with_kind(MapKind::HelmValues),
+            Some(_) => return Err(FuncError::new(format!("{} is not a table", go_quote(n)))),
+        };
+        table = next;
+    }
+    let _ = Map::new;
+    Ok(table)
+}

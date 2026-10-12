@@ -49,11 +49,35 @@ pub enum Value {
 
 /// Shared, mutable map with Go reference semantics.
 #[derive(Clone, Default)]
-pub struct MapRef(Rc<RefCell<Map>>);
+pub struct MapRef(Rc<RefCell<Map>>, MapKind);
+
+/// The Go static type of a map. Helm passes some maps as its named type
+/// `common.Values` (`map[string]interface{}` with methods `YAML`, `Table`,
+/// `AsMap`, `PathValue`, `Encode`), which is observable from templates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MapKind {
+    /// `map[string]interface {}`
+    #[default]
+    Plain,
+    /// Helm's `common.Values`.
+    HelmValues,
+}
 
 impl MapRef {
     pub fn new(map: Map) -> Self {
-        MapRef(Rc::new(RefCell::new(map)))
+        MapRef(Rc::new(RefCell::new(map)), MapKind::Plain)
+    }
+    /// A new map of Go type `common.Values`.
+    pub fn new_values(map: Map) -> Self {
+        MapRef(Rc::new(RefCell::new(map)), MapKind::HelmValues)
+    }
+    pub fn kind(&self) -> MapKind {
+        self.1
+    }
+    /// The same map (shared storage) viewed as another Go map type, like a
+    /// Go type conversion `common.Values(m)`.
+    pub fn with_kind(&self, kind: MapKind) -> MapRef {
+        MapRef(self.0.clone(), kind)
     }
     pub fn borrow(&self) -> Ref<'_, Map> {
         self.0.borrow()
@@ -85,13 +109,13 @@ impl MapRef {
     }
     /// Shallow copy into a new, independent map.
     pub fn shallow_clone(&self) -> MapRef {
-        MapRef::new(self.0.borrow().clone())
+        MapRef(Rc::new(RefCell::new(self.0.borrow().clone())), self.1)
     }
     /// Recursive copy: nested maps are copied too, so the result shares no
     /// mutable storage with `self`.
     pub fn deep_clone(&self) -> MapRef {
         let m = self.0.borrow();
-        MapRef::new(m.iter().map(|(k, v)| (k.clone(), v.deep_clone())).collect())
+        MapRef(Rc::new(RefCell::new(m.iter().map(|(k, v)| (k.clone(), v.deep_clone())).collect())), self.1)
     }
 }
 
@@ -254,7 +278,10 @@ impl Value {
             Value::String(_) => "string".into(),
             Value::Bytes(_) => "[]uint8".into(),
             Value::List(_) => "[]interface {}".into(),
-            Value::Map(_) => "map[string]interface {}".into(),
+            Value::Map(m) => match m.kind() {
+                MapKind::Plain => "map[string]interface {}".into(),
+                MapKind::HelmValues => "common.Values".into(),
+            },
             Value::Object(o) => o.type_name().to_string(),
         }
     }

@@ -32,9 +32,10 @@ fn both(templates: &[(&str, &str)]) -> Option<(OracleResult, Result<BTreeMap<Str
 
     let vals: serde_json::Value = serde_json::from_str(VALUES).unwrap();
     let mut top = Map::new();
-    top.insert("Values".into(), values::json_to_value(&vals));
+    let helm_rs::Value::Map(v) = values::json_to_value(&vals) else { unreachable!() };
+    top.insert("Values".into(), Value::Map(v.with_kind(helm_rs::MapKind::HelmValues)));
     top.insert("Release".into(), helm_rs::map! { "Name" => "release-name", "Namespace" => "default" });
-    let top = Value::map(top);
+    let top = Value::Map(helm_rs::MapRef::new_values(top));
     let mut engine = Engine::new();
     engine.funcs = FuncMap::new();
     let renderables = templates
