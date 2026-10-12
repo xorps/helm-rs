@@ -35,7 +35,8 @@ fn run(chart_path: &str, values_path: Option<&String>) -> Result<String, String>
     let values = match values_path {
         Some(p) => {
             let text = std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"))?;
-            yaml::unmarshal(&text, yaml::Target::Map("common.Values")).map_err(|e| format!("{p}: {}", e.message))?
+            yaml::unmarshal(&text, yaml::Target::Map("common.Values"))
+                .map_err(|e| format!("{p}: {}", e.message))?
         }
         None => Value::empty_map(),
     };

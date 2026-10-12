@@ -8,7 +8,9 @@ use helm_rs::{DeterministicEnv, Value};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(chart) = Chart::from_tgz(data) else { return };
+    let Ok(chart) = Chart::from_tgz(data) else {
+        return;
+    };
     let opts = RenderOptions {
         release: ReleaseOptions::default(),
         capabilities: Capabilities {
@@ -19,5 +21,10 @@ fuzz_target!(|data: &[u8]| {
         strict: false,
         skip_schema_validation: false,
     };
-    let _ = chart::render(&chart, &Value::empty_map(), &opts, &mut DeterministicEnv::default());
+    let _ = chart::render(
+        &chart,
+        &Value::empty_map(),
+        &opts,
+        &mut DeterministicEnv::default(),
+    );
 });

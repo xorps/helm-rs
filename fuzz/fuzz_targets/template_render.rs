@@ -20,7 +20,11 @@ fuzz_target!(|data: &[u8]| {
         _ => return,
     };
     let values = helm_rs::yaml::from_str(values).unwrap_or(Value::Nil);
-    let values = if values.as_map().is_some() { values } else { Value::empty_map() };
+    let values = if values.as_map().is_some() {
+        values
+    } else {
+        Value::empty_map()
+    };
 
     let mut top = Map::new();
     top.insert("Values".into(), values);
