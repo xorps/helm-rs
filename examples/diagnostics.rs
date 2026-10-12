@@ -1,3 +1,5 @@
+//! Shows how errors are reported. Run: `cargo run --example diagnostics`
+
 use helm_rs::template::{Engine, Renderable};
 use helm_rs::{DeterministicEnv, FuncMap, Value};
 
@@ -8,8 +10,6 @@ fn render(files: &[(&str, &str)], values: Value) -> helm_rs::Error {
     let rs = files.iter().map(|(n, s)| Renderable { name: format!("mychart/templates/{n}"), source: (*s).into(), vals: top.clone(), base_path: "mychart/templates".into() }).collect();
     e.render(&mut DeterministicEnv::default(), rs).unwrap_err()
 }
-
-//! Shows how errors are reported. Run: `cargo run --example diagnostics`
 
 fn main() {
     let helpers = "{{- define \"mychart.image\" -}}\n{{ .Values.image.repository }}:{{ .Values.image.tag.major }}\n{{- end }}";
