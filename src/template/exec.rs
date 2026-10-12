@@ -157,10 +157,6 @@ impl<'s, 'e> State<'s, 'e> {
         self.at_node(a.pos(), a.to_string(), a.span());
     }
 
-    fn at_cmd(&mut self, c: &CommandNode) {
-        self.at_node(c.pos, c.to_string(), c.span.clone());
-    }
-
     fn at_pipe(&mut self, p: &PipeNode) {
         self.at_node(p.pos, p.to_string(), p.span.clone());
     }

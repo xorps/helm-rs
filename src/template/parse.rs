@@ -98,7 +98,7 @@ struct Parser<'a> {
 
 enum Parsed {
     Node(Node),
-    End(Pos),
+    End,
     Else(Pos),
 }
 
@@ -252,7 +252,7 @@ impl<'a> Parser<'a> {
                 self.backup2(delim);
             }
             match self.text_or_action()? {
-                Parsed::End(_) => return self.errorf("unexpected {{end}}".into()),
+                Parsed::End => return self.errorf("unexpected {{end}}".into()),
                 Parsed::Else(_) => return self.errorf("unexpected {{else}}".into()),
                 Parsed::Node(n) => root.nodes.push(n),
             }
@@ -270,7 +270,7 @@ impl<'a> Parser<'a> {
         };
         self.expect(ItemType::RightDelim, context)?;
         let (root, end) = self.item_list()?;
-        if !matches!(end, Parsed::End(_)) {
+        if !matches!(end, Parsed::End) {
             let s = parsed_string(&end);
             return self.errorf(format!("unexpected {s} in {context}"));
         }
@@ -453,7 +453,7 @@ impl<'a> Parser<'a> {
         let (list, next) = r?;
         let mut else_list = None;
         match next {
-            Parsed::End(_) => {}
+            Parsed::End => {}
             Parsed::Else(epos) => {
                 if context == "if" && self.peek().typ == ItemType::If {
                     self.next();
@@ -465,7 +465,7 @@ impl<'a> Parser<'a> {
                     else_list = Some(ListNode { pos: epos, nodes: vec![n] });
                 } else {
                     let (el, next) = self.item_list()?;
-                    if !matches!(next, Parsed::End(_)) {
+                    if !matches!(next, Parsed::End) {
                         let s = parsed_string(&next);
                         return self.errorf(format!("expected end; found {s}"));
                     }
@@ -490,8 +490,8 @@ impl<'a> Parser<'a> {
     }
 
     fn end_control(&mut self) -> PResult<Parsed> {
-        let t = self.expect(ItemType::RightDelim, "end")?;
-        Ok(Parsed::End(t.pos))
+        self.expect(ItemType::RightDelim, "end")?;
+        Ok(Parsed::End)
     }
 
     fn else_control(&mut self) -> PResult<Parsed> {
@@ -515,7 +515,7 @@ impl<'a> Parser<'a> {
         self.vars = saved_vars;
         self.range_depth = saved_range;
         let (root, end) = r?;
-        if !matches!(end, Parsed::End(_)) {
+        if !matches!(end, Parsed::End) {
             let s = parsed_string(&end);
             return self.errorf(format!("unexpected {s} in {context}"));
         }
@@ -661,7 +661,7 @@ impl<'a> Parser<'a> {
 
 fn parsed_string(p: &Parsed) -> &'static str {
     match p {
-        Parsed::End(_) => "{{end}}",
+        Parsed::End => "{{end}}",
         Parsed::Else(_) => "{{else}}",
         Parsed::Node(_) => "node",
     }

@@ -12,6 +12,7 @@ pub fn go_quote(s: &str) -> String {
 }
 
 /// `strconv.QuoteToASCII(s)`.
+#[allow(dead_code)]
 pub fn go_quote_ascii(s: &str) -> String {
     quote_with(s, '"', true)
 }
@@ -27,6 +28,7 @@ fn quote_with(s: &str, quote: char, ascii_only: bool) -> String {
 }
 
 /// Quotes bytes that may not be valid UTF-8 (invalid bytes become `\xNN`).
+#[allow(dead_code)]
 pub fn go_quote_bytes(b: &[u8]) -> String {
     let mut out = String::with_capacity(b.len() + 2);
     out.push('"');
@@ -55,6 +57,7 @@ pub fn go_quote_bytes(b: &[u8]) -> String {
 }
 
 /// `strconv.QuoteRune(r)`.
+#[allow(dead_code)]
 pub fn go_quote_rune(c: char) -> String {
     let mut out = String::new();
     out.push('\'');
