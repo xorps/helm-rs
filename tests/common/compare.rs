@@ -65,6 +65,8 @@ pub fn compare_render(
             diff::compare_files(fa, fb.as_ref(), fr, "helm", "helm-rs")
                 .map(|r| Mismatch::new(Kind::Output, r))
         }
+        // Helm crashed outright; failing with an error is the better outcome.
+        (OracleResult::Err { stage, .. }, Outcome::Err(_)) if stage == super::CRASH_STAGE => None,
         (OracleResult::Err { stage, message }, Outcome::Err(e)) => {
             compare_errors(&format!("({stage}) {message}"), message, e)
         }
@@ -149,8 +151,13 @@ pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> O
     // started at X"); ours must agree with one of them on file and line.
     let all_locs = error_locations(helm_msg);
     if let Some(hl) = all_locs.last().cloned() {
+        // Go's parser reports the line of the last token it read, which can
+        // be past the offending one; our parse locations point at the token.
+        let is_parse = helm_msg.contains("parse error");
         let any_match = all_locs.iter().any(|hl| {
-            let same = |l: &helm_rs::Location| l.name == hl.name && l.line == hl.line;
+            let same = |l: &helm_rs::Location| {
+                l.name == hl.name && (l.line == hl.line || (is_parse && l.line < hl.line))
+            };
             ours.location.as_ref().is_some_and(same)
                 || ours.frames.iter().any(|f| same(&f.location))
         });

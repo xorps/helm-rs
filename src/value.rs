@@ -589,11 +589,12 @@ impl Object for GoBytesString {
     fn kind(&self) -> Kind {
         Kind::String
     }
+    // Go-style replacement: one U+FFFD per invalid byte.
     fn format(&self, out: &mut String) {
-        out.push_str(&String::from_utf8_lossy(&self.0));
+        out.push_str(&crate::gofmt::strconv::lossy(&self.0));
     }
     fn to_data(&self) -> Value {
-        Value::string(String::from_utf8_lossy(&self.0).into_owned())
+        Value::string(crate::gofmt::strconv::lossy(&self.0))
     }
     fn truthy(&self) -> bool {
         !self.0.is_empty()

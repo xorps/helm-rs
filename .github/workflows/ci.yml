@@ -24,12 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          # Pinned so new lints in a future stable release don't break CI
-          # unannounced; bump deliberately.
-          toolchain: "1.99.0"
-          components: rustfmt, clippy
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --check
       - run: cargo fmt --check
@@ -44,25 +40,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          toolchain: stable
-          targets: aarch64-unknown-none, thumbv7em-none-eabihf
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo build --lib --release --target aarch64-unknown-none
       - run: cargo build --lib --release --target aarch64-unknown-none --no-default-features
       - run: cargo build --lib --release --target thumbv7em-none-eabihf --no-default-features
+
+  fuzz-build:
+    name: fuzz targets build
+    runs-on: ubuntu-latest
+    env:
+      # Keep in sync with .github/workflows/fuzz.yml.
+      FUZZ_NIGHTLY: nightly-2026-10-11
+      CARGO_FUZZ_VERSION: 0.13.2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml) and the pinned nightly
+        run: |
+          rustup toolchain install
+          rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: fuzz
+      - run: cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
+      - run: cargo "+$FUZZ_NIGHTLY" fuzz build
 
   msrv:
     name: MSRV (1.88)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          toolchain: "1.88"
+      - name: Install Rust 1.88 (Cargo.toml rust-version)
+        run: rustup toolchain install 1.88.0 --profile minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: cargo check --lib --all-features
+      - run: cargo +1.88.0 check --lib --all-features
 
   test:
     name: test vs Helm v4.3.0
@@ -75,9 +87,8 @@ jobs:
       HELM_RS_FUZZ_SEED: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          toolchain: stable
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

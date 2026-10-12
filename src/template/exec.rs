@@ -1008,11 +1008,9 @@ impl<'s, 'e> State<'s, 'e> {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
             CallTarget::Func(f) => {
                 let mut vals = values(argv);
-                // Sprig's slice/rest/initial return the input's slice type.
-                let keep_type: Option<&'static str> = if matches!(
-                    name,
-                    "slice" | "mustSlice" | "rest" | "mustRest" | "initial" | "mustInitial"
-                ) {
+                // Sprig's slice (reflect.Value.Slice) returns the input's slice type;
+                // rest/initial build a new []interface{}.
+                let keep_type: Option<&'static str> = if matches!(name, "slice" | "mustSlice") {
                     vals.first()
                         .and_then(|v| v.as_object())
                         .and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>())
@@ -1022,7 +1020,14 @@ impl<'s, 'e> State<'s, 'e> {
                 };
                 let byte_func = matches!(
                     name,
-                    "b64enc" | "b32enc" | "sha1sum" | "sha256sum" | "sha512sum" | "adler32sum"
+                    "b64enc"
+                        | "b32enc"
+                        | "sha1sum"
+                        | "sha256sum"
+                        | "sha512sum"
+                        | "adler32sum"
+                        | "fromYaml"
+                        | "fromYamlArray"
                 );
                 for v in &mut vals {
                     if let Value::Object(o) = v

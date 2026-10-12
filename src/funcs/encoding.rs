@@ -19,6 +19,28 @@ fn trim_newline(mut s: String) -> String {
     s
 }
 
+fn arg_bytes(args: &[Value]) -> alloc::vec::Vec<u8> {
+    match args.first() {
+        Some(Value::Bytes(b)) => b.to_vec(),
+        Some(Value::String(s)) => s.as_bytes().to_vec(),
+        _ => alloc::vec::Vec::new(),
+    }
+}
+
+fn from_yaml_bytes(b: &[u8]) -> Value {
+    match yaml::unmarshal_bytes(b, Target::Map(GO_MAP_TYPE)) {
+        Ok(v) => v,
+        Err(e) => crate::map! { "Error" => e.message },
+    }
+}
+
+fn from_yaml_array_bytes(b: &[u8]) -> Value {
+    match yaml::unmarshal_bytes(b, Target::List) {
+        Ok(v) => v,
+        Err(e) => Value::list(alloc::vec![Value::string(e.message)]),
+    }
+}
+
 fn arg_str(args: &[Value]) -> &str {
     args.first().and_then(Value::as_str).unwrap_or("")
 }
@@ -121,8 +143,11 @@ pub fn register(f: &mut FuncMap) {
     f.add("toYamlPretty", ANY, |a| {
         Ok(Value::string(to_yaml_pretty(&arg(a))))
     });
-    f.add("fromYaml", STRING, |a| Ok(from_yaml(arg_str(a))));
-    f.add("fromYamlArray", STRING, |a| Ok(from_yaml_array(arg_str(a))));
+    // Byte-carrying Go strings arrive as `Bytes` (see the executor).
+    f.add("fromYaml", STRING, |a| Ok(from_yaml_bytes(&arg_bytes(a))));
+    f.add("fromYamlArray", STRING, |a| {
+        Ok(from_yaml_array_bytes(&arg_bytes(a)))
+    });
     f.add("toJson", ANY, |a| Ok(Value::string(to_json(&arg(a)))));
     f.add("mustToJson", ANY, |a| {
         must_to_json(&arg(a)).map(Value::string)

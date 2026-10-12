@@ -118,8 +118,25 @@ pub fn from_str_map(s: &str) -> Result<Value, YamlError> {
 
 /// `sigs.k8s.io/yaml.Unmarshal(data, &out)` for the given target type.
 pub fn unmarshal(s: &str, target: Target<'_>) -> Result<Value, YamlError> {
+    unmarshal_impl(s.as_bytes(), s, target)
+}
+
+/// [`unmarshal`] on raw bytes, which may not be valid UTF-8 (Go strings can
+/// hold any bytes; the YAML reader then reports Go's encoding errors).
+pub fn unmarshal_bytes(data: &[u8], target: Target<'_>) -> Result<Value, YamlError> {
+    match core::str::from_utf8(data) {
+        Ok(s) => unmarshal(s, target),
+        Err(_) => {
+            // Positions are computed against the lossily decoded text.
+            let lossy = alloc::string::String::from_utf8_lossy(data);
+            unmarshal_impl(data, &lossy, target)
+        }
+    }
+}
+
+fn unmarshal_impl(data: &[u8], s: &str, target: Target<'_>) -> Result<Value, YamlError> {
     const CONV: &str = "error converting YAML to JSON: ";
-    let (nodes, root) = decode::compose(s.as_bytes())
+    let (nodes, root) = decode::compose(data)
         .map_err(|e| YamlError::new(format!("{CONV}yaml: {}", e.message), s, &e))?;
     let (go, root_mark) = match root {
         Some(r) => {

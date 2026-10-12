@@ -58,7 +58,8 @@ pub(super) fn register(f: &mut FuncMap) {
         Ok(Value::string(uncapitalize(sarg(a, 0))))
     });
     f.add("substr", Sig::new(&[I, I, S]), |a| {
-        substring(iarg(a, 0), iarg(a, 1), sarg(a, 2)).map(Value::string)
+        // Byte slicing can split a UTF-8 sequence; Go keeps the raw bytes.
+        substring(iarg(a, 0), iarg(a, 1), sarg(a, 2)).map(|b| Value::go_string(&b))
     });
     f.add("repeat", Sig::new(&[I, S]), |a| {
         repeat(sarg(a, 1), iarg(a, 0)).map(Value::string)
@@ -390,25 +391,25 @@ fn slice_err_b(x: i64, y: i64) -> FuncError {
     }
 }
 
-fn substring(start: i64, end: i64, s: &str) -> Result<String, FuncError> {
+fn substring(start: i64, end: i64, s: &str) -> Result<alloc::vec::Vec<u8>, FuncError> {
     let b = s.as_bytes();
     let len = b.len() as i64;
     if start < 0 {
         if end < 0 || end > len {
             return Err(slice_err_alen(end, b.len()));
         }
-        return Ok(strconv::lossy(&b[..end as usize]));
+        return Ok(b[..end as usize].to_vec());
     }
     if end < 0 || end > len {
         if start > len {
             return Err(slice_err_b(start, len));
         }
-        return Ok(strconv::lossy(&b[start as usize..]));
+        return Ok(b[start as usize..].to_vec());
     }
     if start > end {
         return Err(slice_err_b(start, end));
     }
-    Ok(strconv::lossy(&b[start as usize..end as usize]))
+    Ok(b[start as usize..end as usize].to_vec())
 }
 
 /// `strings.Title`.

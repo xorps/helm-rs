@@ -118,7 +118,9 @@ engine.funcs.add("shout", Sig::new(&[Ty::String]), |args| {
 | `certs` | yes | RSA/ECDSA/Ed25519 key and x509 certificate generation for Sprig's `genPrivateKey`, `genCA`, `genSignedCert`, ... Without it those functions return an error. |
 
 The crate builds for bare-metal targets (`cargo build --target
-aarch64-unknown-none`). Minimum Rust version: 1.88.
+aarch64-unknown-none`). Minimum Rust version: 1.88. Development and CI use the
+toolchain pinned in `rust-toolchain.toml` (1.99.0, with the bare-metal
+targets); `cargo-fuzz` uses the nightly pinned in `.github/workflows/fuzz.yml`.
 
 ### Known differences from Helm
 
@@ -186,12 +188,13 @@ fixed to the Unix epoch in the oracle, as in `DeterministicEnv`.
 ### Coverage-guided fuzzing (cargo-fuzz)
 
 ```sh
-cargo install cargo-fuzz
-cargo +nightly fuzz build
-cargo +nightly fuzz run template_render      # parse + render arbitrary templates
-cargo +nightly fuzz run yaml_from_str        # yaml::from_str on arbitrary bytes
+cargo install cargo-fuzz --version 0.13.2 --locked
+rustup toolchain install nightly-2026-10-11 --profile minimal   # pinned in CI
+cargo +nightly-2026-10-11 fuzz build
+cargo +nightly-2026-10-11 fuzz run template_render      # parse + render arbitrary templates
+cargo +nightly-2026-10-11 fuzz run yaml_from_str        # yaml::from_str on arbitrary bytes
 mkdir -p fuzz/corpus/chart_from_tgz && cp testdata/charts/cache/*.tgz fuzz/corpus/chart_from_tgz/
-cargo +nightly fuzz run chart_from_tgz       # Chart::from_tgz (+ render) on arbitrary bytes
+cargo +nightly-2026-10-11 fuzz run chart_from_tgz       # Chart::from_tgz (+ render) on arbitrary bytes
 ```
 
 These targets check that helm-rs never panics.

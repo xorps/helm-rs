@@ -57,6 +57,14 @@ pub struct Opts {
     pub include_crds: bool,
 }
 
+/// `stage` of a result whose oracle process crashed.
+pub const CRASH_STAGE: &str = "crash";
+
+/// Whether an oracle response reports a Helm crash.
+pub fn is_crash(resp: &Json) -> bool {
+    resp.get("stage").and_then(Json::as_str) == Some(CRASH_STAGE)
+}
+
 pub struct Oracle {
     _child: Child,
     stdin: ChildStdin,
@@ -106,10 +114,17 @@ impl Oracle {
     pub fn request(&mut self, req: &Json) -> Json {
         let mut line = serde_json::to_string(req).unwrap();
         line.push('\n');
-        self.stdin.write_all(line.as_bytes()).unwrap();
-        self.stdin.flush().unwrap();
         let mut resp = String::new();
-        self.stdout.read_line(&mut resp).unwrap();
+        let ok = self.stdin.write_all(line.as_bytes()).is_ok()
+            && self.stdin.flush().is_ok()
+            && self.stdout.read_line(&mut resp).is_ok_and(|n| n > 0);
+        if !ok {
+            // Helm itself died on this input (e.g. Go's fatal "goroutine
+            // stack exceeds limit", which recover() cannot catch). Restart
+            // the oracle and report the crash.
+            *self = Oracle::spawn().expect("respawn oracle");
+            return json!({"error": "helm crashed (fatal Go runtime error)", "stage": CRASH_STAGE});
+        }
         serde_json::from_str(&resp).unwrap_or_else(|e| panic!("bad oracle response {resp:?}: {e}"))
     }
 
@@ -122,7 +137,11 @@ impl Oracle {
     /// Runs many requests (built with [`with_opts`]) in one round trip.
     pub fn batch(&mut self, reqs: Vec<Json>) -> Vec<Json> {
         let n = reqs.len();
-        let resp = self.request(&json!({"op": "batch", "requests": reqs}));
+        let resp = self.request(&json!({"op": "batch", "requests": reqs.clone()}));
+        if is_crash(&resp) {
+            // Attribute the crash to the request that caused it.
+            return reqs.iter().map(|r| self.request(r)).collect();
+        }
         let results = resp
             .get("results")
             .and_then(Json::as_array)

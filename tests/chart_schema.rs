@@ -15,7 +15,18 @@ fn check(schema: &str, values: &str) {
     let got = chart::validate_against_schema(&m, schema.as_bytes());
     match (want, got) {
         (Ok(_), Ok(())) => {}
-        (Err(w), Err(g)) => assert_eq!(g, w, "schema {schema}, values {values}"),
+        (Err(w), Err(g)) => {
+            // The library collects sibling keyword errors from Go maps, so
+            // Helm's own order varies between runs; compare them as a set.
+            fn sorted(s: &str) -> Vec<&str> {
+                let mut l: Vec<&str> = s.lines().collect();
+                l.sort_unstable();
+                l
+            }
+            if g != w {
+                assert_eq!(sorted(&g), sorted(&w), "schema {schema}, values {values}");
+            }
+        }
         (w, g) => panic!("schema {schema}, values {values}: oracle {w:?}, rust {g:?}"),
     }
 }

@@ -18,6 +18,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   GO_VERSION: "1.27.1"
+  # Nightly for cargo-fuzz only; everything else uses rust-toolchain.toml.
+  FUZZ_NIGHTLY: nightly-2026-10-11
+  CARGO_FUZZ_VERSION: 0.13.2
 
 jobs:
   differential:
@@ -31,9 +34,8 @@ jobs:
       HELM_RS_FUZZ_ITERS: ${{ inputs.iterations || '200' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          toolchain: stable
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -61,13 +63,12 @@ jobs:
         target: [template_render, yaml_from_str, chart_from_tgz]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (2026-10-09)
-        with:
-          toolchain: nightly
+      - name: Install pinned nightly (cargo-fuzz needs -Zsanitizer)
+        run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: fuzz
-      - run: cargo install cargo-fuzz --locked
+      - run: cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
       - name: Seed the archive corpus with real charts
         if: matrix.target == 'chart_from_tgz'
         run: |
@@ -76,4 +77,4 @@ jobs:
           mkdir -p fuzz/corpus/chart_from_tgz
           cp testdata/charts/cache/*.tgz fuzz/corpus/chart_from_tgz/
       - name: Fuzz (must never panic)
-        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=${{ inputs.seconds || '600' }}
+        run: cargo "+$FUZZ_NIGHTLY" fuzz run ${{ matrix.target }} -- -max_total_time=${{ inputs.seconds || '600' }}
