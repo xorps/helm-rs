@@ -1,0 +1,6 @@
+/target
+/.tools
+/testdata/charts/cache
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts

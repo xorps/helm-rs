@@ -1,0 +1,26 @@
+[package]
+name = "helm-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "no_std SDK for rendering Helm charts (Go text/template + Sprig + Helm functions), diff-tested against real Helm"
+license = "Apache-2.0"
+repository = "https://github.com/xorps/helm-rs"
+exclude = ["oracle/", "fuzz/", "testdata/charts/"]
+
+[lib]
+name = "helm_rs"
+
+[features]
+default = ["archive"]
+# Load charts from .tgz archives (gzip + tar), pure Rust, no_std.
+archive = ["dep:miniz_oxide"]
+
+[dependencies]
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"], optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.test]
+opt-level = 1
