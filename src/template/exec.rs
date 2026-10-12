@@ -831,7 +831,7 @@ impl<'s, 'e> State<'s, 'e> {
             };
             builtin_call(&callee, &argv)
         } else {
-            self.dispatch(target, &argv)
+            self.dispatch(target, &argv, name)
         };
         match result {
             Ok(v) => Ok(v),
@@ -855,11 +855,24 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     #[inline(never)]
-    fn dispatch(&mut self, target: CallTarget<'_>, argv: &[Ev]) -> Result<Ev, CallErr> {
+    fn dispatch(&mut self, target: CallTarget<'_>, argv: &[Ev], name: &str) -> Result<Ev, CallErr> {
+        // Reflection-based functions see Go's named type; everything else
+        // sees a map/slice-kind object (e.g. `VersionSet`) as its data, as
+        // Go's reflect.Value.Len/Index/MapKeys would.
+        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike");
         match target {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
             CallTarget::Func(f) => {
-                let vals = values(argv);
+                let mut vals = values(argv);
+                if !keeps_objects {
+                    for v in &mut vals {
+                        if let Value::Object(o) = v
+                            && matches!(o.kind(), Kind::Map | Kind::Slice)
+                        {
+                            *v = o.to_data();
+                        }
+                    }
+                }
                 let mut cc = CallCtx { env: &mut *self.ctx.env };
                 (f.imp)(&mut cc, &vals).map(Ev::of_result).map_err(CallErr::Plain)
             }

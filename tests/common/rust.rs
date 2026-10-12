@@ -5,12 +5,12 @@
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::{Once, OnceLock};
+use std::sync::Once;
 
 use helm_rs::chart::{self, Capabilities, Chart, ReleaseOptions, RenderOptions};
 use helm_rs::{DeterministicEnv, Error, ErrorKind, Value};
 
-use super::{Opts, Oracle};
+use super::Opts;
 
 /// Result of a helm-rs call.
 #[derive(Debug)]
@@ -78,20 +78,9 @@ pub fn catch<T>(f: impl FnOnce() -> Result<T, Error>) -> Outcome<T> {
 /// Default capabilities as reported by the oracle (so both sides agree), or
 /// Helm v4.3.0's defaults when the oracle is unavailable.
 pub fn default_capabilities() -> Capabilities {
-    static CAPS: OnceLock<Capabilities> = OnceLock::new();
-    CAPS.get_or_init(|| {
-        let info = Oracle::shared().map(|o| o.lock().unwrap_or_else(|e| e.into_inner()).version_info());
-        let get = |k: &str| info.as_ref().and_then(|i| i.get(k)).and_then(|v| v.as_str()).map(str::to_string);
-        Capabilities {
-            kube_version: get("kube_version").unwrap_or_else(|| "v1.37.0".into()),
-            api_versions: get("api_versions")
-                .map(|s| s.split(',').filter(|x| !x.is_empty()).map(str::to_string).collect())
-                .unwrap_or_else(|| Capabilities::default().api_versions),
-            helm_version: get("helm_version").unwrap_or_else(|| "v4.3.0".into()),
-            ..Capabilities::default()
-        }
-    })
-    .clone()
+    // Matches the official v4.3.0 binary (verified in tests/chart_oracle.rs).
+    // Must not consult the oracle: callers may already hold its lock.
+    Capabilities::default()
 }
 
 /// [`RenderOptions`] equivalent to an oracle request with `opts`.
