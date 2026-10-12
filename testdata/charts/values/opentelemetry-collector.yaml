@@ -1,0 +1,5 @@
+# NOTES.txt `fail`s unless an image repository is chosen; `mode` is required
+# by the schema/templates as well.
+image:
+  repository: otel/opentelemetry-collector-k8s
+mode: deployment

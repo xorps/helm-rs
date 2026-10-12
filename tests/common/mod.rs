@@ -10,6 +10,19 @@ use std::sync::{Mutex, OnceLock};
 
 use serde_json::{Value as Json, json};
 
+pub mod compare;
+pub mod corpus;
+pub mod diff;
+pub mod helm_bin;
+pub mod rng;
+pub mod rust;
+
+/// Locks the shared oracle, or `None` (after printing a skip message) if it
+/// is not built.
+pub fn oracle() -> Option<std::sync::MutexGuard<'static, Oracle>> {
+    Some(Oracle::shared()?.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
 pub fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -37,6 +50,10 @@ pub struct Opts {
     pub is_upgrade: bool,
     pub strict: bool,
     pub skip_schema: bool,
+    /// `now` returns the Unix epoch (UTC), like `DeterministicEnv`.
+    pub fixed_time: bool,
+    /// `helm template --include-crds` (template op only).
+    pub include_crds: bool,
 }
 
 pub struct Oracle {
@@ -81,7 +98,55 @@ impl Oracle {
         serde_json::from_str(&resp).unwrap_or_else(|e| panic!("bad oracle response {resp:?}: {e}"))
     }
 
-    fn finish(&mut self, mut req: Json, values: &str, opts: &Opts) -> OracleResult {
+    fn finish(&mut self, req: Json, values: &str, opts: &Opts) -> OracleResult {
+        let req = with_opts(req, values, opts);
+        let resp = self.request(&req);
+        parse_render(&resp)
+    }
+
+    /// Runs many requests (built with [`with_opts`]) in one round trip.
+    pub fn batch(&mut self, reqs: Vec<Json>) -> Vec<Json> {
+        let n = reqs.len();
+        let resp = self.request(&json!({"op": "batch", "requests": reqs}));
+        let results = resp.get("results").and_then(Json::as_array).cloned().unwrap_or_default();
+        assert_eq!(results.len(), n, "bad batch response: {resp}");
+        results
+    }
+
+    /// `helm template` stdout for a chart directory or .tgz on disk, computed
+    /// in-process by the oracle (same code path as the CLI).
+    pub fn template_chart(&mut self, path: &std::path::Path, values: &str, opts: &Opts) -> TemplateResult {
+        let resp = self.request(&with_opts(json!({"op": "template", "path": path}), values, opts));
+        parse_template(&resp)
+    }
+
+    /// `helm template` stdout for an in-memory chart.
+    pub fn template_files(&mut self, files: &BTreeMap<String, String>, values: &str, opts: &Opts) -> TemplateResult {
+        let resp = self.request(&with_opts(json!({"op": "template", "files": files}), values, opts));
+        parse_template(&resp)
+    }
+
+    /// The chart's default values coalesced with `values` and all subchart
+    /// defaults, as JSON. Without a chart: `values` parsed by Helm, as JSON.
+    pub fn chart_values(&mut self, path: Option<&std::path::Path>, values: &str) -> Result<Json, String> {
+        let mut req = json!({"op": "values", "values": values});
+        if let Some(p) = path {
+            req["path"] = json!(p);
+        }
+        let resp = self.request(&req);
+        if let Some(err) = resp.get("error").and_then(Json::as_str) {
+            return Err(err.to_string());
+        }
+        Ok(resp.get("json").cloned().unwrap_or(Json::Null))
+    }
+}
+
+/// Result of the oracle's `template` op: stdout, or the CLI error message.
+pub type TemplateResult = Result<String, String>;
+
+/// Adds `values` and `opts` to a request object.
+pub fn with_opts(mut req: Json, values: &str, opts: &Opts) -> Json {
+    {
         let o = req.as_object_mut().unwrap();
         o.insert("values".into(), json!(values));
         if let Some(r) = &opts.release {
@@ -97,21 +162,37 @@ impl Oracle {
         o.insert("is_upgrade".into(), json!(opts.is_upgrade));
         o.insert("strict".into(), json!(opts.strict));
         o.insert("skip_schema".into(), json!(opts.skip_schema));
-        let resp = self.request(&req);
-        if let Some(err) = resp.get("error").and_then(Json::as_str) {
-            return OracleResult::Err {
-                stage: resp.get("stage").and_then(Json::as_str).unwrap_or("").to_string(),
-                message: err.to_string(),
-            };
-        }
-        let files = resp
-            .get("files")
-            .and_then(Json::as_object)
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect())
-            .unwrap_or_default();
-        OracleResult::Ok(files)
+        o.insert("fixed_time".into(), json!(opts.fixed_time));
+        o.insert("include_crds".into(), json!(opts.include_crds));
     }
+    req
+}
 
+/// Parses a `chart`/`files` op response.
+pub fn parse_render(resp: &Json) -> OracleResult {
+    if let Some(err) = resp.get("error").and_then(Json::as_str) {
+        return OracleResult::Err {
+            stage: resp.get("stage").and_then(Json::as_str).unwrap_or("").to_string(),
+            message: err.to_string(),
+        };
+    }
+    let files = resp
+        .get("files")
+        .and_then(Json::as_object)
+        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect())
+        .unwrap_or_default();
+    OracleResult::Ok(files)
+}
+
+/// Parses a `template` op response.
+pub fn parse_template(resp: &Json) -> TemplateResult {
+    if let Some(err) = resp.get("error").and_then(Json::as_str) {
+        return Err(err.to_string());
+    }
+    Ok(resp.get("output").and_then(Json::as_str).unwrap_or("").to_string())
+}
+
+impl Oracle {
     /// Renders an in-memory chart (`path -> content`, e.g. `Chart.yaml`,
     /// `templates/x.yaml`) with user values (YAML).
     pub fn render_files(&mut self, files: &BTreeMap<String, String>, values: &str, opts: &Opts) -> OracleResult {
