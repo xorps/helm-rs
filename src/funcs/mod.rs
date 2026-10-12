@@ -3,6 +3,7 @@
 use crate::func::FuncMap;
 
 pub mod duration;
+pub mod encoding;
 pub mod sprig;
 
 /// Sprig's `TxtFuncMap()` (Masterminds/sprig v3, as pinned by Helm).
@@ -22,5 +23,6 @@ pub fn helm() -> FuncMap {
     f.remove("env");
     f.remove("expandenv");
     duration::register(&mut f);
+    encoding::register(&mut f);
     f
 }
