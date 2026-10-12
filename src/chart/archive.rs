@@ -852,7 +852,7 @@ pub(crate) mod tests {
         t.extend_from_slice(&tar(&[("././@LongLink", ln.as_bytes(), b'L')])[..1024]);
         t.extend_from_slice(&tar(&[("c/short", b"data", b'0')]));
         let files = load_archive_files(&gzip(&t)).unwrap();
-        assert_eq!(files[0].name, alloc::format!("{}", "x".repeat(150)));
+        assert_eq!(files[0].name, "x".repeat(150));
         let rec = "path=c/templates/p.yaml\n";
         let pax = alloc::format!("{} {rec}", rec.len() + 3);
         let mut t = Vec::new();
