@@ -1,0 +1,42 @@
+# Chart corpus sources: one chart per line.
+#   <name> <repo-url | oci-ref> [chart-name-in-repo]
+# For OCI refs, the chart is the last path element of the ref.
+# scripts/update-charts.sh resolves the latest version of each and rewrites charts.lock.
+ingress-nginx            https://kubernetes.github.io/ingress-nginx               ingress-nginx
+cert-manager             https://charts.jetstack.io                               cert-manager
+kube-prometheus-stack    https://prometheus-community.github.io/helm-charts       kube-prometheus-stack
+prometheus               https://prometheus-community.github.io/helm-charts       prometheus
+grafana                  https://grafana.github.io/helm-charts                    grafana
+loki                     https://grafana.github.io/helm-charts                    loki
+promtail                 https://grafana.github.io/helm-charts                    promtail
+alloy                    https://grafana.github.io/helm-charts                    alloy
+argo-cd                  https://argoproj.github.io/argo-helm                     argo-cd
+argo-workflows           https://argoproj.github.io/argo-helm                     argo-workflows
+traefik                  https://traefik.github.io/charts                         traefik
+metrics-server           https://kubernetes-sigs.github.io/metrics-server         metrics-server
+external-dns             https://kubernetes-sigs.github.io/external-dns           external-dns
+cluster-autoscaler       https://kubernetes.github.io/autoscaler                  cluster-autoscaler
+external-secrets         https://charts.external-secrets.io                       external-secrets
+keda                     https://kedacore.github.io/charts                        keda
+vault                    https://helm.releases.hashicorp.com                      vault
+consul                   https://helm.releases.hashicorp.com                      consul
+istio-base               https://istio-release.storage.googleapis.com/charts      base
+istiod                   https://istio-release.storage.googleapis.com/charts      istiod
+cilium                   https://helm.cilium.io                                   cilium
+aws-load-balancer-controller https://aws.github.io/eks-charts                     aws-load-balancer-controller
+karpenter                oci://public.ecr.aws/karpenter/karpenter
+velero                   https://vmware-tanzu.github.io/helm-charts               velero
+gitlab-runner            https://charts.gitlab.io                                 gitlab-runner
+jenkins                  https://charts.jenkins.io                                jenkins
+harbor                   https://helm.goharbor.io                                 harbor
+sealed-secrets           oci://registry-1.docker.io/bitnamicharts/sealed-secrets
+kyverno                  https://kyverno.github.io/kyverno                        kyverno
+opentelemetry-collector  https://open-telemetry.github.io/opentelemetry-helm-charts opentelemetry-collector
+bitnami-nginx            oci://registry-1.docker.io/bitnamicharts/nginx
+bitnami-redis            oci://registry-1.docker.io/bitnamicharts/redis
+bitnami-postgresql       oci://registry-1.docker.io/bitnamicharts/postgresql
+bitnami-mysql            oci://registry-1.docker.io/bitnamicharts/mysql
+bitnami-kafka            oci://registry-1.docker.io/bitnamicharts/kafka
+bitnami-mongodb          oci://registry-1.docker.io/bitnamicharts/mongodb
+bitnami-rabbitmq         oci://registry-1.docker.io/bitnamicharts/rabbitmq
+bitnami-wordpress        oci://registry-1.docker.io/bitnamicharts/wordpress

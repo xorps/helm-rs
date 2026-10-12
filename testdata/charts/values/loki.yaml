@@ -1,0 +1,9 @@
+# Minimal values so `helm template` succeeds: the default (SimpleScalable,
+# s3) mode requires bucket names.
+loki:
+  useTestSchema: true
+  storage:
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
