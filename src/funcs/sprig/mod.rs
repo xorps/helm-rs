@@ -18,6 +18,15 @@
 //! - Time zones other than `UTC` and `Local` (the [`crate::Env`] offset)
 //!   fall back to UTC, as Go does when a zone cannot be loaded.
 //! - Elements of `[]byte` seen through list functions are `uint64` values.
+//! - `now` has no monotonic clock reading, so `{{ now }}` lacks Go's
+//!   ` m=+0.000…` suffix.
+//! - `derivePassword`'s counter is declared `uint64` (Go: `uint32`).
+//! - Bytes that Go would emit as invalid UTF-8 (byte-wise `trunc`, `substr`,
+//!   `abbrev`, `wrap`, `nospace`, `initials`, ...) become U+FFFD.
+//! - Certificates (`certs` feature): RSA, ECDSA P-256/P-384 and Ed25519 are
+//!   supported; DSA key generation and P-224/P-521 keys are not (errors).
+//! - Panics that Go would raise from a stack overflow (self-referential maps
+//!   in `merge`/`deepCopy`) become errors.
 
 use alloc::string::String;
 use alloc::vec::Vec;
