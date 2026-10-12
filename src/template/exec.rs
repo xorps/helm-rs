@@ -108,15 +108,110 @@ pub(crate) struct Ctx<'e> {
     pub max_depth: usize,
 }
 
-/// A position for error reporting: the node Go would report, plus our span.
-#[derive(Clone)]
+/// The node Go would report an error at ("s.at(node)"): its position and
+/// kind. The node's text and span are only computed if an error occurs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct At {
-    /// Go node position.
     pos: usize,
-    /// Go node String().
-    context: Option<String>,
-    /// Our span.
-    span: Span,
+    kind: AtKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AtKind {
+    Action,
+    Range,
+    Template,
+    Pipe,
+    Command,
+    Field,
+    Chain,
+    Identifier,
+    Variable,
+    Dot,
+    Nil,
+    Bool,
+    Number,
+    String,
+}
+
+fn arg_kind(a: &Arg) -> AtKind {
+    match a {
+        Arg::Field(_) => AtKind::Field,
+        Arg::Chain(_) => AtKind::Chain,
+        Arg::Identifier { .. } => AtKind::Identifier,
+        Arg::Pipe(_) => AtKind::Pipe,
+        Arg::Variable(_) => AtKind::Variable,
+        Arg::Dot { .. } => AtKind::Dot,
+        Arg::Nil { .. } => AtKind::Nil,
+        Arg::Bool { .. } => AtKind::Bool,
+        Arg::Number(_) => AtKind::Number,
+        Arg::String { .. } => AtKind::String,
+    }
+}
+
+/// Finds the node identified by `at` in `list` and returns Go's `String()`
+/// of it and its span.
+fn find_node(list: &ListNode, at: At, text: &str) -> Option<(String, Span)> {
+    for n in &list.nodes {
+        let found = match n {
+            Node::Text { .. } | Node::Break { .. } | Node::Continue { .. } => None,
+            Node::Action(a) => {
+                if at.kind == AtKind::Action && a.pos == at.pos {
+                    return Some((format!("{{{{{}}}}}", a.pipe), a.pipe.span.clone()));
+                }
+                find_in_pipe(&a.pipe, at)
+            }
+            Node::If(b) | Node::With(b) => find_in_pipe(&b.pipe, at)
+                .or_else(|| find_node(&b.list, at, text))
+                .or_else(|| b.else_list.as_ref().and_then(|l| find_node(l, at, text))),
+            Node::Range(b) => {
+                if at.kind == AtKind::Range && b.pos == at.pos {
+                    return Some((NodeDisplay { node: n, text }.to_string(), b.pipe.span.clone()));
+                }
+                find_in_pipe(&b.pipe, at)
+                    .or_else(|| find_node(&b.list, at, text))
+                    .or_else(|| b.else_list.as_ref().and_then(|l| find_node(l, at, text)))
+            }
+            Node::Template(t) => {
+                if at.kind == AtKind::Template && t.pos == at.pos {
+                    return Some((NodeDisplay { node: n, text }.to_string(), t.span.clone()));
+                }
+                t.pipe.as_ref().and_then(|p| find_in_pipe(p, at))
+            }
+        };
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
+}
+
+fn find_in_pipe(p: &PipeNode, at: At) -> Option<(String, Span)> {
+    if at.kind == AtKind::Pipe && p.pos == at.pos {
+        return Some((p.to_string(), p.span.clone()));
+    }
+    for c in &p.cmds {
+        if at.kind == AtKind::Command && c.pos == at.pos {
+            return Some((c.to_string(), c.span.clone()));
+        }
+        for a in &c.args {
+            if let Some(f) = find_in_arg(a, at) {
+                return Some(f);
+            }
+        }
+    }
+    None
+}
+
+fn find_in_arg(a: &Arg, at: At) -> Option<(String, Span)> {
+    if arg_kind(a) == at.kind && a.pos() == at.pos {
+        return Some((a.to_string(), a.span()));
+    }
+    match a {
+        Arg::Pipe(p) => find_in_pipe(p, at),
+        Arg::Chain(c) => find_in_arg(&c.node, at),
+        _ => None,
+    }
 }
 
 struct Var {
@@ -149,16 +244,19 @@ impl<'s, 'e> State<'s, 'e> {
     // ---------------------------------------------------------------
     // Errors
 
-    fn at_node(&mut self, pos: usize, context: String, span: Span) {
-        self.at = Some(At { pos, context: Some(context), span });
+    #[inline]
+    fn set_at(&mut self, pos: usize, kind: AtKind) {
+        self.at = Some(At { pos, kind });
     }
 
+    #[inline]
     fn at_arg(&mut self, a: &Arg) {
-        self.at_node(a.pos(), a.to_string(), a.span());
+        self.set_at(a.pos(), arg_kind(a));
     }
 
-    fn at_pipe(&mut self, p: &PipeNode) {
-        self.at_node(p.pos, p.to_string(), p.span.clone());
+    /// Context string and span of the current node (error path only).
+    fn at_info(&self, at: At) -> (String, Span) {
+        find_node(&self.tree.root, at, &self.tree.text).unwrap_or_else(|| (String::new(), at.pos..at.pos))
     }
 
     /// Go's `ErrorContext` location string `NAME:LINE:COL` (byte column,
@@ -185,12 +283,8 @@ impl<'s, 'e> State<'s, 'e> {
             None => format!("template: {}: ", self.name),
             Some(at) => {
                 let loc = self.go_location(at.pos);
-                format!(
-                    "template: {}: executing {} at <{}>: ",
-                    loc,
-                    go_quote(&self.name),
-                    at.context.as_deref().unwrap_or("")
-                )
+                let (context, _) = self.at_info(*at);
+                format!("template: {}: executing {} at <{}>: ", loc, go_quote(&self.name), context)
             }
         }
     }
@@ -205,8 +299,8 @@ impl<'s, 'e> State<'s, 'e> {
     fn error(&self, msg: String, help: Option<String>) -> Flow {
         let go = GoErr::Exec { msg: format!("{}{}", self.go_prefix(), msg), wrapped: None };
         let mut diag = Error::new(ErrorKind::Exec, msg);
-        if let Some(at) = &self.at {
-            diag.location = Some(self.location(at.span.clone()));
+        if let Some(at) = self.at {
+            diag.location = Some(self.location(self.at_info(at).1));
         }
         diag.help = help;
         fail_flow(go, diag)
@@ -268,7 +362,7 @@ impl<'s, 'e> State<'s, 'e> {
                 Ok(())
             }
             Node::Action(a) => {
-                self.at_node(a.pos, format!("{{{{{}}}}}", a.pipe), a.pipe.span.clone());
+                self.set_at(a.pos, AtKind::Action);
                 let val = self.eval_pipeline(dot, &a.pipe)?;
                 if a.pipe.decl.is_empty() {
                     self.print_value(&val, out);
@@ -286,7 +380,6 @@ impl<'s, 'e> State<'s, 'e> {
 
     fn walk_if_or_with(&mut self, is_with: bool, dot: &Ev, b: &BranchNode, out: &mut String) -> R<()> {
         let mark = self.mark();
-        self.at_branch(is_with, b);
         let r = (|| {
             let val = self.eval_pipeline(dot, &b.pipe)?;
             let truth = is_true(&val.clone().indirect_iface());
@@ -306,16 +399,8 @@ impl<'s, 'e> State<'s, 'e> {
         r
     }
 
-    fn at_branch(&mut self, is_with: bool, b: &BranchNode) {
-        let kw = if is_with { "with" } else { "if" };
-        let ctx = format!("{{{{{kw} {}}}}}", b.pipe);
-        self.at_node(b.pos, ctx, b.pipe.span.clone());
-    }
-
     fn walk_range(&mut self, dot: &Ev, r: &BranchNode, out: &mut String) -> R<()> {
-        let text = self.tree.text.clone();
-        let ctx = NodeDisplay { node: &Node::Range(r.clone()), text: &text }.to_string();
-        self.at_node(r.pos, ctx, r.pipe.span.clone());
+        self.set_at(r.pos, AtKind::Range);
         let mark0 = self.mark();
         let result = self.walk_range_inner(dot, r, out);
         self.pop(mark0);
@@ -414,9 +499,7 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn walk_template(&mut self, dot: &Ev, t: &TemplateNode, out: &mut String) -> R<()> {
-        let text = self.tree.text.clone();
-        let ctx = NodeDisplay { node: &Node::Template(t.clone()), text: &text }.to_string();
-        self.at_node(t.pos, ctx.clone(), t.span.clone());
+        self.set_at(t.pos, AtKind::Template);
         let Some(tmpl) = self.set.lookup(&t.name) else {
             let msg = format!("template {} not defined", go_quote(&t.name));
             return self.errorf(msg);
@@ -457,7 +540,7 @@ impl<'s, 'e> State<'s, 'e> {
     // Pipelines and commands
 
     fn eval_pipeline(&mut self, dot: &Ev, pipe: &PipeNode) -> R<Ev> {
-        self.at_pipe(pipe);
+        self.set_at(pipe.pos, AtKind::Pipe);
         let mut value: Final = None;
         for cmd in &pipe.cmds {
             let v = self.eval_command(dot, cmd, value.take())?;
@@ -512,7 +595,7 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn ideal_constant(&mut self, n: &NumberNode) -> R<Ev> {
-        self.at_node(n.pos, n.text.to_string(), n.span.clone());
+        self.set_at(n.pos, AtKind::Number);
         let t: &str = &n.text;
         if n.is_complex {
             return self.errorf(format!("complex constant {t} is not supported"));
@@ -530,12 +613,12 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn eval_field_node(&mut self, dot: &Ev, f: &FieldNode, args: &[Arg], fin: Final) -> R<Ev> {
-        self.at_node(f.pos, Arg::Field(f.clone()).to_string(), f.span.clone());
+        self.set_at(f.pos, AtKind::Field);
         self.eval_field_chain(dot, dot.clone(), FieldCtx::Field(f), &f.ident, args, fin)
     }
 
     fn eval_chain_node(&mut self, dot: &Ev, c: &ChainNode, args: &[Arg], fin: Final) -> R<Ev> {
-        self.at_node(c.pos, Arg::Chain(Box::new(c.clone())).to_string(), c.span.clone());
+        self.set_at(c.pos, AtKind::Chain);
         if matches!(c.node, Arg::Nil { .. }) {
             return self.errorf(format!("indirection through explicit nil in {}", Arg::Chain(Box::new(c.clone()))));
         }
@@ -544,7 +627,7 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn eval_variable_node(&mut self, dot: &Ev, v: &VariableNode, args: &[Arg], fin: Final) -> R<Ev> {
-        self.at_node(v.pos, v.to_string(), v.span.clone());
+        self.set_at(v.pos, AtKind::Variable);
         let value = self.var_value(&v.ident[0].name)?;
         if v.ident.len() == 1 {
             self.not_a_function(args, &fin)?;
@@ -646,7 +729,7 @@ impl<'s, 'e> State<'s, 'e> {
 
     #[allow(clippy::too_many_arguments)]
     fn eval_function(&mut self, dot: &Ev, pos: usize, name: &Rc<str>, span: &Span, cmd: Option<&CommandNode>, args: &[Arg], fin: Final) -> R<Ev> {
-        self.at_node(pos, name.to_string(), span.clone());
+        self.set_at(pos, AtKind::Identifier);
         let target = if let Some(f) = self.ctx.funcs.get(name) {
             CallTarget::Func(f.clone())
         } else if let Some(b) = Builtin::from_name(name) {
@@ -657,9 +740,10 @@ impl<'s, 'e> State<'s, 'e> {
             return self.errorf(format!("{} is not a defined function", go_quote(name)));
         };
         let at = match cmd {
-            Some(c) => (c.pos, c.to_string(), c.span.clone()),
-            None => (pos, name.to_string(), span.clone()),
+            Some(c) => At { pos: c.pos, kind: AtKind::Command },
+            None => At { pos, kind: AtKind::Identifier },
         };
+        let _ = span;
         self.eval_call(dot, target, cmd, at, name, Some(args), fin)
     }
 
@@ -670,7 +754,7 @@ impl<'s, 'e> State<'s, 'e> {
         dot: &Ev,
         target: CallTarget<'_>,
         _cmd: Option<&CommandNode>,
-        node_at: (usize, String, Span),
+        node_at: At,
         name: &str,
         args: Option<&[Arg]>,
         fin: Final,
@@ -729,7 +813,6 @@ impl<'s, 'e> State<'s, 'e> {
             argv.push(self.validate_type(f, Some(t))?);
         }
 
-        let call_span = node_at.2.clone();
         let result = if let CallTarget::Builtin(Builtin::Call) = target {
             let callee = match args.first() {
                 Some(a) => a.to_string(),
@@ -737,12 +820,13 @@ impl<'s, 'e> State<'s, 'e> {
             };
             builtin_call(&callee, &argv)
         } else {
-            self.dispatch(target, &argv, &call_span)
+            self.dispatch(target, &argv)
         };
         match result {
             Ok(v) => Ok(v),
             Err(err) => {
-                self.at_node(node_at.0, node_at.1.clone(), node_at.2.clone());
+                self.at = Some(node_at);
+                let call_span = self.at_info(node_at).1;
                 Err(self.call_error(name, err, call_span))
             }
         }
@@ -760,7 +844,7 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     #[inline(never)]
-    fn dispatch(&mut self, target: CallTarget<'_>, argv: &[Ev], call_span: &Span) -> Result<Ev, CallErr> {
+    fn dispatch(&mut self, target: CallTarget<'_>, argv: &[Ev]) -> Result<Ev, CallErr> {
         match target {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
             CallTarget::Func(f) => {
@@ -774,7 +858,7 @@ impl<'s, 'e> State<'s, 'e> {
             }
             CallTarget::Helm(h) => {
                 let vals = values(argv);
-                self.call_helm(h, &vals, call_span.clone())
+                self.call_helm(h, &vals)
             }
             CallTarget::Values(m, meth) => meth.call(&m, &values(argv)).map_err(CallErr::Plain),
         }
@@ -976,11 +1060,11 @@ impl FieldCtx<'_> {
         s
     }
 
-    fn at(&self) -> (usize, String, Span) {
+    fn at(&self) -> At {
         match self {
-            FieldCtx::Field(f) => (f.pos, Arg::Field((*f).clone()).to_string(), f.span.clone()),
-            FieldCtx::Chain(c) => (c.pos, Arg::Chain(Box::new((*c).clone())).to_string(), c.span.clone()),
-            FieldCtx::Var(v) => (v.pos, v.to_string(), v.span.clone()),
+            FieldCtx::Field(f) => At { pos: f.pos, kind: AtKind::Field },
+            FieldCtx::Chain(c) => At { pos: c.pos, kind: AtKind::Chain },
+            FieldCtx::Var(v) => At { pos: v.pos, kind: AtKind::Variable },
         }
     }
 }
@@ -1594,11 +1678,11 @@ const WARN_START: &str = "HELM_ERR_START";
 const WARN_END: &str = "HELM_ERR_END";
 
 impl State<'_, '_> {
-    fn call_helm(&mut self, h: HelmFn, args: &[Value], call_span: Span) -> Result<Ev, CallErr> {
+    fn call_helm(&mut self, h: HelmFn, args: &[Value]) -> Result<Ev, CallErr> {
         match h {
             HelmFn::Include => {
                 let name = args[0].as_str().unwrap_or("");
-                self.include(name, args[1].clone(), call_span).map(|out| Ev::Val(Value::string(out)))
+                self.include(name, args[1].clone()).map(|out| Ev::Val(Value::string(out)))
             }
             HelmFn::Tpl => {
                 let text = args[0].as_str().unwrap_or("");
@@ -1657,7 +1741,7 @@ impl State<'_, '_> {
     }
 
     /// Helm's `include`.
-    fn include(&mut self, name: &str, data: Value, _call_span: Span) -> Result<String, CallErr> {
+    fn include(&mut self, name: &str, data: Value) -> Result<String, CallErr> {
         let count = self.ctx.included.get(name).copied();
         if let Some(v) = count {
             if v > RECURSION_MAX_NUMS {
