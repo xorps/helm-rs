@@ -158,7 +158,7 @@ fn process_import_values(c: &mut Chart, merge: bool) -> Result<(), Error> {
                     let mut m = Map::new();
                     m.insert("child".into(), Value::str(&child));
                     m.insert("parent".into(), Value::str(&parent));
-                    outiv.push(Value::map(m));
+                    outiv.push(Value::string_map(m)); // Go map[string]string
                     let Some(vv) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else { continue };
                     let src = path_to_map(&parent, as_map(vv));
                     b = if merge { merge_tables(&b, &src) } else { coalesce_tables(&b, &src) };
@@ -168,7 +168,7 @@ fn process_import_values(c: &mut Chart, merge: bool) -> Result<(), Error> {
                     let mut m = Map::new();
                     m.insert("child".into(), Value::str(&child));
                     m.insert("parent".into(), Value::str("."));
-                    outiv.push(Value::map(m));
+                    outiv.push(Value::string_map(m)); // Go map[string]string
                     let Some(vm) = table(&cvals, &alloc::format!("{}.{child}", r.name)) else { continue };
                     let src = as_map(vm);
                     b = if merge { merge_tables(&b, &src) } else { coalesce_tables(&b, &src) };

@@ -324,7 +324,8 @@ fn rec_all_tpls(c: &Chart, out: &mut Vec<Renderable>, vals: &MapRef, is_root: bo
     for child in &c.dependencies {
         let child_path = alloc::format!("{full_path}/charts/{}", child.name());
         let sub = rec_all_tpls(child, out, &next, false, &child_path);
-        sub_charts.insert(child.name(), Value::Map(sub));
+        // Go: `map[string]interface{}` here; `common.Values` only as `.`.
+        sub_charts.insert(child.name(), Value::Map(sub.with_kind(MapKind::Plain)));
     }
     for t in &c.templates {
         if c.is_library() && !gostr::base(&t.name).starts_with('_') {

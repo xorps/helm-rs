@@ -111,7 +111,7 @@ impl Object for Files {
             "Get" => Ok(Value::string(String::from_utf8_lossy(&self.get_bytes(arg())).into_owned())),
             "GetBytes" => Ok(Value::Bytes(self.get_bytes(arg()))),
             "Glob" => Ok(Value::object(self.glob(arg()))),
-            "Lines" => Ok(Value::list(self.lines(arg()).into_iter().map(Value::string).collect())),
+            "Lines" => Ok(Value::string_list(self.lines(arg()).into_iter().map(Value::string).collect())),
             "AsConfig" => Ok(Value::string(self.as_config())),
             "AsSecrets" => Ok(Value::string(self.as_secrets())),
             _ => Err(FuncError::new(alloc::format!("no method {name}"))),

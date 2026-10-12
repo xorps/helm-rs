@@ -66,14 +66,9 @@ fn oracle_tree(mut j: Json, root: bool) -> Json {
             *d = oracle_tree(d.take(), false);
         }
     }
-    // Go nil maps/values print as null; we model them as empty maps.
+    // A chart without values.yaml has nil values; we model them as an empty map.
     if o.get("values") == Some(&Json::Null) {
         o.insert("values".into(), json!({}));
-    }
-    if let Some(Json::Object(md)) = o.get_mut("metadata") {
-        if md.get("Annotations") == Some(&Json::Null) {
-            md.insert("Annotations".into(), json!({}));
-        }
     }
     norm(&j)
 }
@@ -294,11 +289,6 @@ fn check_values(f: &Files, user: &str) {
     match (want, got) {
         (Ok(mut w), Ok(g)) => {
             w["tree"] = oracle_tree(w["tree"].take(), true);
-            if let Some(md) = w["chart"].as_object_mut() {
-                if md.get("Annotations") == Some(&Json::Null) {
-                    md.insert("Annotations".into(), json!({}));
-                }
-            }
             let w = norm(&w);
             assert_eq!(g["values"], w["values"], "values (user {user})");
             assert_eq!(g["chart"], w["chart"], "chart (user {user})");

@@ -215,3 +215,41 @@ fn values_documents_match_helm() {
         }
     }
 }
+
+/// Go types of what templates see (`typeOf`, `%v`, `toJson`).
+#[test]
+fn template_object_types_match_helm() {
+    if !semver_ready() {
+        return;
+    }
+    let tpl = r#"ann={{ typeOf .Chart.Annotations }} {{ .Chart.Annotations }} {{ toJson .Chart.Annotations }}
+kw={{ typeOf .Chart.Keywords }} mt={{ typeOf .Chart.Maintainers }} deps={{ typeOf .Chart.Dependencies }}
+iv={{ range .Chart.Dependencies }}{{ typeOf .ImportValues }}{{ range .ImportValues }} {{ typeOf . }} {{ . }}{{ end }} {{ typeOf .Tags }} {{ typeOf .Enabled }};{{ end }}
+lines={{ typeOf (.Files.Lines "a.txt") }} {{ .Files.Lines "a.txt" }}
+glob={{ typeOf (.Files.Glob "*.txt") }} {{ len (.Files.Glob "*.txt") }}
+cfg={{ typeOf (.Files.Glob "*.txt").AsConfig }} get={{ typeOf (.Files.Get "a.txt") }} bytes={{ typeOf (.Files.GetBytes "a.txt") }}
+caps={{ typeOf .Capabilities.APIVersions }} {{ typeOf .Capabilities.KubeVersion }} {{ typeOf .Capabilities.HelmVersion }}
+rel={{ typeOf .Release }} {{ typeOf .Release.Revision }} {{ typeOf .Subcharts }} {{ typeOf .Values }} {{ typeOf .Chart }} {{ typeOf .Chart.IsRoot }} {{ typeOf .Files }}
+chart={{ toJson .Chart }}
+sub={{ range $k, $v := .Subcharts }}{{ $k }} {{ typeOf $v }} {{ typeOf $v.Values }} {{ toJson $v.Chart.Annotations }}{{ end }}
+"#;
+    let mut f = files(&[
+        (
+            "Chart.yaml",
+            "apiVersion: v2\nname: p\nversion: 0.1.0\nkeywords: [a]\nmaintainers: [{name: m}]\ndependencies:\n  - name: s\n    tags: [t]\n    import-values: [data, {child: c, parent: p}]\n",
+        ),
+        ("a.txt", "x\ny\n"),
+        ("charts/s/Chart.yaml", "apiVersion: v2\nname: s\nversion: 0.1.0\nannotations: {k: v}\n"),
+        ("charts/s/values.yaml", "exports: {data: {d: 1}}\nc: {e: 2}\n"),
+    ]);
+    f.insert("templates/t.yaml".into(), tpl.as_bytes().to_vec());
+    let Some(mut o) = common::oracle() else { return };
+    let text: BTreeMap<String, String> =
+        f.iter().map(|(k, v)| (k.clone(), String::from_utf8(v.clone()).unwrap())).collect();
+    let want = o.render_files(&text, "", &common::Opts::default());
+    drop(o);
+    let common::OracleResult::Ok(want) = want else { panic!("oracle failed: {want:?}") };
+    let c = Chart::from_files(f).unwrap();
+    let got = chart::render(&c, &Value::Nil, &RenderOptions::default(), &mut DeterministicEnv::default()).unwrap();
+    assert_eq!(got["p/templates/t.yaml"], want["p/templates/t.yaml"]);
+}

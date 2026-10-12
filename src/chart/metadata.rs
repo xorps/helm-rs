@@ -369,13 +369,12 @@ impl Metadata {
         m.insert("Tags".into(), Value::str(&self.tags));
         m.insert("AppVersion".into(), Value::str(&self.app_version));
         m.insert("Deprecated".into(), Value::Bool(self.deprecated));
-        let ann: Map = self
-            .annotations
-            .iter()
-            .flatten()
-            .map(|(k, v)| (k.clone(), Value::str(v)))
-            .collect();
-        m.insert("Annotations".into(), Value::map(ann));
+        // Go `map[string]string`; nil when absent.
+        let ann = match &self.annotations {
+            Some(a) => Value::string_map(a.iter().map(|(k, v)| (k.clone(), Value::str(v))).collect()),
+            None => Value::nil_map("map[string]string", Some(Value::str(""))),
+        };
+        m.insert("Annotations".into(), ann);
         m.insert("KubeVersion".into(), Value::str(&self.kube_version));
         m.insert(
             "Dependencies".into(),
