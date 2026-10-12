@@ -348,7 +348,7 @@ fn parse_ipv6(input: &str) -> Result<String, String> {
             if ellipsis >= 0 {
                 return Err(addr_err(input, "multiple :: in address", &at(s)));
             }
-            ellipsis = i as i32;
+            ellipsis = i;
             s = &s[1..];
             if s.is_empty() {
                 break;
@@ -449,7 +449,7 @@ fn tquote(s: &[u8]) -> String {
     let mut i = 0;
     while i < s.len() {
         let c = s[i];
-        if c >= 0x80 || c < b' ' {
+        if !(b' '..0x80).contains(&c) {
             let width = if c < 0x80 {
                 1
             } else {
