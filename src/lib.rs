@@ -18,6 +18,7 @@ pub mod func;
 pub mod funcs;
 pub mod gofmt;
 pub mod json;
+pub mod semver;
 pub mod template;
 pub mod toml;
 pub mod value;
