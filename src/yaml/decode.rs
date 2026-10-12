@@ -590,10 +590,10 @@ impl<'n> Decoder<'n> {
         match self.nodes[n].kind {
             NodeKind::Mapping => self.unmarshal(n, Out::Map(out)),
             NodeKind::Alias => {
-                if let Some(t) = self.nodes[n].alias {
-                    if self.nodes[t].kind != NodeKind::Mapping {
-                        return Err(self.want_map(n));
-                    }
+                if let Some(t) = self.nodes[n].alias
+                    && self.nodes[t].kind != NodeKind::Mapping
+                {
+                    return Err(self.want_map(n));
                 }
                 self.unmarshal(n, Out::Map(out))
             }
@@ -603,10 +603,10 @@ impl<'n> Decoder<'n> {
                     let c = self.nodes[n].children[i];
                     let cn = &self.nodes[c];
                     if cn.kind == NodeKind::Alias {
-                        if let Some(t) = cn.alias {
-                            if self.nodes[t].kind != NodeKind::Mapping {
-                                return Err(self.want_map(n));
-                            }
+                        if let Some(t) = cn.alias
+                            && self.nodes[t].kind != NodeKind::Mapping
+                        {
+                            return Err(self.want_map(n));
                         }
                     } else if cn.kind != NodeKind::Mapping {
                         return Err(self.want_map(n));
@@ -742,10 +742,10 @@ pub(crate) fn has_key_collisions(v: &GoVal) -> bool {
         GoVal::Map(entries) => {
             let mut seen = alloc::collections::BTreeSet::new();
             for (k, v, m) in entries {
-                if let Ok(key) = json_key(k, &GoVal::Nil, m.0) {
-                    if !seen.insert(key) {
-                        return true;
-                    }
+                if let Ok(key) = json_key(k, &GoVal::Nil, m.0)
+                    && !seen.insert(key)
+                {
+                    return true;
                 }
                 if has_key_collisions(v) {
                     return true;

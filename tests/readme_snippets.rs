@@ -1,4 +1,5 @@
 //! Keeps the README examples compiling and correct.
+#![allow(clippy::result_large_err)]
 
 #[test]
 fn render_single_template() -> Result<(), helm_rs::Error> {

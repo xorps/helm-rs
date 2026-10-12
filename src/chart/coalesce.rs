@@ -113,16 +113,16 @@ fn coalesce_chart_values(c: &Chart, v: &MapRef, prefix: &str, merge: bool) {
         if let Some(value) = v.get(&key) {
             if value.is_nil() && !merge {
                 v.remove(&key);
-            } else if let Value::Map(dest) = value {
-                if let Value::Map(src) = &val {
-                    let merge = child_chart_merge_true(c, &key, merge);
-                    if !merge {
-                        clean_nil_values(src);
-                    }
-                    coalesce_tables_full_key(&dest, src, &concat_prefix(&_sub_prefix, &key), merge);
+            } else if let Value::Map(dest) = value
+                && let Value::Map(src) = &val
+            {
+                let merge = child_chart_merge_true(c, &key, merge);
+                if !merge {
+                    clean_nil_values(src);
                 }
-                // else: warning: skipped value: Not a table.
+                coalesce_tables_full_key(&dest, src, &concat_prefix(&_sub_prefix, &key), merge);
             }
+            // else: warning: skipped value: Not a table.
         } else {
             if !merge {
                 if val.is_nil() {
@@ -180,12 +180,12 @@ fn coalesce_tables_full_key(dst: &MapRef, src: &MapRef, prefix: &str, merge: boo
                 dst.insert(key, val);
             }
             Some(dv) => {
-                if let Value::Map(vm) = &val {
-                    if let Value::Map(dm) = &dv {
-                        coalesce_tables_full_key(dm, vm, &fullkey, merge);
-                    }
-                    // else: warning: cannot overwrite table with non table
+                if let Value::Map(vm) = &val
+                    && let Value::Map(dm) = &dv
+                {
+                    coalesce_tables_full_key(dm, vm, &fullkey, merge);
                 }
+                // else: warning: cannot overwrite table with non table
                 // else if dv is a table and val != nil: warning, ignored
             }
         }

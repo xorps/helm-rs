@@ -412,12 +412,12 @@ impl Url {
     }
 
     fn escaped_path(&self) -> String {
-        if !self.raw_path.is_empty() && valid_encoded(&self.raw_path, ENCODE_PATH) {
-            if let Ok(p) = unescape(&self.raw_path, ENCODE_PATH) {
-                if p == self.path {
-                    return self.raw_path.clone();
-                }
-            }
+        if !self.raw_path.is_empty()
+            && valid_encoded(&self.raw_path, ENCODE_PATH)
+            && let Ok(p) = unescape(&self.raw_path, ENCODE_PATH)
+            && p == self.path
+        {
+            return self.raw_path.clone();
         }
         if self.path == "*" {
             return "*".into();
@@ -426,22 +426,22 @@ impl Url {
     }
 
     fn escaped_fragment(&self) -> String {
-        if !self.raw_fragment.is_empty() && valid_encoded(&self.raw_fragment, ENCODE_FRAGMENT) {
-            if let Ok(f) = unescape(&self.raw_fragment, ENCODE_FRAGMENT) {
-                if f == self.fragment {
-                    return self.raw_fragment.clone();
-                }
-            }
+        if !self.raw_fragment.is_empty()
+            && valid_encoded(&self.raw_fragment, ENCODE_FRAGMENT)
+            && let Ok(f) = unescape(&self.raw_fragment, ENCODE_FRAGMENT)
+            && f == self.fragment
+        {
+            return self.raw_fragment.clone();
         }
         escape(&self.fragment, ENCODE_FRAGMENT)
     }
 
     fn hostname(&self) -> String {
         let mut host = self.host.as_str();
-        if let Some(colon) = host.rfind(':') {
-            if valid_optional_port(&host[colon..]) {
-                host = &host[..colon];
-            }
+        if let Some(colon) = host.rfind(':')
+            && valid_optional_port(&host[colon..])
+        {
+            host = &host[..colon];
         }
         if host.starts_with('[') && host.ends_with(']') && host.len() >= 2 {
             host = &host[1..host.len() - 1];

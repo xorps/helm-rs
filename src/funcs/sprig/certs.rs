@@ -120,10 +120,10 @@ pub(crate) fn pem_decode(data: &[u8]) -> Option<PemBlock> {
         };
         let mut content = &body[..end];
         // Skip RFC 1421 headers (lines with ':') before a blank line.
-        if let Some(blank) = find(content, b"\n\n") {
-            if content[..blank].contains(&b':') {
-                content = &content[blank + 2..];
-            }
+        if let Some(blank) = find(content, b"\n\n")
+            && content[..blank].contains(&b':')
+        {
+            content = &content[blank + 2..];
         }
         let b64: Vec<u8> = content
             .iter()
@@ -740,12 +740,10 @@ mod imp {
                     if fields
                         .first()
                         .is_some_and(|o| o.full == der::oid(&[2, 5, 29, 14]).as_slice())
+                        && let Some(v) = fields.last()
+                        && let Some((inner, _)) = der::read(v.content)
                     {
-                        if let Some(v) = fields.last() {
-                            if let Some((inner, _)) = der::read(v.content) {
-                                ski = inner.content.to_vec();
-                            }
-                        }
+                        ski = inner.content.to_vec();
                     }
                 }
             }
@@ -963,10 +961,11 @@ mod imp {
             None => t.subject.clone(),
         };
         let mut aki: Vec<u8> = Vec::new();
-        if let Some(p) = parent {
-            if issuer != t.subject && !p.subject_key_id.is_empty() {
-                aki = p.subject_key_id.clone();
-            }
+        if let Some(p) = parent
+            && issuer != t.subject
+            && !p.subject_key_id.is_empty()
+        {
+            aki = p.subject_key_id.clone();
         }
         let mut ski: Vec<u8> = Vec::new();
         if t.is_ca {

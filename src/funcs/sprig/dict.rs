@@ -215,14 +215,14 @@ fn deep_merge_map(
             }
             _ => {}
         }
-        if let Some(d) = &dst_el {
-            if !mergo_empty(d) {
-                if matches!(src_el, Value::List(_) | Value::Bytes(_)) {
-                    continue;
-                }
-                if matches!(src_el, Value::Map(_)) && matches!(d, Value::Map(_)) {
-                    continue;
-                }
+        if let Some(d) = &dst_el
+            && !mergo_empty(d)
+        {
+            if matches!(src_el, Value::List(_) | Value::Bytes(_)) {
+                continue;
+            }
+            if matches!(src_el, Value::Map(_)) && matches!(d, Value::Map(_)) {
+                continue;
             }
         }
         if overwrite || dst_el.is_none() || dst_el.as_ref().is_some_and(mergo_empty) {

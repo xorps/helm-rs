@@ -679,18 +679,20 @@ impl<'a> Parser<'a> {
         let mut first = true;
         while t.is_empty() || t.as_bytes()[0] != b']' || first {
             first = false;
-            if t.len() > 2 && t.as_bytes()[0] == b'[' && t.as_bytes()[1] == b':' {
-                if let Some(i) = t[2..].find(":]") {
-                    let i = i + 2;
-                    let name = &t[..i + 2];
-                    match posix_group(name) {
-                        Some((neg, class)) => {
-                            items.extend(group_items(neg, class, fold));
-                            t = &t[i + 2..];
-                            continue;
-                        }
-                        None => return Err(SyntaxError::new(ERR_INVALID_CHAR_RANGE, name)),
+            if t.len() > 2
+                && t.as_bytes()[0] == b'['
+                && t.as_bytes()[1] == b':'
+                && let Some(i) = t[2..].find(":]")
+            {
+                let i = i + 2;
+                let name = &t[..i + 2];
+                match posix_group(name) {
+                    Some((neg, class)) => {
+                        items.extend(group_items(neg, class, fold));
+                        t = &t[i + 2..];
+                        continue;
                     }
+                    None => return Err(SyntaxError::new(ERR_INVALID_CHAR_RANGE, name)),
                 }
             }
             if let Some((item, rest)) = self.parse_unicode_class(t)? {
@@ -1333,11 +1335,11 @@ impl GoRegex {
                 }
             } else {
                 for (i, n) in self.names.iter().enumerate() {
-                    if n.as_deref() == Some(name) {
-                        if let Some(g) = self.group(src, caps, i) {
-                            dst.push_str(g);
-                            break;
-                        }
+                    if n.as_deref() == Some(name)
+                        && let Some(g) = self.group(src, caps, i)
+                    {
+                        dst.push_str(g);
+                        break;
                     }
                 }
             }

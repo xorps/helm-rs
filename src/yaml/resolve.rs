@@ -212,10 +212,11 @@ pub(crate) fn resolve(tag: &str, in_: &str, v2: bool) -> Result<(&'static str, R
     if tag.is_empty() || tag == rtag || tag == STR_TAG || tag == BINARY_TAG {
         return Ok((rtag, out));
     }
-    if tag == FLOAT_TAG && rtag == INT_TAG {
-        if let Resolved::Int(i) = out {
-            return Ok((FLOAT_TAG, Resolved::Float(i as f64)));
-        }
+    if tag == FLOAT_TAG
+        && rtag == INT_TAG
+        && let Resolved::Int(i) = out
+    {
+        return Ok((FLOAT_TAG, Resolved::Float(i as f64)));
     }
     Err(format!(
         "cannot decode {} `{}` as a {}",
@@ -253,10 +254,10 @@ fn resolve_inner(tag: &str, in_: &str, v2: bool) -> (&'static str, Resolved) {
                 if let Ok(u) = parse_uint(&plain, 0) {
                     return (INT_TAG, Resolved::Uint(u));
                 }
-                if yaml_style_float(&plain) {
-                    if let Ok(f) = parse_float(&plain) {
-                        return (FLOAT_TAG, Resolved::Float(f));
-                    }
+                if yaml_style_float(&plain)
+                    && let Ok(f) = parse_float(&plain)
+                {
+                    return (FLOAT_TAG, Resolved::Float(f));
                 }
                 if let Some(rest) = plain.strip_prefix("0b") {
                     if let Ok(i) = parse_int(rest, 2) {
@@ -265,10 +266,10 @@ fn resolve_inner(tag: &str, in_: &str, v2: bool) -> (&'static str, Resolved) {
                     if let Ok(u) = parse_uint(rest, 2) {
                         return (INT_TAG, Resolved::Uint(u));
                     }
-                } else if let Some(rest) = plain.strip_prefix("-0b") {
-                    if let Ok(i) = parse_int(&format!("-{rest}"), 2) {
-                        return int_result(i);
-                    }
+                } else if let Some(rest) = plain.strip_prefix("-0b")
+                    && let Ok(i) = parse_int(&format!("-{rest}"), 2)
+                {
+                    return int_result(i);
                 }
                 if !v2 {
                     if let Some(rest) = plain.strip_prefix("0o") {
@@ -278,10 +279,10 @@ fn resolve_inner(tag: &str, in_: &str, v2: bool) -> (&'static str, Resolved) {
                         if let Ok(u) = parse_uint(rest, 8) {
                             return (INT_TAG, Resolved::Uint(u));
                         }
-                    } else if let Some(rest) = plain.strip_prefix("-0o") {
-                        if let Ok(i) = parse_int(&format!("-{rest}"), 8) {
-                            return int_result(i);
-                        }
+                    } else if let Some(rest) = plain.strip_prefix("-0o")
+                        && let Ok(i) = parse_int(&format!("-{rest}"), 8)
+                    {
+                        return int_result(i);
                     }
                 }
             }
@@ -483,7 +484,7 @@ pub(crate) fn base64_decode(s: &[u8]) -> Option<Vec<u8>> {
         .copied()
         .filter(|&c| c != b'\n' && c != b'\r')
         .collect();
-    if clean.len() % 4 != 0 {
+    if !clean.len().is_multiple_of(4) {
         return None;
     }
     let val = |c: u8| -> Option<u32> {

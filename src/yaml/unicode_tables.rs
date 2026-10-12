@@ -738,7 +738,7 @@ fn in_table(table: &[(u32, u32, u32)], c: u32) -> bool {
         } else if c > b {
             lo = m + 1;
         } else {
-            return stride == 1 || (c - a) % stride == 0;
+            return stride == 1 || (c - a).is_multiple_of(stride);
         }
     }
     false

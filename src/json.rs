@@ -702,10 +702,10 @@ fn legacy_syntax_error(e: SynErr, len: usize) -> JsonError {
         SynErr::Eof => JsonError::new("unexpected end of JSON input".into(), len),
         SynErr::MaxDepth(at) => JsonError::new("exceeded max depth".into(), at + 1),
         SynErr::Text(mut msg, at) => {
-            if let Some(i) = msg.find(" (expecting") {
-                if !msg.contains(" in literal") {
-                    msg.truncate(i);
-                }
+            if let Some(i) = msg.find(" (expecting")
+                && !msg.contains(" in literal")
+            {
+                msg.truncate(i);
             }
             let msg = msg
                 .replace("object name", "object key")
@@ -909,14 +909,11 @@ impl<'a> Dec<'a> {
                             self.i += 6;
                             if (0xD800..0xE000).contains(&r) {
                                 let mut combined = None;
-                                if r < 0xDC00 {
-                                    if let Some(r2) = self.getu4(self.i) {
-                                        if (0xDC00..0xE000).contains(&r2) {
-                                            combined = Some(
-                                                0x10000 + ((r - 0xD800) << 10) + (r2 - 0xDC00),
-                                            );
-                                        }
-                                    }
+                                if r < 0xDC00
+                                    && let Some(r2) = self.getu4(self.i)
+                                    && (0xDC00..0xE000).contains(&r2)
+                                {
+                                    combined = Some(0x10000 + ((r - 0xD800) << 10) + (r2 - 0xDC00));
                                 }
                                 match combined {
                                     Some(c) => {

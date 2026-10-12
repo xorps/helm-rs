@@ -291,15 +291,15 @@ pub fn to_render_values(
     rel.insert("Service".into(), Value::str("Helm"));
     top.insert("Release", Value::map(rel));
     let vals = coalesce_values(chart, &user_values(values))?.with_kind(MapKind::HelmValues);
-    if !opts.skip_schema_validation {
-        if let Err(e) = schema::validate_chart(chart, &vals) {
-            return Err(Error::new(
-                ErrorKind::Values,
-                alloc::format!(
-                    "values don't meet the specifications of the schema(s) in the following chart(s):\n{e}"
-                ),
-            ));
-        }
+    if !opts.skip_schema_validation
+        && let Err(e) = schema::validate_chart(chart, &vals)
+    {
+        return Err(Error::new(
+            ErrorKind::Values,
+            alloc::format!(
+                "values don't meet the specifications of the schema(s) in the following chart(s):\n{e}"
+            ),
+        ));
     }
     top.insert("Values", Value::Map(vals));
     Ok(top)

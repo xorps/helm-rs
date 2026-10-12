@@ -48,12 +48,12 @@ pub(crate) fn merge_maps(a: &MapRef, b: &MapRef) -> MapRef {
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     for (k, v) in entries {
-        if let Value::Map(bm) = &v {
-            if let Some(Value::Map(am)) = out.get(&k) {
-                let merged = merge_maps(am, bm);
-                out.insert(k, Value::Map(merged));
-                continue;
-            }
+        if let Value::Map(bm) = &v
+            && let Some(Value::Map(am)) = out.get(&k)
+        {
+            let merged = merge_maps(am, bm);
+            out.insert(k, Value::Map(merged));
+            continue;
         }
         out.insert(k, v);
     }

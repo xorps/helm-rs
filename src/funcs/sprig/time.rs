@@ -1053,10 +1053,10 @@ pub fn parse_in_location(
     default_loc: &Location,
     local: &Location,
 ) -> Result<Time, String> {
-    if layout == "2006-01-02T15:04:05Z07:00" || layout == "2006-01-02T15:04:05.999999999Z07:00" {
-        if let Some(t) = parse_rfc3339(value, local) {
-            return Ok(t);
-        }
+    if (layout == "2006-01-02T15:04:05Z07:00" || layout == "2006-01-02T15:04:05.999999999Z07:00")
+        && let Some(t) = parse_rfc3339(value, local)
+    {
+        return Ok(t);
     }
     let (alayout, avalue) = (layout, value);
     let mut layout = layout;

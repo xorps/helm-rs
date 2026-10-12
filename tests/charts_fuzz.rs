@@ -986,11 +986,11 @@ fn minimize(
             let mut cand = cur.clone();
             cand.remove(i);
             let y = build_values(&cx.corpus_values, &cx.base, &cand).to_yaml();
-            if let (_, Some(m)) = check(o, cx, &y) {
-                if m.kind == kind {
-                    cur = cand;
-                    continue 'outer;
-                }
+            if let (_, Some(m)) = check(o, cx, &y)
+                && m.kind == kind
+            {
+                cur = cand;
+                continue 'outer;
             }
         }
         break;

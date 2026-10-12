@@ -959,7 +959,7 @@ impl Decimal {
             if self.trunc {
                 return true;
             }
-            return nd > 0 && (self.d[nd - 1] - b'0') % 2 != 0;
+            return nd > 0 && !(self.d[nd - 1] - b'0').is_multiple_of(2);
         }
         self.d[nd] >= b'5'
     }

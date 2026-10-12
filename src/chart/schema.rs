@@ -404,14 +404,14 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) =
+        if b[i] == b'%'
+            && i + 2 < b.len()
+            && let Ok(v) =
                 u8::from_str_radix(core::str::from_utf8(&b[i + 1..i + 3]).unwrap_or("zz"), 16)
-            {
-                out.push(v);
-                i += 3;
-                continue;
-            }
+        {
+            out.push(v);
+            i += 3;
+            continue;
         }
         out.push(b[i]);
         i += 1;
@@ -452,12 +452,11 @@ fn collect_anchors(j: &J, ptr: &str, draft: u32, out: &mut BTreeMap<String, Stri
             if let Some(J::Str(a)) = m.get("$anchor") {
                 out.insert(a.clone(), ptr.into());
             }
-            if draft <= 7 {
-                if let Some(J::Str(id)) = m.get(if draft == 4 { "id" } else { "$id" }) {
-                    if let Some(a) = id.strip_prefix('#') {
-                        out.insert(a.into(), ptr.into());
-                    }
-                }
+            if draft <= 7
+                && let Some(J::Str(id)) = m.get(if draft == 4 { "id" } else { "$id" })
+                && let Some(a) = id.strip_prefix('#')
+            {
+                out.insert(a.into(), ptr.into());
             }
             for (k, v) in m {
                 if matches!(k.as_str(), "enum" | "const" | "default" | "examples") {
@@ -678,10 +677,10 @@ impl Compiler<'_> {
             })?;
             n.pattern = Some((pat.clone(), Rc::new(re)));
         }
-        if draft < 2019 {
-            if let Some(J::Str(f)) = m.get("format") {
-                n.format = Some(f.clone());
-            }
+        if draft < 2019
+            && let Some(J::Str(f)) = m.get("format")
+        {
+            n.format = Some(f.clone());
         }
         n.max_length = to_usize(m.get("maxLength"));
         n.min_items = to_usize(m.get("minItems"));
@@ -860,7 +859,7 @@ fn group(digits: &str) -> String {
     let mut out = String::new();
     let len = digits.len();
     for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
+        if i > 0 && (len - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);
@@ -1133,52 +1132,52 @@ impl Validator<'_> {
                 alloc::format!("invalid jsonType {}", v.type_name()),
             ));
         };
-        if let Some(types) = &s.types {
-            if !types.is_empty() {
-                let matched = types.contains(&t)
-                    || (types.contains(&Ty::Integer) && t == Ty::Number && is_integer(v));
-                if !matched {
-                    let mut want = types.clone();
-                    want.sort();
-                    want.dedup();
-                    let want: Vec<&str> = want.iter().map(|t| t.name()).collect();
-                    return Err(Self::msg(
-                        loc,
-                        alloc::format!("got {}, want {}", t.name(), want.join(" or ")),
-                    ));
-                }
-            }
-        }
-        if let Some(c) = &s.konst {
-            if !equals(v, c) {
-                let m = match c {
-                    J::Arr(_) | J::Obj(_) => "'const' failed".into(),
-                    c => alloc::format!("value must be {}", display_j(c)),
-                };
-                return Err(Self::msg(loc, m));
-            }
-        }
-        if let Some(e) = &s.enumv {
-            if !e.iter().any(|item| equals(v, item)) {
-                let all_prim = e.iter().all(|i| !matches!(i, J::Arr(_) | J::Obj(_)));
-                let m = if !all_prim {
-                    "'enum' failed".into()
-                } else if e.len() == 1 {
-                    alloc::format!("value must be {}", display_j(&e[0]))
-                } else {
-                    let w: Vec<String> = e.iter().map(display_j).collect();
-                    alloc::format!("value must be one of {}", w.join(", "))
-                };
-                return Err(Self::msg(loc, m));
-            }
-        }
-        if let (Some(f), Value::String(st)) = (&s.format, v) {
-            if let Err(e) = super::formats::check(f, st) {
+        if let Some(types) = &s.types
+            && !types.is_empty()
+        {
+            let matched = types.contains(&t)
+                || (types.contains(&Ty::Integer) && t == Ty::Number && is_integer(v));
+            if !matched {
+                let mut want = types.clone();
+                want.sort();
+                want.dedup();
+                let want: Vec<&str> = want.iter().map(|t| t.name()).collect();
                 return Err(Self::msg(
                     loc,
-                    alloc::format!("{} is not valid {f}: {e}", squote(st)),
+                    alloc::format!("got {}, want {}", t.name(), want.join(" or ")),
                 ));
             }
+        }
+        if let Some(c) = &s.konst
+            && !equals(v, c)
+        {
+            let m = match c {
+                J::Arr(_) | J::Obj(_) => "'const' failed".into(),
+                c => alloc::format!("value must be {}", display_j(c)),
+            };
+            return Err(Self::msg(loc, m));
+        }
+        if let Some(e) = &s.enumv
+            && !e.iter().any(|item| equals(v, item))
+        {
+            let all_prim = e.iter().all(|i| !matches!(i, J::Arr(_) | J::Obj(_)));
+            let m = if !all_prim {
+                "'enum' failed".into()
+            } else if e.len() == 1 {
+                alloc::format!("value must be {}", display_j(&e[0]))
+            } else {
+                let w: Vec<String> = e.iter().map(display_j).collect();
+                alloc::format!("value must be one of {}", w.join(", "))
+            };
+            return Err(Self::msg(loc, m));
+        }
+        if let (Some(f), Value::String(st)) = (&s.format, v)
+            && let Err(e) = super::formats::check(f, st)
+        {
+            return Err(Self::msg(
+                loc,
+                alloc::format!("{} is not valid {f}: {e}", squote(st)),
+            ));
         }
         let mut errors: Vec<VErr> = Vec::new();
         if let Some(r) = s.reference {
@@ -1195,55 +1194,55 @@ impl Validator<'_> {
             Value::List(l) => self.arr_validate(s, l, loc, scope, &mut errors),
             Value::String(st) => {
                 let n = st.chars().count();
-                if let Some(min) = s.min_length {
-                    if n < min {
-                        errors.push(Self::msg(
-                            loc,
-                            alloc::format!("minLength: got {}, want {}", g(n), g(min)),
-                        ));
-                    }
+                if let Some(min) = s.min_length
+                    && n < min
+                {
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!("minLength: got {}, want {}", g(n), g(min)),
+                    ));
                 }
-                if let Some(max) = s.max_length {
-                    if n > max {
-                        errors.push(Self::msg(
-                            loc,
-                            alloc::format!("maxLength: got {}, want {}", g(n), g(max)),
-                        ));
-                    }
+                if let Some(max) = s.max_length
+                    && n > max
+                {
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!("maxLength: got {}, want {}", g(n), g(max)),
+                    ));
                 }
-                if let Some((src, re)) = &s.pattern {
-                    if !re.is_match(st) {
-                        errors.push(Self::msg(
-                            loc,
-                            alloc::format!("{} does not match pattern {}", squote(st), squote(src)),
-                        ));
-                    }
+                if let Some((src, re)) = &s.pattern
+                    && !re.is_match(st)
+                {
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!("{} does not match pattern {}", squote(st), squote(src)),
+                    ));
                 }
             }
             _ if t == Ty::Number => {
                 let x = as_f64(v);
                 let fx = fmt_f64(x);
                 let mut check = |bound: &Option<Num>, name: &str, bad: fn(f64, f64) -> bool| {
-                    if let Some(b) = bound {
-                        if bad(x, b.f) {
-                            errors.push(Self::msg(
-                                loc,
-                                alloc::format!("{name}: got {fx}, want {}", fmt_f64(b.f)),
-                            ));
-                        }
+                    if let Some(b) = bound
+                        && bad(x, b.f)
+                    {
+                        errors.push(Self::msg(
+                            loc,
+                            alloc::format!("{name}: got {fx}, want {}", fmt_f64(b.f)),
+                        ));
                     }
                 };
                 check(&s.minimum, "minimum", |x, b| x < b);
                 check(&s.maximum, "maximum", |x, b| x > b);
                 check(&s.exclusive_minimum, "exclusiveMinimum", |x, b| x <= b);
                 check(&s.exclusive_maximum, "exclusiveMaximum", |x, b| x >= b);
-                if let Some(mo) = &s.multiple_of {
-                    if !is_multiple(x, mo) {
-                        errors.push(Self::msg(
-                            loc,
-                            alloc::format!("multipleOf: got {fx}, want {}", fmt_f64(mo.f)),
-                        ));
-                    }
+                if let Some(mo) = &s.multiple_of
+                    && !is_multiple(x, mo)
+                {
+                    errors.push(Self::msg(
+                        loc,
+                        alloc::format!("multipleOf: got {fx}, want {}", fmt_f64(mo.f)),
+                    ));
                 }
             }
             _ => {}
@@ -1335,21 +1334,21 @@ impl Validator<'_> {
         errors: &mut Vec<VErr>,
     ) {
         let len = obj.len();
-        if let Some(min) = s.min_props {
-            if len < min {
-                errors.push(Self::msg(
-                    loc,
-                    alloc::format!("minProperties: got {}, want {}", g(len), g(min)),
-                ));
-            }
+        if let Some(min) = s.min_props
+            && len < min
+        {
+            errors.push(Self::msg(
+                loc,
+                alloc::format!("minProperties: got {}, want {}", g(len), g(min)),
+            ));
         }
-        if let Some(max) = s.max_props {
-            if len > max {
-                errors.push(Self::msg(
-                    loc,
-                    alloc::format!("maxProperties: got {}, want {}", g(len), g(max)),
-                ));
-            }
+        if let Some(max) = s.max_props
+            && len > max
+        {
+            errors.push(Self::msg(
+                loc,
+                alloc::format!("maxProperties: got {}, want {}", g(len), g(max)),
+            ));
         }
         if !s.required.is_empty() {
             let missing = Self::missing(obj, &s.required);
@@ -1457,10 +1456,10 @@ impl Validator<'_> {
             return;
         }
         for (pname, n) in &s.dependent_schemas {
-            if obj.contains_key(pname) {
-                if let Err(e) = self.validate_self(&Value::Map(obj.clone()), loc, scope, *n, "") {
-                    errors.push(e);
-                }
+            if obj.contains_key(pname)
+                && let Err(e) = self.validate_self(&Value::Map(obj.clone()), loc, scope, *n, "")
+            {
+                errors.push(e);
             }
         }
         for (pname, reqd) in &s.dependent_required {
@@ -1489,21 +1488,21 @@ impl Validator<'_> {
         errors: &mut Vec<VErr>,
     ) {
         let len = arr.len();
-        if let Some(min) = s.min_items {
-            if len < min {
-                errors.push(Self::msg(
-                    loc,
-                    alloc::format!("minItems: got {}, want {}", g(len), g(min)),
-                ));
-            }
+        if let Some(min) = s.min_items
+            && len < min
+        {
+            errors.push(Self::msg(
+                loc,
+                alloc::format!("minItems: got {}, want {}", g(len), g(min)),
+            ));
         }
-        if let Some(max) = s.max_items {
-            if len > max {
-                errors.push(Self::msg(
-                    loc,
-                    alloc::format!("maxItems: got {}, want {}", g(len), g(max)),
-                ));
-            }
+        if let Some(max) = s.max_items
+            && len > max
+        {
+            errors.push(Self::msg(
+                loc,
+                alloc::format!("maxItems: got {}, want {}", g(len), g(max)),
+            ));
         }
         if s.unique_items && len > 1 {
             'outer: for i in 1..len {
@@ -1616,15 +1615,15 @@ impl Validator<'_> {
                 e.causes = errs;
                 errors.push(e);
             }
-            if let Some(max) = s.max_contains {
-                if matched.len() > max {
-                    errors.push(Self::msg(loc, alloc::format!(
+            if let Some(max) = s.max_contains
+                && matched.len() > max
+            {
+                errors.push(Self::msg(loc, alloc::format!(
                         "max {} items required to match contains schema, but matched {} items at {}",
                         g(max),
                         g(matched.len()),
                         list(&matched)
                     )));
-                }
             }
         }
     }
@@ -1637,10 +1636,10 @@ impl Validator<'_> {
         scope: &Scope<'_>,
         errors: &mut Vec<VErr>,
     ) {
-        if let Some(n) = s.not {
-            if self.validate_self(v, loc, scope, n, "").is_ok() {
-                errors.push(Self::msg(loc, "'not' failed".into()));
-            }
+        if let Some(n) = s.not
+            && self.validate_self(v, loc, scope, n, "").is_ok()
+        {
+            errors.push(Self::msg(loc, "'not' failed".into()));
         }
         if !s.all_of.is_empty() {
             let errs: Vec<VErr> = s
@@ -1702,15 +1701,15 @@ impl Validator<'_> {
         }
         if let Some(i) = s.if_ {
             if self.validate_self(v, loc, scope, i, "").is_ok() {
-                if let Some(t) = s.then {
-                    if let Err(e) = self.validate_self(v, loc, scope, t, "") {
-                        errors.push(e);
-                    }
-                }
-            } else if let Some(e) = s.else_ {
-                if let Err(e) = self.validate_self(v, loc, scope, e, "") {
+                if let Some(t) = s.then
+                    && let Err(e) = self.validate_self(v, loc, scope, t, "")
+                {
                     errors.push(e);
                 }
+            } else if let Some(e) = s.else_
+                && let Err(e) = self.validate_self(v, loc, scope, e, "")
+            {
+                errors.push(e);
             }
         }
     }
@@ -2083,10 +2082,10 @@ pub fn validate_against_schema(values: &MapRef, schema: &[u8]) -> Result<(), Str
 /// `ValidateAgainstSchema`: the chart's schema and its subcharts'.
 pub(crate) fn validate_chart(chart: &Chart, values: &MapRef) -> Result<(), String> {
     let mut sb = String::new();
-    if let Some(schema) = &chart.schema {
-        if let Err(e) = validate_against_schema(values, schema) {
-            let _ = write!(sb, "{}:\n{e}", chart.name());
-        }
+    if let Some(schema) = &chart.schema
+        && let Err(e) = validate_against_schema(values, schema)
+    {
+        let _ = write!(sb, "{}:\n{e}", chart.name());
     }
     for sub in &chart.dependencies {
         match values.get(sub.name()) {
