@@ -97,8 +97,11 @@ pub fn compare_template(
 }
 
 /// Compares a Helm error with ours: `helm_message()` must equal Helm's
-/// message, and our innermost location must equal the innermost
-/// `file:line[:col]` in Helm's message. Skipped with `HELM_RS_LAX_ERRORS=1`.
+/// message exactly (which pins Go's line:col), and our innermost diagnostic
+/// location must be on the same file and line as Helm's innermost location.
+/// Our column is intentionally different: it is 1-based and points at the
+/// failing segment, where Go reports a 0-based byte offset of the node.
+/// Skipped with `HELM_RS_LAX_ERRORS=1`.
 pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> Option<Mismatch> {
     if lax_errors() {
         return None;
@@ -106,12 +109,23 @@ pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> O
     let mine = ours.helm_message();
     let mut kind = None;
     let mut report = String::new();
-    if diff::strip_cli_hint(&mine) != diff::strip_cli_hint(helm_msg) {
+    // Unbounded recursion: Helm stops at ~1000 nested includes, we stop at
+    // Engine::max_depth with a different message. Both failing is a match.
+    if mine.contains("exceeded maximum template depth")
+        && (helm_msg.contains("nested reference name") || helm_msg.contains("exceeded maximum template depth"))
+    {
+        return None;
+    }
+    let (mine_n, helm_n) = (normalize_addresses(&mine), normalize_addresses(helm_msg));
+    if diff::strip_cli_hint(&mine_n) != diff::strip_cli_hint(&helm_n) && !same_tokens_reordered(&mine_n, &helm_n) {
         kind = Some(Kind::ErrMessage);
         let _ = writeln!(report, "both fail, with different messages:\n  helm:    {display}\n  helm-rs: {mine}");
     }
     if let Some(hl) = error_locations(helm_msg).pop() {
-        let ok = matches!(&ours.location, Some(l) if l.name == hl.name && l.line == hl.line && hl.col.is_none_or(|c| c == l.column));
+        // Helm reports `fail`/`required` at the outermost template; we report
+        // where the call happened and list the callers as frames.
+        let same = |l: &helm_rs::Location| l.name == hl.name && l.line == hl.line;
+        let ok = ours.location.as_ref().is_some_and(same) || ours.frames.iter().any(|f| same(&f.location));
         if !ok {
             kind.get_or_insert(Kind::ErrLocation);
             let mine = ours.location.as_ref().map_or("none".to_string(), |l| format!("{}:{}:{}", l.name, l.line, l.column));
@@ -121,4 +135,42 @@ pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> O
     let kind = kind?;
     let _ = write!(report, "helm-rs diagnostic:\n{ours}");
     Some(Mismatch::new(kind, report))
+}
+
+/// True when two messages contain the same tokens in a different order. Go
+/// iterates maps in random order (e.g. `keys $m | join ","`), so Helm itself
+/// produces such variations between runs.
+fn same_tokens_reordered(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let toks = |s: &str| {
+        let mut v: Vec<String> = s.split(|c: char| !c.is_alphanumeric()).filter(|t| !t.is_empty()).map(str::to_string).collect();
+        v.sort();
+        v
+    };
+    toks(a) == toks(b)
+}
+
+/// Replaces Go pointer addresses (`0xc000123456`), which differ per run.
+pub fn normalize_addresses(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'0' && i + 1 < b.len() && b[i + 1] == b'x' && (i == 0 || !b[i - 1].is_ascii_alphanumeric()) {
+            let mut j = i + 2;
+            while j < b.len() && b[j].is_ascii_hexdigit() {
+                j += 1;
+            }
+            if j - i - 2 >= 8 {
+                out.extend_from_slice(b"0xADDR");
+                i = j;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8(out).expect("only ASCII was replaced")
 }

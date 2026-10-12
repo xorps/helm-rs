@@ -193,8 +193,19 @@ impl fmt::Display for Error {
         if let Some(help) = &self.help {
             write!(f, "\n   = help: {help}")?;
         }
-        for frame in &self.frames {
+        // Collapse runs of identical frames (deep recursion).
+        let mut i = 0;
+        while i < self.frames.len() {
+            let frame = &self.frames[i];
+            let mut n = 1;
+            while i + n < self.frames.len() && self.frames[i + n] == *frame {
+                n += 1;
+            }
             write!(f, "\n   = note: from `{}` at {}", frame.call, frame.location)?;
+            if n > 1 {
+                write!(f, " ({n} times)")?;
+            }
+            i += n;
         }
         Ok(())
     }

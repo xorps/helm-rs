@@ -22,6 +22,7 @@ pub enum Ty {
     /// Go `int`.
     Int,
     Int64,
+    Uint32,
     Uint64,
     Float64,
     /// `[]byte`
@@ -32,8 +33,12 @@ pub enum Ty {
     Strings,
     /// `map[string]interface{}`
     Map,
-    /// A named object type ([`crate::Object::type_name`]); also accepts nil.
+    /// A named pointer or interface type ([`crate::Object::type_name`]);
+    /// also accepts nil.
     Object(&'static str),
+    /// A named struct type such as `time.Time`: like `Object`, but nil is
+    /// rejected, as Go cannot assign nil to a struct.
+    Struct(&'static str),
 }
 
 impl Ty {
@@ -45,13 +50,14 @@ impl Ty {
             Ty::Bool => "bool",
             Ty::Int => "int",
             Ty::Int64 => "int64",
+            Ty::Uint32 => "uint32",
             Ty::Uint64 => "uint64",
             Ty::Float64 => "float64",
             Ty::Bytes => "[]uint8",
             Ty::List => "[]interface {}",
             Ty::Strings => "[]string",
             Ty::Map => "map[string]interface {}",
-            Ty::Object(name) => name,
+            Ty::Object(name) | Ty::Struct(name) => name,
         }
     }
 }

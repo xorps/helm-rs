@@ -384,8 +384,24 @@ impl Enc {
             }
             Value::Object(o) if o.type_name() != "time.Time" => {
                 self.enter()?;
-                let data = o.to_data();
-                let r = self.marshal_value(&data);
+                let r = if let Some(gs) = o.go_struct() {
+                    // goyaml.v3 structs: exported fields in declaration
+                    // order, keyed by the lowercased field name.
+                    (|| {
+                        self.mapping_start()?;
+                        for f in gs.fields.iter().filter(|f| f.name.starts_with(|c: char| c.is_ascii_uppercase())) {
+                            self.stringv(&f.name.to_ascii_lowercase())?;
+                            self.marshal_value(&f.value)?;
+                        }
+                        self.mapping_end()
+                    })()
+                } else {
+                    match o.to_data() {
+                        // A nil map encodes as `{}` (only nil pointers are null).
+                        Value::Nil if o.kind() == crate::value::Kind::Map => self.marshal_value(&Value::empty_map()),
+                        data => self.marshal_value(&data),
+                    }
+                };
                 self.depth -= 1;
                 r
             }

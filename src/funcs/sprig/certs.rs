@@ -57,7 +57,7 @@ pub(super) fn register(f: &mut FuncMap) {
     const S: Ty = Ty::String;
     const I: Ty = Ty::Int;
     const L: Ty = Ty::List;
-    const C: Ty = Ty::Object(CERT_TYPE);
+    const C: Ty = Ty::Struct(CERT_TYPE);
     imp::register(f, S, I, L, C);
 }
 
@@ -303,7 +303,7 @@ mod imp {
         const S: Ty = Ty::String;
         const I: Ty = Ty::Int;
         const L: Ty = Ty::List;
-        const C: Ty = Ty::Object(CERT_TYPE);
+        const C: Ty = Ty::Struct(CERT_TYPE);
         f.add("genPrivateKey", Sig::new(&[S]), unsupported);
         f.add("buildCustomCert", Sig::new(&[S, S]), unsupported);
         f.add("genCA", Sig::new(&[S, I]), unsupported);
@@ -1000,7 +1000,7 @@ mod imp {
         const S: Ty = Ty::String;
         const I: Ty = Ty::Int;
         const L: Ty = Ty::List;
-        const C: Ty = Ty::Object(CERT_TYPE);
+        const C: Ty = Ty::Struct(CERT_TYPE);
         f.add_ctx("genPrivateKey", Sig::new(&[S]), gen_private_key);
         f.add("buildCustomCert", Sig::new(&[S, S]), build_custom_cert);
         f.add_ctx("genCA", Sig::new(&[S, I]), |ctx, a| {

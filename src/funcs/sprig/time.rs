@@ -1447,7 +1447,7 @@ impl Object for Time {
             "Format" => Sig::new(&[Ty::String]),
             "Add" | "Truncate" | "Round" => Sig::new(&[Ty::Int64]),
             "AddDate" => Sig::new(&[Ty::Int, Ty::Int, Ty::Int]),
-            "Sub" | "Before" | "After" | "Equal" | "Compare" => Sig::new(&[Ty::Object(TIME_TYPE)]),
+            "Sub" | "Before" | "After" | "Equal" | "Compare" => Sig::new(&[Ty::Struct(TIME_TYPE)]),
             _ => return None,
         })
     }

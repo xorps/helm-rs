@@ -244,7 +244,53 @@ func customFuncs(req Request) template.FuncMap {
 	if !req.FixedTime {
 		return nil
 	}
-	return template.FuncMap{"now": func() time.Time { return time.Unix(0, 0).UTC() }}
+	epoch := time.Unix(0, 0).UTC()
+	// Sprig's date functions fall back to time.Now() for non-time arguments;
+	// pin that too (sprig v3.3.0 date.go with a fixed clock).
+	dateInZone := func(f string, date any, zone string) string {
+		var t time.Time
+		switch d := date.(type) {
+		default:
+			t = epoch
+		case time.Time:
+			t = d
+		case *time.Time:
+			t = *d
+		case int64:
+			t = time.Unix(d, 0)
+		case int:
+			t = time.Unix(int64(d), 0)
+		case int32:
+			t = time.Unix(int64(d), 0)
+		}
+		loc, err := time.LoadLocation(zone)
+		if err != nil {
+			loc, _ = time.LoadLocation("UTC")
+		}
+		return t.In(loc).Format(f)
+	}
+	return template.FuncMap{
+		"now":            func() time.Time { return epoch },
+		"date":           func(f string, d any) string { return dateInZone(f, d, "Local") },
+		"htmlDate":       func(d any) string { return dateInZone("2006-01-02", d, "Local") },
+		"htmlDateInZone": func(d any, zone string) string { return dateInZone("2006-01-02", d, zone) },
+		"dateInZone":     dateInZone,
+		"date_in_zone":   dateInZone,
+		"ago": func(date any) string {
+			var t time.Time
+			switch d := date.(type) {
+			default:
+				t = epoch
+			case time.Time:
+				t = d
+			case int64:
+				t = time.Unix(d, 0)
+			case int:
+				t = time.Unix(int64(d), 0)
+			}
+			return epoch.Sub(t).Round(time.Second).String()
+		},
+	}
 }
 
 // helmTemplate reproduces `helm template` (pkg/cmd/template.go and runInstall

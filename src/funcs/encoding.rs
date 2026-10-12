@@ -119,7 +119,22 @@ pub fn register(f: &mut FuncMap) {
     f.add("mustToJson", ANY, |a| must_to_json(&arg(a)).map(Value::string));
     f.add("fromJson", STRING, |a| Ok(from_json(arg_str(a))));
     f.add("fromJsonArray", STRING, |a| Ok(from_json_array(arg_str(a))));
-    f.add("toToml", ANY, |a| Ok(Value::string(to_toml(&arg(a)))));
-    f.add("mustToToml", ANY, |a| must_to_toml(&arg(a)).map(Value::string));
+    f.add("toToml", ANY, |a| {
+        if arg(a).is_nil() {
+            return Err(toml_nil_panic());
+        }
+        Ok(Value::string(to_toml(&arg(a))))
+    });
+    f.add("mustToToml", ANY, |a| {
+        if arg(a).is_nil() {
+            return Err(toml_nil_panic());
+        }
+        must_to_toml(&arg(a)).map(Value::string)
+    });
     f.add("fromToml", STRING, |a| Ok(from_toml(arg_str(a))));
+}
+
+/// BurntSushi's encoder panics (outside its own recover) on a nil interface.
+fn toml_nil_panic() -> FuncError {
+    FuncError::new("reflect: call of reflect.Value.Type on zero Value")
 }

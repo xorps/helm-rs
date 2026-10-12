@@ -479,7 +479,8 @@ fn parts_map(parts: Vec<String>) -> Value {
     for (i, p) in parts.into_iter().enumerate() {
         m.insert(format!("_{i}"), Value::string(p));
     }
-    Value::map(m)
+    // Go: map[string]string
+    Value::string_map(m)
 }
 
 /// Sprig's `strslice`.

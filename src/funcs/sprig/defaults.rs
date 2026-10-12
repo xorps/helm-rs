@@ -69,7 +69,8 @@ fn deep_copy(v: &Value, depth: usize) -> FuncResult {
             for (k, x) in entries {
                 out.insert(k, deep_copy(&x, depth + 1)?);
             }
-            Value::map(out)
+            // copystructure keeps the named type (e.g. common.Values).
+            Value::Map(crate::value::MapRef::new(out).with_kind(m.kind()))
         }
         Value::List(l) => Value::list(l.iter().map(|x| deep_copy(x, depth + 1)).collect::<Result<Vec<_>, _>>()?),
         Value::Bytes(b) => Value::Bytes(b.to_vec().into()),

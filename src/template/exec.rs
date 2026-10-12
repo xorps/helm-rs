@@ -411,7 +411,12 @@ impl<'s, 'e> State<'s, 'e> {
     }
 
     fn walk_range_inner(&mut self, dot: &Ev, r: &BranchNode, out: &mut String) -> R<()> {
-        let val = as_data(self.eval_pipeline(dot, &r.pipe)?.indirect_iface());
+        let mut val = self.eval_pipeline(dot, &r.pipe)?.indirect_iface();
+        let mut concrete = false;
+        if let Some(c) = coll_of(&val) {
+            concrete = c.concrete;
+            val = Ev::Val(c.data);
+        }
         let mark = self.mark();
         let decl = &r.pipe.decl;
         let one = |s: &mut Self, index: Ev, elem: Ev, out: &mut String| -> R<()> {
@@ -468,7 +473,7 @@ impl<'s, 'e> State<'s, 'e> {
                 let l = l.clone();
                 for (i, e) in l.iter().enumerate() {
                     ran = true;
-                    one(self, Ev::Val(Value::Int(i as i64)), Ev::Iface(e.clone()), out)?;
+                    one(self, Ev::Val(Value::Int(i as i64)), elem(concrete, e.clone()), out)?;
                 }
             }
             Ev::Val(Value::Bytes(b)) => {
@@ -482,7 +487,7 @@ impl<'s, 'e> State<'s, 'e> {
                 let entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 for (k, v) in entries {
                     ran = true;
-                    one(self, Ev::Val(Value::string(k)), Ev::Iface(v), out)?;
+                    one(self, Ev::Val(Value::string(k)), elem(concrete, v), out)?;
                 }
             }
             Ev::Invalid => {}
@@ -691,14 +696,15 @@ impl<'s, 'e> State<'s, 'e> {
                     return Ok(Ev::of(f));
                 }
                 if o.kind() == Kind::Map
-                    && let Value::Map(m) = o.to_data()
+                    && let Some(c) = collection(&**o)
+                    && let Value::Map(m) = &c.data
                 {
                     if has_args {
                         return self.errorf(format!("{field_name} is not a method but has arguments"));
                     }
                     return Ok(match m.get(field_name) {
-                        Some(v) => Ev::Val(v),
-                        None => Ev::Val(Value::Bytes(Rc::from(&[][..]))),
+                        Some(v) => elem(c.concrete, v),
+                        None => c.missing,
                     });
                 }
             }
@@ -859,7 +865,9 @@ impl<'s, 'e> State<'s, 'e> {
         // Reflection-based functions see Go's named type; everything else
         // sees a map/slice-kind object (e.g. `VersionSet`) as its data, as
         // Go's reflect.Value.Len/Index/MapKeys would.
-        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike");
+        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike")
+            || name.starts_with("duration")
+            || name == "mustToDuration";
         match target {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
             CallTarget::Func(f) => {
@@ -945,13 +953,13 @@ impl<'s, 'e> State<'s, 'e> {
                     return self.errorf(format!("wrong type for value; expected {}; got interface {{}}", ty.go_name()));
                 }
                 if assignable(&v, ty) {
-                    return Ok(Ev::Val(v));
+                    return Ok(Ev::Val(to_param_type(v, ty)));
                 }
                 self.errorf(format!("wrong type for value; expected {}; got {}", ty.go_name(), v.type_name()))
             }
             Ev::Val(v) => {
                 if ty == Ty::Any || assignable(&v, ty) {
-                    return Ok(Ev::Val(v));
+                    return Ok(Ev::Val(to_param_type(v, ty)));
                 }
                 self.errorf(format!("wrong type for value; expected {}; got {}", ty.go_name(), v.type_name()))
             }
@@ -1015,8 +1023,8 @@ impl<'s, 'e> State<'s, 'e> {
                 }
                 _ => self.errorf(format!("expected integer; found {n}")),
             },
-            Ty::Uint64 => match n {
-                Arg::Number(num) if num.is_uint => Ok(Ev::Val(Value::Uint64(num.uint64))),
+            Ty::Uint64 | Ty::Uint32 => match n {
+                Arg::Number(num) if num.is_uint => Ok(Ev::Val(Value::Uint64(if ty == Ty::Uint32 { num.uint64 as u32 as u64 } else { num.uint64 }))),
                 _ => self.errorf(format!("expected unsigned integer; found {n}")),
             },
             Ty::String => match n {
@@ -1044,20 +1052,63 @@ impl<'s, 'e> State<'s, 'e> {
     fn print_value(&mut self, v: &Ev, out: &mut String) {
         match v {
             Ev::Invalid => out.push_str("<no value>"),
+            // An addressable struct field prints through a pointer-receiver
+            // String() (Go's printableValue).
+            Ev::Iface(Value::Object(o)) | Ev::Val(Value::Object(o)) if o.stringer() == crate::value::Stringer::Pointer => {
+                o.format(out)
+            }
             Ev::Iface(v) | Ev::Val(v) => gofmt::write_value(out, v),
         }
     }
 }
 
-/// Go map/slice-kind named types (e.g. `.Files`, `VersionSet`) behave like
-/// their underlying data for `range`, `len`, `index` and key lookup.
-fn as_data(v: Ev) -> Ev {
-    match &v {
-        Ev::Val(Value::Object(o)) | Ev::Iface(Value::Object(o)) if matches!(o.kind(), Kind::Map | Kind::Slice) => {
-            Ev::Val(o.to_data())
-        }
-        _ => v,
+/// How a map/slice-kind object (`.Files`, `VersionSet`, `[]string`,
+/// `map[string]string`, nil maps) behaves as a collection.
+struct Coll {
+    /// A `List` or `Map` (a nil map reads as an empty map).
+    data: Value,
+    /// Elements have a concrete static type (not `interface {}`).
+    concrete: bool,
+    /// Value of a missing map key.
+    missing: Ev,
+}
+
+fn collection(o: &dyn crate::value::Object) -> Option<Coll> {
+    if !matches!(o.kind(), Kind::Map | Kind::Slice) {
+        return None;
     }
+    let any = o.as_any();
+    if let Some(t) = any.downcast_ref::<crate::value::TypedMap>() {
+        return Some(Coll {
+            data: Value::Map(t.map.clone().unwrap_or_default()),
+            concrete: t.elem_zero.is_some(),
+            missing: t.elem_zero.clone().map_or(Ev::Iface(Value::Nil), Ev::Val),
+        });
+    }
+    if let Some(t) = any.downcast_ref::<crate::value::TypedList>() {
+        return Some(Coll { data: Value::List(t.items.clone()), concrete: t.go_type != "[]interface {}", missing: Ev::Invalid });
+    }
+    let data = match o.to_data() {
+        Value::Nil if o.kind() == Kind::Map => Value::empty_map(),
+        Value::Nil => Value::list(Vec::new()),
+        d => d,
+    };
+    // Helm's own collection types: `engine.files` (map[string][]byte) and
+    // `common.VersionSet` ([]string).
+    Some(Coll { data, concrete: true, missing: Ev::Val(Value::Bytes(Rc::from(&[][..]))) })
+}
+
+/// Returns the collection view of `v`, if it is a map/slice-kind object.
+fn coll_of(v: &Ev) -> Option<Coll> {
+    match v {
+        Ev::Val(Value::Object(o)) | Ev::Iface(Value::Object(o)) => collection(&**o),
+        _ => None,
+    }
+}
+
+/// Wraps an element according to its collection's static element type.
+fn elem(concrete: bool, v: Value) -> Ev {
+    if concrete { Ev::Val(v) } else { Ev::Iface(v) }
 }
 
 impl Ev {
@@ -1109,6 +1160,15 @@ fn is_hex_int(s: &str) -> bool {
     b.len() > 2 && b[0] == b'0' && (b[1] == b'x' || b[1] == b'X') && !s.contains(['p', 'P'])
 }
 
+/// Assigning a named map type (`common.Values`) to a
+/// `map[string]interface{}` parameter converts it to the unnamed type.
+fn to_param_type(v: Value, ty: Ty) -> Value {
+    match (ty, v) {
+        (Ty::Map, Value::Map(m)) if m.kind() != MapKind::Plain => Value::Map(m.with_kind(MapKind::Plain)),
+        (_, v) => v,
+    }
+}
+
 /// Go assignability of a concrete value to a parameter type.
 fn assignable(v: &Value, ty: Ty) -> bool {
     match (ty, v) {
@@ -1120,9 +1180,11 @@ fn assignable(v: &Value, ty: Ty) -> bool {
         (Ty::Uint64, Value::Uint64(_)) => true,
         (Ty::Float64, Value::Float(_)) => true,
         (Ty::Bytes, Value::Bytes(_)) => true,
-        (Ty::List | Ty::Strings, Value::List(_)) => true,
+        (Ty::List, Value::List(_)) => true,
+        (Ty::Strings, Value::List(l)) => l.iter().all(|v| matches!(v, Value::String(_))),
         (Ty::Map, Value::Map(_)) => true,
-        (Ty::Object(name), Value::Object(o)) => o.type_name() == name,
+        (Ty::Strings, Value::Object(o)) => o.type_name() == "[]string",
+        (Ty::Object(name) | Ty::Struct(name), Value::Object(o)) => o.type_name() == name,
         _ => false,
     }
 }
@@ -1278,7 +1340,10 @@ impl State<'_, '_> {
             Builtin::Not => Ok(Ev::Val(Value::Bool(!truth(&argv[0])))),
             Builtin::Len => {
                 let (item, is_nil) = indirect(&argv[0]);
-                let item = as_data(item);
+                let item = match coll_of(&item) {
+                    Some(c) => Ev::Val(c.data),
+                    None => item,
+                };
                 if is_nil {
                     return Err(plain("len of nil pointer".into()));
                 }
@@ -1353,8 +1418,17 @@ fn eval_args(argv: &[Ev]) -> String {
     gofmt::sprint(&vals)
 }
 
+/// The integer value of an int-kind named type (`time.Duration`).
+fn obj_int(v: &Ev) -> Option<i64> {
+    match v {
+        Ev::Val(Value::Object(o)) => o.as_any().downcast_ref::<crate::funcs::duration::Duration>().map(|d| d.0),
+        _ => None,
+    }
+}
+
 fn index_arg(index: &Ev, cap: usize) -> Result<usize, String> {
     let x: i64 = match index {
+        v if obj_int(v).is_some() => obj_int(v).unwrap_or(0),
         Ev::Val(Value::Int(i)) | Ev::Val(Value::Int64(i)) => *i,
         Ev::Val(Value::Uint64(u)) => *u as i64,
         Ev::Invalid => return Err("cannot index slice/array with nil".into()),
@@ -1374,7 +1448,10 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
     for index in indexes {
         let index = index.clone().indirect_iface();
         let (it, is_nil) = indirect(&item);
-        let it = as_data(it);
+        let (it, concrete, missing) = match coll_of(&it) {
+            Some(c) => (Ev::Val(c.data), c.concrete, c.missing),
+            None => (it, false, Ev::Iface(Value::Nil)),
+        };
         if is_nil {
             return Err("index of nil pointer".into());
         }
@@ -1382,7 +1459,7 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
             Ev::Val(Value::List(l)) => {
                 let x = index_arg(&index, l.len())?;
                 match l.get(x) {
-                    Some(v) => Ev::Iface(v.clone()),
+                    Some(v) => elem(concrete, v.clone()),
                     None => return Err("reflect: slice index out of range".into()),
                 }
             }
@@ -1407,8 +1484,8 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
                     other => return Err(format!("value has type {}; should be string", other.type_string())),
                 };
                 match m.get(&key) {
-                    Some(v) => Ev::Iface(v),
-                    None => Ev::Iface(Value::Nil),
+                    Some(v) => elem(concrete, v),
+                    None => missing,
                 }
             }
             Ev::Invalid => unreachable!(),
@@ -1476,6 +1553,7 @@ fn basic_kind(v: &Ev) -> BasicKind {
         Ev::Val(Value::Uint64(_)) => BasicKind::Uint,
         Ev::Val(Value::Float(_)) => BasicKind::Float,
         Ev::Val(Value::String(_)) => BasicKind::String,
+        v if obj_int(v).is_some() => BasicKind::Int,
         _ => BasicKind::Invalid,
     }
 }
@@ -1483,6 +1561,7 @@ fn basic_kind(v: &Ev) -> BasicKind {
 fn as_i(v: &Ev) -> i64 {
     match v {
         Ev::Val(Value::Int(i) | Value::Int64(i)) => *i,
+        v if obj_int(v).is_some() => obj_int(v).unwrap_or(0),
         _ => 0,
     }
 }
@@ -1558,6 +1637,9 @@ fn builtin_eq(arg1: &Ev, arg2: &[Ev]) -> Result<bool, String> {
                     } else {
                         match &arg {
                             Ev::Val(Value::Map(_) | Value::List(_) | Value::Bytes(_)) => {
+                                return Err(gofmt::sprintf("non-comparable type %s: %v", &[arg.value(), Value::string(arg.type_string())]));
+                            }
+                            Ev::Val(Value::Object(o)) if matches!(o.kind(), Kind::Map | Kind::Slice) => {
                                 return Err(gofmt::sprintf("non-comparable type %s: %v", &[arg.value(), Value::string(arg.type_string())]));
                             }
                             _ => match (&arg1, &arg) {

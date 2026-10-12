@@ -197,8 +197,61 @@ pub trait Object: fmt::Debug {
         true
     }
 
+    /// The Go struct behind this object, for `fmt` (`%v`, `%+v`, `%#v`) and
+    /// `encoding/json` (field order and tags). `None` for non-structs.
+    fn go_struct(&self) -> Option<GoStruct> {
+        None
+    }
+
+    /// Where the type's `String()` method is defined, if anywhere. Go uses a
+    /// pointer-receiver `String()` only when printing an addressable value
+    /// (a template action printing a struct field), not inside containers or
+    /// `printf`.
+    fn stringer(&self) -> Stringer {
+        Stringer::Value
+    }
+
     /// Lets functions downcast to concrete object types.
     fn as_any(&self) -> &dyn core::any::Any;
+}
+
+/// See [`Object::stringer`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stringer {
+    /// No `String()` method: printed as a struct.
+    None,
+    /// `func (T) String()`: used everywhere.
+    Value,
+    /// `func (*T) String()`: used only for addressable values.
+    Pointer,
+}
+
+/// A Go struct value (or pointer to one, `ptr`), fields in declaration order.
+#[derive(Clone, Debug)]
+pub struct GoStruct {
+    pub ptr: bool,
+    /// Type name without `*`, e.g. `common.KubeVersion`.
+    pub type_name: &'static str,
+    pub fields: Vec<GoField>,
+}
+
+#[derive(Clone, Debug)]
+pub struct GoField {
+    /// Go field name (lowercase for unexported fields).
+    pub name: &'static str,
+    pub value: Value,
+    pub json: JsonField,
+}
+
+/// How a struct field appears in `encoding/json` output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JsonField {
+    /// `json:"name"` (or the Go name when untagged).
+    Name(&'static str),
+    /// `json:"name,omitempty"`.
+    OmitEmpty(&'static str),
+    /// Unexported or `json:"-"`.
+    Skip,
 }
 
 impl Value {
@@ -399,4 +452,95 @@ macro_rules! map {
         $( m.insert($crate::__private::String::from($k), $crate::Value::from($v)); )+
         $crate::Value::map(m)
     }};
+}
+
+/// A Go slice whose element type is not `interface{}` (e.g. `[]string`
+/// from `splitList`, `[]int` from `until`). Behaves like a list everywhere,
+/// but keeps Go's type for `typeOf`, error messages, and the static type of
+/// elements produced by `range`/`index` (concrete, not `interface {}`).
+#[derive(Debug)]
+pub struct TypedList {
+    /// e.g. `[]string`.
+    pub go_type: &'static str,
+    pub items: Rc<Vec<Value>>,
+}
+
+/// A Go map whose type is not `map[string]interface{}` (e.g.
+/// `map[string]string` from `split`), or a nil map.
+#[derive(Debug)]
+pub struct TypedMap {
+    /// e.g. `map[string]string`.
+    pub go_type: &'static str,
+    /// `None` is a nil map: it reads as empty but encodes as `null`.
+    pub map: Option<MapRef>,
+    /// Zero value of the element type for missing keys; `None` when the
+    /// element type is `interface{}` (missing keys yield a nil interface).
+    pub elem_zero: Option<Value>,
+}
+
+impl Value {
+    /// A `[]string`.
+    pub fn string_list(items: Vec<Value>) -> Value {
+        Value::object(TypedList { go_type: "[]string", items: Rc::new(items) })
+    }
+    /// A slice of the given Go type, e.g. `[]int`.
+    pub fn typed_list(go_type: &'static str, items: Vec<Value>) -> Value {
+        Value::object(TypedList { go_type, items: Rc::new(items) })
+    }
+    /// A `map[string]string`.
+    pub fn string_map(map: Map) -> Value {
+        Value::object(TypedMap { go_type: "map[string]string", map: Some(MapRef::new(map)), elem_zero: Some(Value::str("")) })
+    }
+    /// A nil map of the given Go type.
+    pub fn nil_map(go_type: &'static str, elem_zero: Option<Value>) -> Value {
+        Value::object(TypedMap { go_type, map: None, elem_zero })
+    }
+}
+
+impl Object for TypedList {
+    fn type_name(&self) -> &str {
+        self.go_type
+    }
+    fn kind(&self) -> Kind {
+        Kind::Slice
+    }
+    fn format(&self, out: &mut String) {
+        crate::gofmt::write_value(out, &Value::List(self.items.clone()));
+    }
+    fn to_data(&self) -> Value {
+        Value::List(self.items.clone())
+    }
+    fn truthy(&self) -> bool {
+        !self.items.is_empty()
+    }
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
+
+impl Object for TypedMap {
+    fn type_name(&self) -> &str {
+        self.go_type
+    }
+    fn kind(&self) -> Kind {
+        Kind::Map
+    }
+    fn format(&self, out: &mut String) {
+        match &self.map {
+            Some(m) => crate::gofmt::write_value(out, &Value::Map(m.clone())),
+            None => out.push_str("map[]"),
+        }
+    }
+    fn to_data(&self) -> Value {
+        match &self.map {
+            Some(m) => Value::Map(m.clone()),
+            None => Value::Nil,
+        }
+    }
+    fn truthy(&self) -> bool {
+        self.map.as_ref().is_some_and(|m| !m.is_empty())
+    }
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
 }

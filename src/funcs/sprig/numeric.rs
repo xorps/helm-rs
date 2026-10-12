@@ -151,13 +151,14 @@ fn until_step(start: i64, stop: i64, step: i64) -> FuncResult {
         v.push(Value::Int(i));
         i = i.wrapping_add(step);
     }
-    Ok(Value::list(v))
+    // Go: []int
+    Ok(Value::typed_list("[]int", v))
 }
 
 fn until_step_ints(start: i64, stop: i64, step: i64) -> Result<Vec<i64>, FuncError> {
-    match until_step(start, stop, step)? {
-        Value::List(l) => Ok(l.iter().map(|v| if let Value::Int(n) = v { *n } else { 0 }).collect()),
-        _ => Ok(Vec::new()),
+    match until_step(start, stop, step)?.as_object().and_then(|o| o.as_any().downcast_ref::<crate::value::TypedList>()) {
+        Some(t) => Ok(t.items.iter().map(|v| if let Value::Int(n) = v { *n } else { 0 }).collect()),
+        None => Ok(Vec::new()),
     }
 }
 

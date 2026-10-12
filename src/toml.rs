@@ -83,11 +83,27 @@ fn is_time(v: &Value) -> bool {
     matches!(v, Value::Object(o) if o.type_name() == "time.Time")
 }
 
+/// Go structs keep their identity (field order); other objects encode as
+/// their data.
 fn data_of(v: &Value) -> Value {
     match v {
-        Value::Object(o) if !is_time(v) => o.to_data(),
+        Value::Object(o) if !is_time(v) && o.go_struct().is_none() => o.to_data(),
         _ => v.clone(),
     }
+}
+
+/// A struct's exported fields, in declaration order, keyed by Go field name
+/// (BurntSushi/toml ignores `json` tags).
+fn struct_entries(v: &Value) -> Option<Vec<(String, Value)>> {
+    let Value::Object(o) = v else { return None };
+    let gs = o.go_struct()?;
+    Some(
+        gs.fields
+            .into_iter()
+            .filter(|f| f.name.starts_with(|c: char| c.is_ascii_uppercase()))
+            .map(|f| (String::from(f.name), data_of(&f.value)))
+            .collect(),
+    )
 }
 
 impl Enc {
@@ -132,6 +148,7 @@ impl Enc {
                 }
             }
             Value::Object(_) if is_time(v) => TType::Datetime,
+            Value::Object(o) if o.go_struct().is_some() => TType::Hash,
             Value::Object(o) => {
                 let d = o.to_data();
                 self.enter()?;
@@ -181,6 +198,7 @@ impl Enc {
             }
             Value::Map(_) => self.table(key, v),
             Value::Object(_) if is_time(v) => self.write_key_value(key, v, false),
+            Value::Object(o) if o.go_struct().is_some() => self.table(key, v),
             Value::Object(o) => {
                 let d = o.to_data();
                 self.enter()?;
@@ -313,8 +331,13 @@ impl Enc {
     }
 
     fn map(&mut self, key: &[String], v: &Value, inline: bool) -> EncResult {
-        let Value::Map(m) = v else { return Ok(()) };
-        let entries: Vec<(String, Value)> = m.borrow().iter().map(|(k, v)| (k.clone(), data_of(v))).collect();
+        let entries: Vec<(String, Value)> = match v {
+            Value::Map(m) => m.borrow().iter().map(|(k, v)| (k.clone(), data_of(v))).collect(),
+            _ => match struct_entries(v) {
+                Some(e) => e,
+                None => return Ok(()),
+            },
+        };
         let mut direct = Vec::new();
         let mut sub = Vec::new();
         for (k, val) in entries {

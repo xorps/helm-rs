@@ -144,14 +144,23 @@ fn struct_view(v: &Value) -> Option<StructView> {
             fields: alloc::vec![("Cert", Value::str(&c.cert)), ("Key", Value::str(&c.key))],
         });
     }
-    None
+    let gs = o.go_struct()?;
+    Some(StructView { ptr: gs.ptr, type_name: gs.type_name, fields: gs.fields.into_iter().map(|f| (f.name, f.value)).collect() })
 }
 
 /// Whether an object implements `fmt.Stringer` (unknown objects are assumed
 /// to, since [`crate::Object::format`] is their `%v`).
 fn is_stringer(v: &Value) -> bool {
     match v {
-        Value::Object(o) => !o.as_any().is::<crate::funcs::sprig::certs::Certificate>(),
+        Value::Object(o) => {
+            !o.as_any().is::<crate::funcs::sprig::certs::Certificate>()
+                && !matches!(o.kind(), Kind::Map | Kind::Slice)
+                && match o.stringer() {
+                    crate::value::Stringer::None => false,
+                    crate::value::Stringer::Value => true,
+                    crate::value::Stringer::Pointer => o.go_struct().is_some_and(|g| g.ptr),
+                }
+        }
         _ => false,
     }
 }
@@ -979,8 +988,9 @@ impl Printer {
                 if let Some(sv) = struct_view(value) {
                     if sv.ptr {
                         if depth > 0 {
-                            // Go prints the pointer's address here.
-                            self.fmt_0x64(0xc000010000, true);
+                            // Go's fmtPointer: the address for %v, a bad-verb
+                            // annotation (`%!s(*T=&{...})`) otherwise.
+                            self.fmt_pointer(Some(value), value, verb);
                             return;
                         }
                         self.buf.push(b'&');
@@ -1004,6 +1014,16 @@ impl Printer {
                         self.print_value(fv, verb, depth + 1);
                     }
                     self.buf.push(b'}');
+                    return;
+                }
+                if matches!(o.kind(), Kind::Map | Kind::Slice) {
+                    // Named map/slice types (`.Files`, `[]string`, ...)
+                    // format like their underlying data, verb included.
+                    let data = match o.to_data() {
+                        Value::Nil if o.kind() == Kind::Map => Value::empty_map(),
+                        d => d,
+                    };
+                    self.print_value(&data, verb, depth);
                     return;
                 }
                 if verb == 'v' {

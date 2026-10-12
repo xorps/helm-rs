@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use core::any::Any;
 
 use crate::func::{FuncError, Sig, Ty};
+use crate::value::{GoField, GoStruct, JsonField};
 use crate::value::{Kind, Map, Object, Value};
 
 /// `common.DefaultVersionSet` of Helm v4.3.0 (client-go v0.37 scheme), in
@@ -177,9 +178,24 @@ impl Object for KubeVersion {
             _ => Err(FuncError::new(alloc::format!("no method {name}"))),
         }
     }
-    /// Templates print the (addressable) field through its `String()` method.
+    /// `String()` (pointer receiver: used when templates print the field).
     fn format(&self, out: &mut String) {
         out.push_str(self.string());
+    }
+    fn stringer(&self) -> crate::value::Stringer {
+        crate::value::Stringer::Pointer
+    }
+    fn go_struct(&self) -> Option<GoStruct> {
+        Some(GoStruct {
+            ptr: false,
+            type_name: "common.KubeVersion",
+            fields: alloc::vec![
+                GoField { name: "Version", value: Value::str(&self.version), json: JsonField::Name("Version") },
+                GoField { name: "normalizedVersion", value: Value::str(&self.normalized), json: JsonField::Skip },
+                GoField { name: "Major", value: Value::str(&self.major), json: JsonField::Name("Major") },
+                GoField { name: "Minor", value: Value::str(&self.minor), json: JsonField::Name("Minor") },
+            ],
+        })
     }
     fn to_data(&self) -> Value {
         let mut m = Map::new();
@@ -285,6 +301,23 @@ impl Object for BuildInfo {
             self.version, self.git_commit, self.git_tree_state, self.go_version, self.kube_client_version
         ));
     }
+    fn stringer(&self) -> crate::value::Stringer {
+        crate::value::Stringer::None
+    }
+    fn go_struct(&self) -> Option<GoStruct> {
+        let f = |name, v: &String, json| GoField { name, value: Value::str(v), json };
+        Some(GoStruct {
+            ptr: false,
+            type_name: "version.BuildInfo",
+            fields: alloc::vec![
+                f("Version", &self.version, JsonField::OmitEmpty("version")),
+                f("GitCommit", &self.git_commit, JsonField::OmitEmpty("git_commit")),
+                f("GitTreeState", &self.git_tree_state, JsonField::OmitEmpty("git_tree_state")),
+                f("GoVersion", &self.go_version, JsonField::OmitEmpty("go_version")),
+                f("KubeClientVersion", &self.kube_client_version, JsonField::Name("kube_client_version")),
+            ],
+        })
+    }
     fn to_data(&self) -> Value {
         let mut m = Map::new();
         for (k, v) in [
@@ -327,6 +360,20 @@ impl Object for CapabilitiesObject {
             "HelmVersion" => Some(Value::Object(self.helm_version.clone())),
             _ => None,
         }
+    }
+    fn stringer(&self) -> crate::value::Stringer {
+        crate::value::Stringer::None
+    }
+    fn go_struct(&self) -> Option<GoStruct> {
+        Some(GoStruct {
+            ptr: true,
+            type_name: "common.Capabilities",
+            fields: alloc::vec![
+                GoField { name: "KubeVersion", value: Value::Object(self.kube_version.clone()), json: JsonField::Name("KubeVersion") },
+                GoField { name: "APIVersions", value: Value::Object(self.api_versions.clone()), json: JsonField::Name("APIVersions") },
+                GoField { name: "HelmVersion", value: Value::Object(self.helm_version.clone()), json: JsonField::Name("HelmVersion") },
+            ],
+        })
     }
     fn format(&self, out: &mut String) {
         out.push_str("&{");

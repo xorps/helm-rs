@@ -109,8 +109,9 @@ pub(crate) fn barg(a: &[Value], i: usize) -> bool {
 }
 
 /// A list of strings as a template value.
+/// A Go `[]string` result.
 pub(crate) fn str_list<S: AsRef<str>>(items: impl IntoIterator<Item = S>) -> Value {
-    Value::list(items.into_iter().map(|s| Value::str(s.as_ref())).collect())
+    Value::string_list(items.into_iter().map(|s| Value::str(s.as_ref())).collect())
 }
 
 /// Sprig's `strval`: strings as-is, `[]byte` as a string, `Stringer`s via

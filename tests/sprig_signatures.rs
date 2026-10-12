@@ -59,13 +59,13 @@ fn dummy(t: Ty) -> &'static str {
         Ty::Any => "\"x\"",
         Ty::String => "\"x\"",
         Ty::Bool => "false",
-        Ty::Int | Ty::Int64 | Ty::Uint64 => "0",
+        Ty::Int | Ty::Int64 | Ty::Uint32 | Ty::Uint64 => "0",
         Ty::Float64 => "0.5",
         Ty::Bytes => "(list)",
         Ty::List => "(list)",
         Ty::Strings => "(list)",
         Ty::Map => "(dict)",
-        Ty::Object(_) => "nil",
+        Ty::Object(_) | Ty::Struct(_) => "nil",
     }
 }
 
@@ -75,15 +75,14 @@ fn foreign(t: Ty) -> &'static str {
     match t {
         Ty::Any => "",
         Ty::List | Ty::Strings | Ty::Bytes | Ty::Map => "\"str\"",
-        Ty::Object(_) => "\"str\"",
+        Ty::Object(_) | Ty::Struct(_) => "\"str\"",
         _ => "(list)",
     }
 }
 
 fn go_type_name(t: Ty) -> &'static str {
     match t {
-        Ty::Object("sprig.certificate") => "sprig.certificate",
-        Ty::Object(n) => n,
+        Ty::Object(n) | Ty::Struct(n) => n,
         Ty::Uint64 => "uint64",
         _ => t.go_name(),
     }
@@ -129,7 +128,7 @@ fn signatures_match_helm() {
                 continue;
             }
             // Struct-typed parameters reject nil, so they cannot take a dummy.
-            if all.iter().enumerate().any(|(j, t)| j != k && matches!(t, Ty::Object(_))) {
+            if all.iter().enumerate().any(|(j, t)| j != k && matches!(t, Ty::Object(_) | Ty::Struct(_))) {
                 continue;
             }
             // Known divergence: derivePassword's counter is a Go uint32.

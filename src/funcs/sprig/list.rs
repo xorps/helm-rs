@@ -155,5 +155,6 @@ fn chunk(a: &[Value]) -> FuncResult {
         }
         out.push(Value::list(c));
     }
-    Ok(Value::list(out))
+    // Go: [][]interface{}
+    Ok(Value::typed_list("[][]interface {}", out))
 }

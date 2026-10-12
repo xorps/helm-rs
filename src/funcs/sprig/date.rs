@@ -11,7 +11,7 @@ use crate::value::Value;
 
 const A: Ty = Ty::Any;
 const S: Ty = Ty::String;
-const T: Ty = Ty::Object(TIME_TYPE);
+const T: Ty = Ty::Struct(TIME_TYPE);
 
 fn local(ctx: &mut CallCtx<'_>) -> Location {
     Location::Local(ctx.env.now().utc_offset_seconds)

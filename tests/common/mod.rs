@@ -74,6 +74,8 @@ impl Oracle {
             return None;
         }
         let mut child = Command::new(path)
+            // "Local" time must match DeterministicEnv (UTC).
+            .env("TZ", "UTC")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()

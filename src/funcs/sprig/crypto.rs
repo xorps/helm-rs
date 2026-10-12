@@ -25,7 +25,7 @@ pub(super) fn register(f: &mut FuncMap) {
         }
         Ok(Value::string(format!("{user}:{}", bcrypt_string(c, sarg(a, 1)))))
     });
-    f.add("derivePassword", Sig::new(&[Ty::Uint64, S, S, S, S]), |a| {
+    f.add("derivePassword", Sig::new(&[Ty::Uint32, S, S, S, S]), |a| {
         let counter = match a.first() {
             Some(Value::Uint64(n)) => *n as u32,
             Some(Value::Int(n)) | Some(Value::Int64(n)) => *n as u32,

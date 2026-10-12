@@ -21,6 +21,7 @@ fn value_for(rng: &mut Rng, t: Ty) -> Value {
             _ => rng.range(-10, 10),
         }),
         Ty::Uint64 => Value::Uint64(rng.next()),
+        Ty::Uint32 => Value::Uint64(rng.next() as u32 as u64),
         Ty::Float64 => Value::Float(rand_float(rng)),
         Ty::Bytes => Value::Bytes(rand_string(rng, 4).into_bytes().into()),
         Ty::List | Ty::Strings => match rand_arg(rng, 1).value {
@@ -31,7 +32,7 @@ fn value_for(rng: &mut Rng, t: Ty) -> Value {
             v @ Value::Map(_) => v,
             v => map_of(&[("a", v)]),
         },
-        Ty::Object(_) => Value::Nil,
+        Ty::Object(_) | Ty::Struct(_) => Value::Nil,
     }
 }
 

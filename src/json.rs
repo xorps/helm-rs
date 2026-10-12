@@ -230,8 +230,31 @@ impl Encoder {
             }
             Value::Object(o) => {
                 self.object_enter()?;
-                let data = o.to_data();
-                self.encode(&data)?;
+                if let Some(gs) = o.go_struct() {
+                    // Struct: declaration order and json tags.
+                    self.out.push('{');
+                    let mut first = true;
+                    for f in &gs.fields {
+                        let (name, omit) = match f.json {
+                            crate::value::JsonField::Skip => continue,
+                            crate::value::JsonField::Name(n) => (n, false),
+                            crate::value::JsonField::OmitEmpty(n) => (n, true),
+                        };
+                        if omit && is_empty_value(&f.value) {
+                            continue;
+                        }
+                        if !first {
+                            self.out.push(',');
+                        }
+                        first = false;
+                        self.key(name);
+                        self.encode(&f.value)?;
+                    }
+                    self.out.push('}');
+                } else {
+                    let data = o.to_data();
+                    self.encode(&data)?;
+                }
                 self.objects -= 1;
             }
             _ => self.scalar(v)?,
@@ -943,5 +966,21 @@ mod tests {
         );
         assert_eq!(from_str("[1] x").unwrap_err().message, "invalid character 'x' after top-level value");
         assert_eq!(from_str("\"\\ud83d\\ude00\"").unwrap(), Value::str("😀"));
+    }
+}
+
+/// `encoding/json`'s `isEmptyValue` (for `omitempty`).
+fn is_empty_value(v: &Value) -> bool {
+    match v {
+        Value::Nil => true,
+        Value::Bool(b) => !b,
+        Value::Int(i) | Value::Int64(i) => *i == 0,
+        Value::Uint64(u) => *u == 0,
+        Value::Float(f) => *f == 0.0,
+        Value::String(s) => s.is_empty(),
+        Value::Bytes(b) => b.is_empty(),
+        Value::List(l) => l.is_empty(),
+        Value::Map(m) => m.is_empty(),
+        Value::Object(o) => matches!(o.kind(), crate::value::Kind::Map | crate::value::Kind::Slice) && !o.truthy(),
     }
 }

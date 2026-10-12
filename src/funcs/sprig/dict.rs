@@ -94,8 +94,10 @@ fn dig(ps: &[Value]) -> FuncResult {
     if ps.len() < 3 {
         return Err(FuncError::new("dig needs at least three arguments"));
     }
-    let Value::Map(dict) = &ps[ps.len() - 1] else {
-        return Err(interface_conversion(&ps[ps.len() - 1], "map[string]interface {}"));
+    // A type assertion: Helm's named `common.Values` does not satisfy it.
+    let dict = match &ps[ps.len() - 1] {
+        Value::Map(d) if d.kind() == crate::value::MapKind::Plain => d,
+        other => return Err(interface_conversion(other, "map[string]interface {}")),
     };
     let def = &ps[ps.len() - 2];
     let mut ks = Vec::new();

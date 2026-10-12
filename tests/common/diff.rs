@@ -195,6 +195,10 @@ pub fn eq_modulo_volatile(expected: &str, volatile: &BTreeSet<usize>, actual: &s
     if expected == actual {
         return true;
     }
+    // Go pointer addresses differ between runs (and we print a fixed one).
+    if super::compare::normalize_addresses(expected) == super::compare::normalize_addresses(actual) {
+        return true;
+    }
     if volatile.is_empty() {
         return false;
     }
