@@ -80,7 +80,7 @@ fn deep_copy(v: &Value, depth: usize) -> FuncResult {
 /// Undoes `encoding/json`'s HTML escaping (`SetEscapeHTML(false)`):
 /// `<`, `>`, `&` back to `<`, `>`, `&` (only real escapes,
 /// i.e. preceded by an even number of backslashes).
-pub(crate) fn unescape_html(s: &str) -> String {
+pub fn unescape_html(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = String::with_capacity(s.len());
     let mut i = 0;
@@ -119,7 +119,7 @@ pub(crate) fn unescape_html(s: &str) -> String {
 }
 
 /// `json.Indent(dst, src, "", "  ")` on compact JSON.
-pub(crate) fn json_indent(src: &str) -> String {
+pub fn json_indent(src: &str) -> String {
     let b = src.as_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(src.len() * 2);
     let mut depth = 0usize;

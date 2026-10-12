@@ -32,6 +32,8 @@ mod crypto;
 mod date;
 mod decimal;
 mod defaults;
+#[doc(hidden)]
+pub use defaults::{json_indent, unescape_html};
 mod dict;
 pub mod goregex;
 pub mod gounicode;

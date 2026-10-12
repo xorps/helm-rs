@@ -718,6 +718,83 @@ fn crypto_deterministic() {
     t.run("crypto_deterministic");
 }
 
+/// `toPrettyJson`/`toRawJson` are implemented as post-processing of
+/// `json.Marshal` output; check that against Helm on random values.
+#[test]
+fn json_pretty_and_raw_postprocessing() {
+    let mut rng = Rng::new(808);
+    let mut values: Vec<String> = vec![
+        "(dict)".into(),
+        "(list)".into(),
+        "(dict \"a\" (list) \"b\" (dict) \"c\" (list (dict) (list)))".into(),
+        "(dict \"<html>\" \"a&b<c>d\" \"q\" \"\\\"quoted\\\" \\\\ back\" \"u\" \"\\u2028\\u2029\\u0000\")".into(),
+        "\"\\\\u003c is not an escape\"".into(),
+        "(list 1 2.5 true nil \"x\" (list \"y\"))".into(),
+    ];
+    for _ in 0..300 {
+        values.push(rand_arg(&mut rng, 3).tmpl);
+    }
+    let mut exprs = Vec::new();
+    for v in &values {
+        exprs.push(format!("toJson {v}"));
+        exprs.push(format!("toPrettyJson {v}"));
+        exprs.push(format!("toRawJson {v}"));
+    }
+    let Some(out) = helm_eval_many(&exprs, "") else { return };
+    let mut compared = 0;
+    let mut bad = Vec::new();
+    for (k, v) in values.iter().enumerate() {
+        let (Ok(compact), Ok(pretty), Ok(raw)) = (&out[3 * k], &out[3 * k + 1], &out[3 * k + 2]) else {
+            continue; // e.g. NaN cannot be marshaled (toRawJson panics)
+        };
+        let p = helm_rs::funcs::sprig::json_indent(compact);
+        if &p != pretty {
+            bad.push(format!("toPrettyJson {v}\n   ours: {p:?}\n   helm: {pretty:?}"));
+        }
+        compared += 1;
+        let r = helm_rs::funcs::sprig::unescape_html(compact);
+        if &r != raw {
+            bad.push(format!("toRawJson {v}\n   ours: {r:?}\n   helm: {raw:?}"));
+        }
+    }
+    assert!(compared > 250, "only {compared} compared");
+    report("json_pretty_and_raw_postprocessing", values.len() * 2, &bad);
+}
+
+#[test]
+fn semver_methods() {
+    let mut t = Batch::new();
+    for v in ["1.2.3", "v1.2.3-beta.1+meta", "0.0.0", "v2", "18446744073709551615.18446744073709551615.18446744073709551615"] {
+        for m in ["IncMajor", "IncMinor", "IncPatch", "String", "Original", "Prerelease", "Metadata", "Major"] {
+            let expr = format!("(semver {}).{m}", lit(v));
+            let funcs = helm_rs::funcs::sprig();
+            let ver = call(&funcs, "semver", &[Value::str(v)]).unwrap();
+            let ours = ver.as_object().unwrap().call_method(m, &[]).map(|r| render_value(&r)).map_err(|e| e.message);
+            t.add_raw(&expr, ours);
+        }
+        for p in ["rc.1", "", "01", "a..b"] {
+            let expr = format!("(semver {}).SetPrerelease {}", lit(v), lit(p));
+            let funcs = helm_rs::funcs::sprig();
+            let ver = call(&funcs, "semver", &[Value::str(v)]).unwrap();
+            let ours = ver.as_object().unwrap().call_method("SetPrerelease", &[Value::str(p)]).map(|r| render_value(&r)).map_err(|e| e.message);
+            t.add_raw(&expr, ours);
+        }
+        for w in ["1.2.3", "1.2.4-0", "0.9"] {
+            for m in ["LessThan", "GreaterThan", "Equal", "Compare", "LessThanEqual", "GreaterThanEqual"] {
+                let expr = format!("(semver {}).{m} (semver {})", lit(v), lit(w));
+                let funcs = helm_rs::funcs::sprig();
+                let a = call(&funcs, "semver", &[Value::str(v)]).unwrap();
+                let b = call(&funcs, "semver", &[Value::str(w)]).unwrap();
+                let ours = a.as_object().unwrap().call_method(m, &[b]).map(|r| render_value(&r)).map_err(|e| e.message);
+                t.add_raw(&expr, ours);
+            }
+        }
+        t.add("typeOf", vec![Arg::new(Value::Nil, &*format!("(semver {})", lit(v))).with_ours_value()]);
+    }
+    t.add_raw("typeOf (semver \"1.2.3\").IncMajor", Ok("semver.Version".into()));
+    t.run("semver_methods");
+}
+
 impl ArgExt for Arg {}
 trait ArgExt {
     /// Marks an argument whose Rust value must be computed by evaluating its
