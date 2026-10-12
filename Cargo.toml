@@ -12,12 +12,28 @@ exclude = ["oracle/", "fuzz/", "testdata/charts/"]
 name = "helm_rs"
 
 [features]
-default = ["archive"]
+default = ["archive", "certs"]
 # Load charts from .tgz archives (gzip + tar), pure Rust, no_std.
 archive = ["dep:miniz_oxide"]
+# Key and certificate generation for Sprig's genPrivateKey/genCA/genSignedCert/...
+# (RSA, ECDSA, Ed25519). Without it those functions return an error.
+certs = ["dep:rsa", "dep:p256", "dep:p384", "dep:ed25519-dalek", "dep:rand_core"]
 
 [dependencies]
+aes = { version = "0.8", default-features = false }
+blowfish = { version = "0.9", default-features = false, features = ["bcrypt"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["rand_core"], optional = true }
+hmac = { version = "0.12", default-features = false }
 miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"], optional = true }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic", "pkcs8"], optional = true }
+p384 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"], optional = true }
+rand_core = { version = "0.6", default-features = false, optional = true }
+regex-automata = { version = "0.4", default-features = false, features = ["alloc", "syntax", "meta", "nfa", "hybrid", "dfa-onepass", "unicode"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["unicode"] }
+rsa = { version = "0.9", default-features = false, features = ["sha2", "u64_digit"], optional = true }
+scrypt = { version = "0.11", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+sha2 = { version = "0.10", default-features = false }
 
 [dev-dependencies]
 serde_json = "1"
