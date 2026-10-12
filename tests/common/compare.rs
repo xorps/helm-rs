@@ -121,11 +121,18 @@ pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> O
         kind = Some(Kind::ErrMessage);
         let _ = writeln!(report, "both fail, with different messages:\n  helm:    {display}\n  helm-rs: {mine}");
     }
-    if let Some(hl) = error_locations(helm_msg).pop() {
+    // Helm messages may mention several locations (call chains, "action
+    // started at X"); ours must agree with one of them on file and line.
+    let all_locs = error_locations(helm_msg);
+    if let Some(hl) = all_locs.last().cloned() {
+        let any_match = all_locs.iter().any(|hl| {
+            let same = |l: &helm_rs::Location| l.name == hl.name && l.line == hl.line;
+            ours.location.as_ref().is_some_and(same) || ours.frames.iter().any(|f| same(&f.location))
+        });
         // Helm reports `fail`/`required` at the outermost template; we report
         // where the call happened and list the callers as frames.
         let same = |l: &helm_rs::Location| l.name == hl.name && l.line == hl.line;
-        let ok = ours.location.as_ref().is_some_and(same) || ours.frames.iter().any(|f| same(&f.location));
+        let ok = any_match || ours.location.as_ref().is_some_and(same) || ours.frames.iter().any(|f| same(&f.location));
         if !ok {
             kind.get_or_insert(Kind::ErrLocation);
             let mine = ours.location.as_ref().map_or("none".to_string(), |l| format!("{}:{}:{}", l.name, l.line, l.column));
