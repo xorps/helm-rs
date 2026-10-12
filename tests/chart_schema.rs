@@ -94,3 +94,73 @@ fn schema_number_formatting_matches_helm() {
     }
     check(r#"{"properties":{"l":{"minItems":1234}}}"#, r#"{"l": []}"#);
 }
+
+#[test]
+fn schema_patterns_match_helm() {
+    let cases: &[(&str, &str)] = &[
+        (r#"{"properties":{"a":{"pattern":"^z"}}}"#, r#"{"a": "ab"}"#),
+        (r#"{"properties":{"a":{"pattern":"^a\\d+$"}}}"#, r#"{"a": "a12x"}"#),
+        (r#"{"properties":{"a":{"pattern":"b"}}}"#, r#"{"a": "abc"}"#),
+        (r#"{"properties":{"a":{"pattern":"it's"}}}"#, r#"{"a": "x"}"#),
+        (r#"{"patternProperties":{"^x-":{"type":"integer"}, "-y$":{"type":"string"}},"additionalProperties":false}"#, r#"{"x-a": 1, "b": 2, "x-q": "s"}"#),
+        (r#"{"patternProperties":{"^x-":{"type":"integer"}},"properties":{"x-a":{"type":"string"}}}"#, r#"{"x-a": 1}"#),
+        (r#"{"patternProperties":{".*":{"type":"integer"}},"additionalProperties":{"type":"string"}}"#, r#"{"q": true}"#),
+        (r#"{"properties":{"ports":{"type":"object","patternProperties":{"^[a-z0-9-]+$":{"properties":{"containerPort":{"type":"integer"}}}}}}}"#, r#"{"ports": {"jaeger-thrift": {"containerPort": "x"}}}"#),
+        // Invalid regexes are caught by the metaschema (format: regex) or the compiler.
+        (r#"{"pattern":"("}"#, r#"{"a": 1}"#),
+        (r#"{"properties":{"a":{"pattern":"("}}}"#, r#"{"a": "ab"}"#),
+        (r#"{"properties":{"a":{"patternProperties":{"[":{}}}}}"#, r#"{"a": "ab"}"#),
+        (r#"{"$defs":{"x":{"items":{"pattern":"("}}}}"#, r#"{"a": 1}"#),
+        (r#"{"anyOf":[{"not":{"pattern":"("}}]}"#, r#"{"a": 1}"#),
+        (r#"{"definitions":{"x":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+        (r#"{"properties":{"a":{"pattern":"(", "maxLength": 1}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"a":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-07/schema#","definitions":{"x":{"patternProperties":{"(":{}}}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-07/schema#","items":{"pattern":"("}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-07/schema#","dependencies":{"a":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-04/schema#","properties":{"a":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-04/schema#","properties":{"a":{"patternProperties":{"(":{}}}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-04/schema#","additionalProperties":{"pattern":"("}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"https://json-schema.org/draft/2019-09/schema","properties":{"a":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"https://json-schema.org/draft/2019-09/schema","items":{"pattern":"("}}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-06/schema#","allOf":[{"pattern":"("}]}"#, r#"{"a": 1}"#),
+        (r#"{"$schema":"http://json-schema.org/draft-07/schema#","$defs":{"x":{"pattern":"("}}}"#, r#"{"a": 1}"#),
+    ];
+    for (s, v) in cases {
+        check(s, v);
+    }
+}
+
+#[test]
+fn schema_formats_match_helm() {
+    // Formats are asserted for drafts 4-7 only.
+    let cases: &[(&str, &[&str])] = &[
+        ("email", &["x", "a@b.c", "a..b@c", ".a@b", "a.@b", "\"q\"@b", "a@[1.2.3.4]", "a@[IPv6:::1]", "a@[1.2.3]", "a@-b", "a@b_c", "a b@c", "a@[IPv6:x]"]),
+        ("date", &["2020-01-01", "2020-13-01", "2020-02-30", "2020-02-29", "2021-02-29", "x", "2020-1-01", "2020-01-1", "2020/01/01", "2020-01-01x", "202a-01-01", "", "2020-00-10", "2020-01-00"]),
+        ("time", &["12:00:00Z", "12:00:00", "25:00:00Z", "12:00:00.5+01:00", "12:00:00+1:00", "12:00:00.Z", "23:59:60Z", "12:00:60Z", "1a:00:00Z", "12-00-00Z", "12:00:00*01:00"]),
+        ("date-time", &["2020-01-01T25:00:00Z", "2020-01-01T12:00:00Z", "2020-01-01 12:00:00Z", "2020-13-01T12:00:00Z", "short"]),
+        ("ipv4", &["1.2.3.4", "1.2.x.4", "1.2.3", "01.2.3.4", "256.1.1.1", "-1.2.3.4", "+1.2.3.4", "99999999999999999999.1.1.1"]),
+        ("ipv6", &["::1", "1:x", "1.2.3.4", "fe80::1%eth0", "1::2::3", "12345::", "::ffff:1.2.3.4", "1:2:3:4:5:6:7:8:9", "1:", ":1", "::1.2.3"]),
+        ("hostname", &["a.b", "-a", "a-", "a_b", "", "a..b", "a.b."]),
+        ("uuid", &["123e4567-e89b-12d3-a456-426614174000", "123", "123e4567-e89b-12d3-a456-42661417400g", "123e4567-e89b-12d3-a456-4266141740"]),
+        ("duration", &["P1D", "PT1H", "P", "P1W", "PW", "P1H", "PT1D", "P1D1Y", "PT", "P1", "P1DT"]),
+        ("period", &["2020-01-01T00:00:00Z/P1D", "P1D/2020-01-01T00:00:00Z", "x", "P1X/2020-01-01T00:00:00Z"]),
+        ("uri", &["http://a.b/c", "x y", "/rel", "http://[::1]:80/", "http://a b/", "http://a:x/", "%zz", "http://a/%zz", "://x", "a:b", "http://[1.2.3.4]/", "http://x@y/", "http://a b@c/"]),
+        ("uri-reference", &["/a/b", "a\\b", "http://a.b", ":x", "%zz"]),
+        ("uri-template", &["http://a/{b}", "http://a/{b", "http://a/}b{", "http://a/{{b}}"]),
+        ("json-pointer", &["", "/a/b", "a", "/a~2", "/a~"]),
+        ("relative-json-pointer", &["0/a", "1#", "01/a", "x", "1a"]),
+        ("semver", &["1.2.3", "1.2", "1.2.3-01", "1.2.3+", "01.2.3", "1.2.x", "1.2.3-a..b", "1.2.3+a_b"]),
+        ("regex", &["^a$", "(", "[", "a{2,1}"]),
+        ("unknown-format", &["anything"]),
+    ];
+    for (fmt, values) in cases {
+        for v in *values {
+            let schema = format!(r#"{{"$schema":"http://json-schema.org/draft-07/schema#","properties":{{"a":{{"format":"{fmt}"}}}}}}"#);
+            check(&schema, &serde_json::to_string(&json!({ "a": v })).unwrap());
+        }
+    }
+    // Not asserted in 2020-12; non-strings pass.
+    check(r#"{"properties":{"a":{"format":"email"}}}"#, r#"{"a": "x"}"#);
+    check(r#"{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"a":{"format":"email"}}}"#, r#"{"a": 1}"#);
+}

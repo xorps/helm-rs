@@ -16,6 +16,7 @@ mod coalesce;
 mod decode;
 mod dependencies;
 mod files;
+mod formats;
 mod glob;
 mod gostr;
 mod ignore;

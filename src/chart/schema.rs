@@ -14,10 +14,12 @@
 //! metaschema validation of the schema itself.
 
 use alloc::collections::BTreeMap;
+use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::Write;
 
+use crate::funcs::sprig::goregex::{self, GoRegex};
 use crate::value::{MapRef, Value};
 
 use super::Chart;
@@ -334,6 +336,9 @@ struct Node {
     enumv: Option<Vec<J>>,
     reference: Option<usize>,
     properties: Vec<(String, usize)>,
+    pattern_properties: Vec<(Rc<GoRegex>, usize)>,
+    pattern: Option<(String, Rc<GoRegex>)>,
+    format: Option<String>,
     additional_props: Option<Result<bool, usize>>,
     required: Vec<String>,
     dependencies: Vec<(String, Dep)>,
@@ -557,6 +562,15 @@ impl Compiler<'_> {
             }
         }
         n.properties = map(self, "properties")?;
+        if let Some(J::Obj(pp)) = m.get("patternProperties") {
+            for k in pp.keys() {
+                let idx = self.compile(&alloc::format!("{ptr}/patternProperties/{}", escape_tok(k)))?;
+                let re = goregex::compile(k).map_err(|e| {
+                    alloc::format!("invalid regex {} at {}: {e}", super::gostr::quote(k), super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/patternProperties")))
+                })?;
+                n.pattern_properties.push((Rc::new(re), idx));
+            }
+        }
         n.additional_props = additional(self, "additionalProperties")?;
         if let Some(J::Obj(deps)) = m.get("dependencies") {
             for (k, v) in deps {
@@ -598,6 +612,17 @@ impl Compiler<'_> {
             n.exclusive_minimum = num(m.get("exclusiveMinimum"));
         }
         n.min_length = to_usize(m.get("minLength"));
+        if let Some(J::Str(pat)) = m.get("pattern") {
+            let re = goregex::compile(pat).map_err(|e| {
+                alloc::format!("invalid regex {} at {}: {e}", super::gostr::quote(pat), super::gostr::quote(&alloc::format!("{ROOT_URL}#{ptr}/pattern")))
+            })?;
+            n.pattern = Some((pat.clone(), Rc::new(re)));
+        }
+        if draft < 2019 {
+            if let Some(J::Str(f)) = m.get("format") {
+                n.format = Some(f.clone());
+            }
+        }
         n.max_length = to_usize(m.get("maxLength"));
         n.min_items = to_usize(m.get("minItems"));
         n.max_items = to_usize(m.get("maxItems"));
@@ -1037,6 +1062,11 @@ impl Validator<'_> {
                 return Err(Self::msg(loc, m));
             }
         }
+        if let (Some(f), Value::String(st)) = (&s.format, v) {
+            if let Err(e) = super::formats::check(f, st) {
+                return Err(Self::msg(loc, alloc::format!("{} is not valid {f}: {e}", squote(st))));
+            }
+        }
         let mut errors: Vec<VErr> = Vec::new();
         if let Some(r) = s.reference {
             let res = self.validate_ref(v, loc, scope, r, "$ref");
@@ -1060,6 +1090,11 @@ impl Validator<'_> {
                 if let Some(max) = s.max_length {
                     if n > max {
                         errors.push(Self::msg(loc, alloc::format!("maxLength: got {}, want {}", g(n), g(max))));
+                    }
+                }
+                if let Some((src, re)) = &s.pattern {
+                    if !re.is_match(st) {
+                        errors.push(Self::msg(loc, alloc::format!("{} does not match pattern {}", squote(st), squote(src))));
                     }
                 }
             }
@@ -1176,6 +1211,14 @@ impl Validator<'_> {
                 evaluated = true;
                 if let Err(e) = self.validate_val(pvalue, loc, scope, *n, pname.clone()) {
                     errors.push(e);
+                }
+            }
+            for (re, n) in &s.pattern_properties {
+                if re.is_match(pname) {
+                    evaluated = true;
+                    if let Err(e) = self.validate_val(pvalue, loc, scope, *n, pname.clone()) {
+                        errors.push(e);
+                    }
                 }
             }
             if !evaluated {
@@ -1433,11 +1476,232 @@ fn join_quoted(a: &[String]) -> String {
     a.iter().map(|s| squote(s)).collect::<Vec<_>>().join(", ")
 }
 
+// ------------------------------------------------------ metaschema --
+//
+// The library validates a schema against its draft's metaschema before
+// compiling it. We model only the checks that can fail on otherwise
+// well-formed schemas in practice: `pattern` and `patternProperties` keys
+// must be valid regexes (`format: regex`). The error tree mirrors the
+// metaschema's structure (vocabulary `allOf` in 2019-09/2020-12, `$ref`
+// recursion, `anyOf` branches) so messages match.
+
+fn meta_url(draft: u32) -> &'static str {
+    match draft {
+        4 => "http://json-schema.org/draft-04/schema#",
+        6 => "http://json-schema.org/draft-06/schema#",
+        7 => "http://json-schema.org/draft-07/schema#",
+        2019 => "https://json-schema.org/draft/2019-09/schema#",
+        _ => "https://json-schema.org/draft/2020-12/schema#",
+    }
+}
+
+fn tok_loc(ptr: &str) -> Vec<String> {
+    if ptr.is_empty() {
+        return Vec::new();
+    }
+    ptr[1..].split('/').map(unescape_tok).collect()
+}
+
+fn combine(loc: &str, mut errs: Vec<VErr>) -> Option<VErr> {
+    match errs.len() {
+        0 => None,
+        1 => errs.pop(),
+        _ => Some(VErr { loc: tok_loc(loc), kind: Kind::Group, causes: errs }),
+    }
+}
+
+fn reference(loc: &str, e: VErr) -> VErr {
+    let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
+    VErr { loc: tok_loc(loc), kind: Kind::Reference, causes }
+}
+
+fn mmsg(loc: &str, m: String) -> VErr {
+    VErr { loc: tok_loc(loc), kind: Kind::Msg(m), causes: Vec::new() }
+}
+
+fn regex_err(s: &str) -> Option<String> {
+    goregex::compile(s).err().map(|e| alloc::format!("{} is not valid regex: {e}", squote(s)))
+}
+
+fn json_kind_name(j: &J) -> &'static str {
+    json_type_name(Some(j))
+}
+
+/// Result of validating a schema value at `loc` against the metaschema
+/// (`{"$ref": "#"}` / `{"$dynamicRef": "#meta"}` target).
+fn meta_schema(j: &J, loc: &str, draft: u32) -> Option<VErr> {
+    let J::Obj(m) = j else { return None };
+    let child = |kw: &str| alloc::format!("{loc}/{}", escape_tok(kw));
+    // A `$ref`/`$dynamicRef` to the metaschema from `at`.
+    let sub = |v: &J, at: &str| meta_schema(v, at, draft).map(|e| reference(at, e));
+    // `{type: object, additionalProperties: <schema ref>}` values.
+    let schema_map = |kw: &str, extra: &mut Vec<VErr>| -> Option<VErr> {
+        let at = child(kw);
+        let J::Obj(o) = m.get(kw)? else { return None };
+        let mut errs: Vec<VErr> = o
+            .iter()
+            .filter_map(|(k, v)| sub(v, &alloc::format!("{at}/{}", escape_tok(k))))
+            .collect();
+        errs.append(extra);
+        combine(&at, errs)
+    };
+    let schema_array = |kw: &str| -> Option<VErr> {
+        let at = child(kw);
+        let J::Arr(a) = m.get(kw)? else { return None };
+        let errs = a.iter().enumerate().filter_map(|(i, v)| sub(v, &alloc::format!("{at}/{i}"))).collect();
+        combine(&at, errs)
+    };
+    let single = |kw: &str| -> Option<VErr> { sub(m.get(kw)?, &child(kw)) };
+    let pattern = || -> Option<VErr> {
+        let J::Str(p) = m.get("pattern")? else { return None };
+        regex_err(p).map(|e| mmsg(&child("pattern"), e))
+    };
+    let prop_names = || -> Vec<VErr> {
+        let Some(J::Obj(o)) = m.get("patternProperties") else { return Vec::new() };
+        if draft == 4 {
+            return Vec::new();
+        }
+        o.keys()
+            .filter_map(|k| {
+                regex_err(k).map(|e| VErr {
+                    loc: tok_loc(&child("patternProperties")),
+                    kind: Kind::Msg(alloc::format!("invalid propertyName {}", squote(k))),
+                    causes: alloc::vec![mmsg("", e)],
+                })
+            })
+            .collect()
+    };
+    // `anyOf: [<schema ref>, <array>]` style keywords.
+    let any_of_schema_or_array = |kw: &str, arr_ok: bool| -> Option<VErr> {
+        let at = child(kw);
+        let v = m.get(kw)?;
+        let (branch1, branch2) = match v {
+            J::Arr(a) if arr_ok => {
+                let want = if draft == 4 { "object" } else { "object or boolean" };
+                let t = mmsg(&at, alloc::format!("got array, want {want}"));
+                let errs: Vec<VErr> =
+                    a.iter().enumerate().filter_map(|(i, x)| sub(x, &alloc::format!("{at}/{i}"))).collect();
+                if errs.is_empty() {
+                    return None;
+                }
+                (Some(t), combine(&at, errs))
+            }
+            J::Arr(_) => return None,
+            other => {
+                let e = sub(other, &at)?;
+                (Some(e), Some(mmsg(&at, alloc::format!("got {}, want array", json_kind_name(other)))))
+            }
+        };
+        Some(VErr {
+            loc: tok_loc(&at),
+            kind: Kind::Msg("'anyOf' failed".into()),
+            causes: branch1.into_iter().chain(branch2).collect(),
+        })
+    };
+    let dependencies = || -> Option<VErr> {
+        let at = child("dependencies");
+        let J::Obj(o) = m.get("dependencies")? else { return None };
+        let errs = o
+            .iter()
+            .filter_map(|(k, v)| {
+                let kat = alloc::format!("{at}/{}", escape_tok(k));
+                if matches!(v, J::Arr(_)) {
+                    return None;
+                }
+                let e = sub(v, &kat)?;
+                Some(VErr {
+                    loc: tok_loc(&kat),
+                    kind: Kind::Msg("'anyOf' failed".into()),
+                    causes: alloc::vec![e, mmsg(&kat, alloc::format!("got {}, want array", json_kind_name(v)))],
+                })
+            })
+            .collect();
+        combine(&at, errs)
+    };
+    let mut errs: Vec<VErr> = Vec::new();
+    if draft < 2019 {
+        // One monolithic metaschema; keyword errors in key order.
+        for kw in m.keys() {
+            let e = match kw.as_str() {
+                "properties" | "definitions" => schema_map(kw, &mut Vec::new()),
+                "patternProperties" => schema_map(kw, &mut prop_names()),
+                "additionalProperties" | "additionalItems" if draft == 4 => {
+                    let v = &m[kw];
+                    if matches!(v, J::Bool(_)) {
+                        None
+                    } else {
+                        sub(v, &child(kw)).map(|e| VErr {
+                            loc: tok_loc(&child(kw)),
+                            kind: Kind::Msg("'anyOf' failed".into()),
+                            causes: alloc::vec![mmsg(&child(kw), alloc::format!("got {}, want boolean", json_kind_name(v))), e],
+                        })
+                    }
+                }
+                "additionalProperties" | "additionalItems" | "not" | "contains" | "propertyNames" | "if" | "then"
+                | "else" => single(kw),
+                "items" => any_of_schema_or_array(kw, true),
+                "allOf" | "anyOf" | "oneOf" => schema_array(kw),
+                "dependencies" => dependencies(),
+                "pattern" => pattern(),
+                _ => None,
+            };
+            errs.extend(e);
+        }
+        return combine(loc, errs);
+    }
+    // 2019-09 / 2020-12: top-level compat keywords, then the vocabularies.
+    for kw in m.keys() {
+        match kw.as_str() {
+            "definitions" => errs.extend(schema_map(kw, &mut Vec::new())),
+            "dependencies" => errs.extend(dependencies()),
+            _ => {}
+        }
+    }
+    let mut core = Vec::new();
+    let mut applicator = Vec::new();
+    let mut unevaluated = Vec::new();
+    let mut validation = Vec::new();
+    for kw in m.keys() {
+        match kw.as_str() {
+            "$defs" => core.extend(schema_map(kw, &mut Vec::new())),
+            "properties" | "dependentSchemas" => applicator.extend(schema_map(kw, &mut Vec::new())),
+            "patternProperties" => applicator.extend(schema_map(kw, &mut prop_names())),
+            "items" if draft == 2019 => applicator.extend(any_of_schema_or_array(kw, true)),
+            "additionalProperties" | "additionalItems" | "items" | "contains" | "propertyNames" | "if" | "then"
+            | "else" | "not" => applicator.extend(single(kw)),
+            "allOf" | "anyOf" | "oneOf" | "prefixItems" => applicator.extend(schema_array(kw)),
+            "unevaluatedItems" | "unevaluatedProperties" => unevaluated.extend(single(kw)),
+            "pattern" => validation.extend(pattern()),
+            _ => {}
+        }
+    }
+    let vocab_errs: Vec<VErr> = [core, applicator, unevaluated, validation]
+        .into_iter()
+        .filter_map(|v| combine(loc, v).map(|e| reference(loc, e)))
+        .collect();
+    if !vocab_errs.is_empty() {
+        errs.push(VErr { loc: tok_loc(loc), kind: Kind::Msg("'allOf' failed".into()), causes: vocab_errs });
+    }
+    combine(loc, errs)
+}
+
+/// The metaschema check, with the library's error text.
+fn meta_check(root: &J, draft: u32) -> Result<(), String> {
+    let Some(e) = meta_schema(root, "", draft) else { return Ok(()) };
+    let causes = if matches!(e.kind, Kind::Group) { e.causes } else { alloc::vec![e] };
+    let mut s = alloc::format!("jsonschema validation failed with {}", squote(meta_url(draft)));
+    for c in &causes {
+        c.display(&mut s, 1);
+    }
+    Err(alloc::format!("\"{ROOT_URL}#\" is not valid against metaschema: {s}"))
+}
+
 /// Validates `values` against a single JSON schema document
 /// (`ValidateAgainstSingleSchema`). Returns Helm's error text.
 pub fn validate_against_schema(values: &MapRef, schema: &[u8]) -> Result<(), String> {
     let root = parse_json(schema)?;
     let draft = draft_of(&root);
+    meta_check(&root, draft)?;
     let mut anchors = BTreeMap::new();
     collect_anchors(&root, "", draft, &mut anchors);
     let mut c = Compiler { root: &root, draft, nodes: Vec::new(), by_ptr: BTreeMap::new(), anchors };
