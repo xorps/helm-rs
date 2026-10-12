@@ -27,7 +27,7 @@ use crate::gofmt;
 use crate::gofmt::strconv;
 use crate::value::{Kind, Value};
 
-mod certs;
+pub mod certs;
 mod crypto;
 mod date;
 mod decimal;

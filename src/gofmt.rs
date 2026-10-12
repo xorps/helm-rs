@@ -112,6 +112,50 @@ fn duration_nanos(v: &Value) -> Option<i64> {
     }
 }
 
+/// The Go struct behind a known object, for `%#v`, `%+v` and non-string
+/// verbs (fields are printed like Go's `printValue` does).
+struct StructView {
+    ptr: bool,
+    type_name: &'static str,
+    fields: Vec<(&'static str, Value)>,
+}
+
+fn struct_view(v: &Value) -> Option<StructView> {
+    let Value::Object(o) = v else { return None };
+    if let Some(vo) = o.as_any().downcast_ref::<crate::semver::VersionObject>() {
+        let ver = &vo.version;
+        return Some(StructView {
+            ptr: !vo.by_value,
+            type_name: "semver.Version",
+            fields: alloc::vec![
+                ("major", Value::Uint64(ver.major)),
+                ("minor", Value::Uint64(ver.minor)),
+                ("patch", Value::Uint64(ver.patch)),
+                ("pre", Value::str(&ver.pre)),
+                ("metadata", Value::str(&ver.metadata)),
+                ("original", Value::str(&ver.original)),
+            ],
+        });
+    }
+    if let Some(c) = o.as_any().downcast_ref::<crate::funcs::sprig::certs::Certificate>() {
+        return Some(StructView {
+            ptr: false,
+            type_name: "sprig.certificate",
+            fields: alloc::vec![("Cert", Value::str(&c.cert)), ("Key", Value::str(&c.key))],
+        });
+    }
+    None
+}
+
+/// Whether an object implements `fmt.Stringer` (unknown objects are assumed
+/// to, since [`crate::Object::format`] is their `%v`).
+fn is_stringer(v: &Value) -> bool {
+    match v {
+        Value::Object(o) => !o.as_any().is::<crate::funcs::sprig::certs::Certificate>(),
+        _ => false,
+    }
+}
+
 struct Printer {
     buf: Vec<u8>,
     f: Flags,
@@ -774,13 +818,23 @@ impl Printer {
         }
         let Value::Object(o) = arg else { return false };
         if self.f.sharp_v {
-            if o.kind() == Kind::Int64 && duration_nanos(arg).is_some() {
+            if duration_nanos(arg).is_some() || struct_view(arg).is_some() {
                 return false;
             }
-            let mut s = String::new();
-            o.format(&mut s);
+            // GoStringer (time.Time) or best effort.
+            let s = match o.as_any().downcast_ref::<crate::funcs::sprig::time::Time>() {
+                Some(t) => t.go_syntax(),
+                None => {
+                    let mut s = String::new();
+                    o.format(&mut s);
+                    s
+                }
+            };
             self.fmt_s(s.as_bytes());
             return true;
+        }
+        if !is_stringer(arg) {
+            return false;
         }
         match verb {
             'v' | 's' | 'x' | 'X' | 'q' => {
@@ -920,6 +974,36 @@ impl Printer {
             Value::Object(o) => {
                 if let Some(n) = duration_nanos(value) {
                     self.fmt_int(None, Some(value), n as u64, true, verb);
+                    return;
+                }
+                if let Some(sv) = struct_view(value) {
+                    if sv.ptr {
+                        if depth > 0 {
+                            // Go prints the pointer's address here.
+                            self.fmt_0x64(0xc000010000, true);
+                            return;
+                        }
+                        self.buf.push(b'&');
+                    }
+                    if self.f.sharp_v {
+                        self.buf.extend_from_slice(sv.type_name.as_bytes());
+                    }
+                    self.buf.push(b'{');
+                    for (i, (name, fv)) in sv.fields.iter().enumerate() {
+                        if i > 0 {
+                            if self.f.sharp_v {
+                                self.buf.extend_from_slice(b", ");
+                            } else {
+                                self.buf.push(b' ');
+                            }
+                        }
+                        if self.f.plus_v || self.f.sharp_v {
+                            self.buf.extend_from_slice(name.as_bytes());
+                            self.buf.push(b':');
+                        }
+                        self.print_value(fv, verb, depth + 1);
+                    }
+                    self.buf.push(b'}');
                     return;
                 }
                 if verb == 'v' {

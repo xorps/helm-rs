@@ -138,13 +138,59 @@ fn rand_format(rng: &mut Rng, nargs: usize) -> String {
 fn printf_random() {
     let mut rng = Rng::new(20240611);
     let mut cases = Vec::new();
-    for _ in 0..4000 {
+    for _ in 0..12000 {
         let nargs = rng.below(4) as usize;
         let args: Vec<Arg> = (0..nargs).map(|_| rand_arg(&mut rng, 2)).collect();
         let f = rand_format(&mut rng, nargs);
         cases.push((f, args));
     }
     check_printf(&cases, "printf_random");
+}
+
+/// Stringer objects (semver versions, durations) with string-ish verbs.
+#[test]
+fn printf_objects() {
+    let funcs = helm_rs::funcs::helm();
+    let obj = |name: &str, arg: &str| -> Arg {
+        let v = diffkit::call(&funcs, name, &[Value::str(arg)]).unwrap();
+        Arg::new(v, format!("({name} {})", lit(arg)))
+    };
+    let objs = [
+        obj("semver", "1.2.3-rc.1"),
+        obj("semver", "v2"),
+        obj("mustToDuration", "1h2m3.5s"),
+        obj("mustToDuration", "-1.5us"),
+        obj("mustToDuration", "0"),
+        {
+            let v = diffkit::call(&funcs, "toDate", &[Value::str("2006-01-02T15:04:05Z07:00"), Value::str("2024-02-29T13:45:59.5Z")]).unwrap();
+            Arg::new(v, "(toDate \"2006-01-02T15:04:05Z07:00\" \"2024-02-29T13:45:59.5Z\")")
+        },
+        {
+            let v = diffkit::call(&funcs, "semver", &[Value::str("1.2.3")]).unwrap();
+            let v = v.as_object().unwrap().call_method("IncMinor", &[]).unwrap();
+            Arg::new(v, "(semver \"1.2.3\").IncMinor")
+        },
+    ];
+    let mut rng = Rng::new(5150);
+    let mut cases = Vec::new();
+    for o in &objs {
+        for f in ["%v", "%s", "%q", "%x", "%X", "%10v", "%-12s|", "%.3s", "%#v", "%+v", "%v %v", "%T"] {
+            cases.push((f.to_string(), vec![o.clone()]));
+        }
+        cases.push(("%v".to_string(), vec![list_arg(vec![o.clone(), int_arg(1)])]));
+        cases.push(("%s".to_string(), vec![dict_arg(vec![("k".into(), o.clone())])]));
+    }
+    for o in objs.iter().filter(|o| !o.tmpl.contains("toDate")) {
+        for f in ["%d", "%x", "%5d", "%o", "%t", "%e", "%c", "%U", "%+d", "%#d"] {
+            cases.push((f.to_string(), vec![o.clone()]));
+        }
+    }
+    for _ in 0..500 {
+        let o = rng.pick(&objs).clone();
+        let f = format!("%{}{}", rng.pick(&["", "-", "0", "+", " ", "#"]), rng.pick(&["v", "s", "q", "x", "X"]));
+        cases.push((f, vec![o]));
+    }
+    check_printf(&cases, "printf_objects");
 }
 
 #[test]

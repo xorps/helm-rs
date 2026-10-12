@@ -403,6 +403,22 @@ impl Time {
         self.format("2006-01-02 15:04:05.999999999 -0700 MST")
     }
 
+    /// `Time.GoString()` (`%#v`).
+    pub fn go_syntax(&self) -> String {
+        let (y, m, d) = self.ymd();
+        let (h, mi, s) = self.clock();
+        let loc = match &self.loc {
+            Location::Utc => String::from("time.UTC"),
+            Location::Local(_) => String::from("time.Local"),
+            Location::Fixed(name, _) => format!("time.Location({})", time_quote(name)),
+        };
+        format!(
+            "time.Date({y}, time.{}, {d}, {h}, {mi}, {s}, {}, {loc})",
+            LONG_MONTH_NAMES[(m - 1) as usize],
+            self.nsec
+        )
+    }
+
     pub fn is_zero(&self) -> bool {
         self.unix == -UNIX_TO_INTERNAL && self.nsec == 0
     }
@@ -1470,7 +1486,7 @@ impl Object for Time {
             }
             "IsZero" => Value::Bool(self.is_zero()),
             "String" => Value::string(self.go_string()),
-            "GoString" => Value::string(self.go_string()),
+            "GoString" => Value::string(self.go_syntax()),
             "MarshalJSON" | "MarshalText" => {
                 let s = self.format("2006-01-02T15:04:05.999999999Z07:00");
                 let s = if name == "MarshalJSON" { format!("\"{s}\"") } else { s };
