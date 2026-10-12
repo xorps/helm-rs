@@ -291,7 +291,47 @@ fn uuidv4(ctx: &mut CallCtx<'_>) -> String {
     format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
 }
 
-#[allow(dead_code)]
-fn unused(ctx: &mut CallCtx<'_>) -> u64 {
-    rand_below(ctx, 2)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bcrypt_b64_decode(s: &str) -> Vec<u8> {
+        let mut bits = Vec::new();
+        for c in s.bytes() {
+            let v = BCRYPT_ALPHABET.iter().position(|&a| a == c).unwrap_or(0) as u8;
+            for k in (0..6).rev() {
+                bits.push((v >> k) & 1);
+            }
+        }
+        bits.chunks(8).filter(|c| c.len() == 8).map(|c| c.iter().fold(0u8, |a, &b| (a << 1) | b)).collect()
+    }
+
+    #[test]
+    fn bcrypt_openbsd_vectors() {
+        for (pw, salt, cost, want) in [
+            ("U*U", "CCCCCCCCCCCCCCCCCCCCC.", 5, "$2a$05$CCCCCCCCCCCCCCCCCCCCC.E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"),
+            ("", "CCCCCCCCCCCCCCCCCCCCC.", 5, "$2a$05$CCCCCCCCCCCCCCCCCCCCC.7uG0VCzI2bS7j6ymqJi9CdcdxiRTWNy"),
+            (
+                "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789chars after 72 are ignored",
+                "abcdefghijklmnopqrstuu",
+                5,
+                "$2a$05$abcdefghijklmnopqrstu.5s2v8.iXieOjg/.AySBTTZIIVFJeBui",
+            ),
+        ] {
+            let s = bcrypt_b64_decode(salt);
+            let mut salt16 = [0u8; 16];
+            salt16.copy_from_slice(&s[..16]);
+            let pw = &pw.as_bytes()[..pw.len().min(72)];
+            // (The third vector's salt is non-canonical; compare the hash.)
+            assert_eq!(bcrypt_hash(pw, cost, &salt16)[29..], want[29..]);
+        }
+    }
+
+    #[test]
+    fn derive_password_shape() {
+        let p = derive_password(1, "long", "pass", "user", "example.com");
+        assert_eq!(p.len(), 14);
+        assert_eq!(derive_password(1, "nope", "a", "b", "c"), "cannot find password template nope");
+        let _ = rand_below;
+    }
 }
