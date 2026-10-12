@@ -2,9 +2,14 @@
 
 use crate::func::FuncMap;
 
+pub mod duration;
+pub mod sprig;
+
 /// Sprig's `TxtFuncMap()` (Masterminds/sprig v3, as pinned by Helm).
 pub fn sprig() -> FuncMap {
-    FuncMap::new()
+    let mut f = FuncMap::new();
+    sprig::register(&mut f);
+    f
 }
 
 /// Helm's function map (`engine.funcMap()`): Sprig without `env`/`expandenv`,
@@ -16,5 +21,6 @@ pub fn helm() -> FuncMap {
     let mut f = sprig();
     f.remove("env");
     f.remove("expandenv");
+    duration::register(&mut f);
     f
 }
