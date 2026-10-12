@@ -118,15 +118,22 @@ pub struct Error {
     pub frames: Vec<Frame>,
     /// The message Helm would produce for this error, when known.
     pub helm_message: Option<String>,
+    /// An extra hint, e.g. which part of a field chain was nil.
+    pub help: Option<String>,
 }
 
 impl Error {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Error {
-        Error { kind, message: message.into(), location: None, frames: Vec::new(), helm_message: None }
+        Error { kind, message: message.into(), location: None, frames: Vec::new(), helm_message: None, help: None }
     }
 
     pub fn at(mut self, location: Location) -> Error {
         self.location = Some(location);
+        self
+    }
+
+    pub fn with_help(mut self, help: impl Into<String>) -> Error {
+        self.help = Some(help.into());
         self
     }
 
@@ -183,8 +190,11 @@ impl fmt::Display for Error {
             write!(f, "\n  --> {loc}")?;
             write_snippet(f, loc)?;
         }
+        if let Some(help) = &self.help {
+            write!(f, "\n   = help: {help}")?;
+        }
         for frame in &self.frames {
-            write!(f, "\n   = note: called from {} via `{}`", frame.location, frame.call)?;
+            write!(f, "\n   = note: from `{}` at {}", frame.call, frame.location)?;
         }
         Ok(())
     }
