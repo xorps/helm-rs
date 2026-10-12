@@ -1,6 +1,5 @@
 //! End-to-end chart tests with real YAML (Chart.yaml, values, manifests),
-//! diffed against `helm template`. These need `crate::yaml` and the Sprig
-//! functions; they are ignored until those land.
+//! diffed against `helm template`.
 #![allow(clippy::result_large_err)]
 
 mod common;
@@ -70,7 +69,6 @@ fn app_chart() -> BTreeMap<String, Vec<u8>> {
 }
 
 #[test]
-#[ignore = "needs yaml + sprig"]
 fn app_chart_template_matches_helm() {
     if !semver_ready() {
         return;
@@ -85,7 +83,6 @@ fn app_chart_template_matches_helm() {
 }
 
 #[test]
-#[ignore = "needs yaml"]
 fn chart_yaml_scalars_are_stringified_like_helm() {
     if !semver_ready() {
         return;
@@ -101,7 +98,6 @@ fn chart_yaml_scalars_are_stringified_like_helm() {
 }
 
 #[test]
-#[ignore = "needs yaml"]
 fn yaml_errors_have_helm_messages_and_locations() {
     if !semver_ready() {
         return;
@@ -155,7 +151,6 @@ fn yaml_errors_have_helm_messages_and_locations() {
 }
 
 #[test]
-#[ignore = "needs yaml"]
 fn manifest_yaml_errors_match_helm() {
     if !semver_ready() {
         return;
@@ -168,4 +163,55 @@ fn manifest_yaml_errors_match_helm() {
     let c = Chart::from_files(f).unwrap();
     let e = chart::template(&c, &Value::Nil, &RenderOptions::default(), &mut DeterministicEnv::default()).unwrap_err();
     assert_eq!(e.location.as_ref().unwrap().name, "x/templates/a.yaml");
+}
+
+/// values.yaml documents are split like k8s' YAMLReader: a leading `---` is
+/// part of the first document, bad separators are reported lazily.
+#[test]
+fn values_documents_match_helm() {
+    if !semver_ready() {
+        return;
+    }
+    // (values.yaml, expected 1-based error line in values.yaml, if an error)
+    let cases: &[(&str, Option<u32>)] = &[
+        ("---\na: 1\nb: [\n", Some(3)),
+        ("a: 1\n---\nb: [\n", Some(3)),
+        ("%YAML 1.1\n---\na: 1\n--- [\n", None),
+        ("a: 1\n--- x\n", Some(2)),
+        ("a: {\n--- x\n", None),
+        ("---\n---\na: 1\n", None),
+        ("a: 1\n---\n---\nb: 2\n", None),
+        ("a:\n  b: 1\n---\na:\n  c: 2\n--- # comment\nd: 3", None),
+        ("---", None),
+        ("----\na: 1\n", Some(1)),
+        ("a: 1\r\n---\r\nb: 2\r\n", None),
+        ("a: [1]\n---\n- x\n", Some(3)),
+    ];
+    for (values, line) in cases {
+        let f = files(&[
+            ("Chart.yaml", "apiVersion: v2\nname: x\nversion: 0.1.0\n"),
+            ("values.yaml", values),
+        ]);
+        let Some(want) = oracle_op(files_req("load", &f)) else {
+            return;
+        };
+        match (want, Chart::from_files(f)) {
+            (Ok(w), Ok(c)) => {
+                assert_eq!(
+                    value_to_json(&Value::Map(c.values.clone())),
+                    norm(&w["values"]),
+                    "{values:?}"
+                )
+            }
+            (Err(w), Err(e)) => {
+                assert_eq!(e.helm_message(), w, "{values:?}");
+                let loc = e.location.as_ref().expect("location");
+                assert_eq!(loc.name, "values.yaml");
+                if let Some(l) = line {
+                    assert_eq!(loc.line, *l, "{values:?} {}", e.helm_message());
+                }
+            }
+            (w, g) => panic!("{values:?}: oracle {w:?}, rust {g:?}"),
+        }
+    }
 }

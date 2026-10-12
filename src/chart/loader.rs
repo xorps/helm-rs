@@ -106,9 +106,26 @@ fn yaml_text(data: &[u8]) -> String {
 /// Converts a YAML error into an [`Error`] at `line_offset` lines into `name`.
 pub(crate) fn yaml_error(prefix: &str, e: &YamlError, name: &str, source: &Rc<str>, line_offset: u32) -> Error {
     let mut err = Error::new(ErrorKind::Syntax, alloc::format!("{prefix}{}", e.message));
-    let line = e.line.map(|l| l + line_offset).unwrap_or(line_offset.max(1));
-    err = err.at(location_at(name, source, line, e.column.unwrap_or(1)));
+    let (line, column) = yaml_err_pos(e);
+    err = err.at(location_at(name, source, line + line_offset, column));
     err
+}
+
+/// Position of a YAML error: the line Go's message reports (`yaml: line N:
+/// ...`, relative to the document), with the parser's column when it agrees.
+pub(crate) fn yaml_err_pos(e: &YamlError) -> (u32, u32) {
+    let msg_line = e
+        .message
+        .split("yaml: line ")
+        .nth(1)
+        .and_then(|r| r.split(':').next())
+        .and_then(|n| n.parse::<u32>().ok());
+    match (msg_line, e.line) {
+        (Some(m), Some(l)) if m == l => (m, e.column.unwrap_or(1)),
+        (Some(m), _) => (m, 1),
+        (None, Some(l)) => (l, e.column.unwrap_or(1)),
+        (None, None) => (1, 1),
+    }
 }
 
 /// Parses `data` and decodes it into a Go struct; returns the Helm message
@@ -151,10 +168,7 @@ pub(crate) fn load_values(yaml: YamlParser, data: &[u8], name: &str) -> Result<M
         text.push('\n');
     }
     let src: Rc<str> = Rc::from(text.as_str());
-    let docs = split_yaml_documents(&text).map_err(|m| {
-        Error::new(ErrorKind::Syntax, alloc::format!("error reading yaml document: {m}"))
-            .at(location_at(name, &src, separator_line(&text), 1))
-    })?;
+    let (docs, sep_err) = split_yaml_documents(&text);
     let mut values = MapRef::default();
     for doc in docs {
         let v = yaml(&doc.text).map_err(|e| {
@@ -176,22 +190,13 @@ pub(crate) fn load_values(yaml: YamlParser, data: &[u8], name: &str) -> Result<M
                 .at(location_at(name, &src, doc.first_line, 1)));
             }
         };
-        let _ = doc.offset;
         values = merge_maps(&values, &cur);
     }
-    Ok(values)
-}
-
-fn separator_line(text: &str) -> u32 {
-    for (i, line) in text.split('\n').enumerate() {
-        if let Some(rest) = line.strip_prefix("---") {
-            let t = rest.trim();
-            if !t.is_empty() && !t.starts_with('#') {
-                return i as u32 + 1;
-            }
-        }
+    if let Some((m, line)) = sep_err {
+        return Err(Error::new(ErrorKind::Syntax, alloc::format!("error reading yaml document: {m}"))
+            .at(location_at(name, &src, line, 1)));
     }
-    1
+    Ok(values)
 }
 
 /// `loader.LoadFiles`. `loc_prefix` is prepended to file names in error

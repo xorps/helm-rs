@@ -197,7 +197,10 @@ pub fn sort_manifests(files: &BTreeMap<String, String>, yaml: YamlParser) -> Res
         }
         let src: Rc<str> = Rc::from(content.as_str());
         for (offset, m) in split_manifests(content) {
-            let v = yaml(m).map_err(|e| yaml_parse_error(path, &e.message, &src, offset, e.line, e.column))?;
+            let v = yaml(m).map_err(|e| {
+                let (l, c) = super::loader::yaml_err_pos(&e);
+                yaml_parse_error(path, &e.message, &src, offset, Some(l), Some(c))
+            })?;
             let mut d = Dec::new();
             let head = decode_head(&mut d, &v);
             if let Some(e) = d.err {

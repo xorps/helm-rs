@@ -56,21 +56,21 @@ pub(crate) fn merge_maps(a: &MapRef, b: &MapRef) -> MapRef {
     MapRef::new(out)
 }
 
-/// One document of a values file, with its byte offset and 1-based first line.
-pub(crate) struct Doc<'a> {
+/// One document of a values file, with its 1-based first line.
+pub(crate) struct Doc {
     pub text: String,
-    pub offset: usize,
     pub first_line: u32,
-    pub _src: &'a str,
 }
 
-/// Splits like `k8s.io/apimachinery/pkg/util/yaml.YAMLReader`: documents are
-/// separated by lines starting with `---` (only spaces or a comment may follow);
-/// empty documents are skipped. Lines are re-terminated with `\n`.
-pub(crate) fn split_yaml_documents(src: &str) -> Result<Vec<Doc<'_>>, String> {
+/// Splits like `k8s.io/apimachinery/pkg/util/yaml.YAMLReader`: a line
+/// starting with `---` (only spaces or a comment may follow) ends the
+/// current document; when no document is pending the separator line is kept
+/// as the start of the next one (as the reader does). Lines are
+/// re-terminated with `\n`. Reading is lazy in Helm, so a bad separator is
+/// returned after the documents preceding it, with its 1-based line.
+pub(crate) fn split_yaml_documents(src: &str) -> (Vec<Doc>, Option<(String, u32)>) {
     let mut docs = Vec::new();
     let mut buf = String::new();
-    let mut buf_start = 0usize;
     let mut buf_line = 1u32;
     let mut pos = 0usize;
     let mut line_no = 1u32;
@@ -84,19 +84,16 @@ pub(crate) fn split_yaml_documents(src: &str) -> Result<Vec<Doc<'_>>, String> {
         if let Some(rest) = line.strip_prefix("---") {
             let trimmed = rest.trim();
             if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                return Err(alloc::format!("invalid Yaml document separator: {trimmed}"));
+                return (docs, Some((alloc::format!("invalid Yaml document separator: {trimmed}"), line_no)));
             }
             if !buf.is_empty() {
-                docs.push(Doc { text: core::mem::take(&mut buf), offset: buf_start, first_line: buf_line, _src: src });
+                docs.push(Doc { text: core::mem::take(&mut buf), first_line: buf_line });
+                pos = next;
+                line_no += 1;
+                continue;
             }
-            pos = next;
-            line_no += 1;
-            buf_start = pos;
-            buf_line = line_no;
-            continue;
         }
         if buf.is_empty() {
-            buf_start = pos;
             buf_line = line_no;
         }
         buf.push_str(line);
@@ -105,9 +102,9 @@ pub(crate) fn split_yaml_documents(src: &str) -> Result<Vec<Doc<'_>>, String> {
         line_no += 1;
     }
     if !buf.is_empty() {
-        docs.push(Doc { text: buf, offset: buf_start, first_line: buf_line, _src: src });
+        docs.push(Doc { text: buf, first_line: buf_line });
     }
-    Ok(docs)
+    (docs, None)
 }
 
 pub(crate) fn is_table(v: &Value) -> bool {
