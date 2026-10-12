@@ -6,6 +6,8 @@
 //! parsing). Not supported (clear errors): DSA key generation and DSA/other
 //! curve keys for signing. Requires the `certs` cargo feature.
 
+#![cfg_attr(not(feature = "certs"), allow(dead_code, unused_imports))]
+
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -102,7 +104,7 @@ pub(crate) fn pem_decode(data: &[u8]) -> Option<PemBlock> {
             rest = after;
             continue;
         };
-        let ty = String::from_utf8_lossy_owned(ty);
+        let ty = <String as LossyOwned>::from_utf8_lossy_owned(ty);
         let body_start = (line_end + 1).min(after.len());
         let body = &after[body_start..];
         let end_marker = format!("-----END {ty}-----");
@@ -274,17 +276,6 @@ pub(crate) mod der {
         Some(out)
     }
 
-    /// Unsigned big-endian magnitude of an INTEGER (rejects negatives).
-    pub fn uint_content(t: &Tlv<'_>) -> Option<Vec<u8>> {
-        if t.tag != 0x02 || t.content.is_empty() || t.content[0] & 0x80 != 0 {
-            return None;
-        }
-        let mut c = t.content;
-        while c.len() > 1 && c[0] == 0 {
-            c = &c[1..];
-        }
-        Some(c.to_vec())
-    }
 }
 
 const OID_RSA: &[u64] = &[1, 2, 840, 113549, 1, 1, 1];

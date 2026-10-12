@@ -12,6 +12,8 @@
 //! `String()` is [`crate::Object::format`]; other verbs on structs cannot be
 //! reproduced field by field.
 
+#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+
 use alloc::string::String;
 use alloc::vec::Vec;
 

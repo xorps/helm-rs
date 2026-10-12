@@ -53,7 +53,7 @@ enum Node {
     WordB,
     NoWordB,
     Class { items: Vec<ClassItem>, negated: bool, fold: bool },
-    Capture(usize, Box<Node>),
+    Capture(Box<Node>),
     Repeat { min: i64, max: i64, greedy: bool, sub: Box<Node> },
     Concat(Vec<Node>),
     Alt(Vec<Node>),
@@ -61,7 +61,7 @@ enum Node {
 
 enum Item {
     Node(Node),
-    LeftParen { cap: usize, name: Option<String>, flags: Flags },
+    LeftParen { cap: usize, flags: Flags },
     Bar,
 }
 
@@ -444,12 +444,12 @@ impl<'a> Parser<'a> {
         let re1 = self.stack.pop();
         let re2 = self.stack.pop();
         match (re1, re2) {
-            (Some(Item::Node(node)), Some(Item::LeftParen { cap, name: _, flags })) => {
+            (Some(Item::Node(node)), Some(Item::LeftParen { cap, flags })) => {
                 self.flags = flags;
                 if cap == 0 {
                     self.push(node);
                 } else {
-                    self.push(Node::Capture(cap, Box::new(node)));
+                    self.push(Node::Capture(Box::new(node)));
                 }
                 Ok(())
             }
@@ -505,7 +505,7 @@ impl<'a> Parser<'a> {
             }
             self.num_cap += 1;
             self.names.push(Some(name.to_string()));
-            self.stack.push(Item::LeftParen { cap: self.num_cap, name: Some(name.to_string()), flags: self.flags });
+            self.stack.push(Item::LeftParen { cap: self.num_cap, flags: self.flags });
             return Ok(&t[end + 1..]);
         }
         let mut t = &t[2..];
@@ -545,7 +545,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     if c == ':' {
-                        self.stack.push(Item::LeftParen { cap: 0, name: None, flags: self.flags });
+                        self.stack.push(Item::LeftParen { cap: 0, flags: self.flags });
                     }
                     self.flags = flags;
                     return Ok(t);
@@ -728,7 +728,7 @@ fn repeat_is_valid(re: &Node, n: i64) -> bool {
         }
     }
     match re {
-        Node::Capture(_, s) => repeat_is_valid(s, n),
+        Node::Capture(s) => repeat_is_valid(s, n),
         Node::Repeat { sub, .. } => repeat_is_valid(sub, n),
         Node::Concat(v) | Node::Alt(v) => v.iter().all(|s| repeat_is_valid(s, n)),
         _ => true,
@@ -737,7 +737,7 @@ fn repeat_is_valid(re: &Node, n: i64) -> bool {
 
 fn height(n: &Node) -> usize {
     match n {
-        Node::Capture(_, s) => 1 + height(s),
+        Node::Capture(s) => 1 + height(s),
         Node::Repeat { sub, .. } => 1 + height(sub),
         Node::Concat(v) | Node::Alt(v) => 1 + v.iter().map(height).max().unwrap_or(0),
         _ => 1,
@@ -748,7 +748,7 @@ fn height(n: &Node) -> usize {
 fn size(n: &Node) -> i64 {
     let s = match n {
         Node::Lit(..) => 1,
-        Node::Capture(_, s) => 2i64.saturating_add(size(s)),
+        Node::Capture(s) => 2i64.saturating_add(size(s)),
         Node::Concat(v) => v.iter().fold(0i64, |a, s| a.saturating_add(size(s))),
         Node::Alt(v) => v.iter().fold(v.len() as i64 - 1, |a, s| a.saturating_add(size(s))),
         Node::Repeat { min, max, sub, .. } => {
@@ -785,7 +785,7 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                 } else {
                     p.num_cap += 1;
                     p.names.push(None);
-                    p.stack.push(Item::LeftParen { cap: p.num_cap, name: None, flags: p.flags });
+                    p.stack.push(Item::LeftParen { cap: p.num_cap, flags: p.flags });
                     t = &t[1..];
                 }
             }
@@ -831,7 +831,7 @@ fn parse(s: &str) -> Result<(Node, Vec<Option<String>>), SyntaxError> {
                         t = &t[1..];
                     }
                     Some((min, max, after)) => {
-                        if min < 0 || min > 1000 || max > 1000 || (max >= 0 && min > max) {
+                        if !(0..=1000).contains(&min) || max > 1000 || (max >= 0 && min > max) {
                             return Err(SyntaxError::new(ERR_INVALID_REPEAT_SIZE, &before[..before.len() - after.len()]));
                         }
                         t = p.repeat(min, max, before, after, last_repeat)?;
@@ -958,10 +958,10 @@ fn emit(n: &Node, out: &mut String) {
                 match it {
                     ClassItem::Range(a, b) => push_range(out, *a, *b),
                     ClassItem::Unicode(name, neg) => {
-                        if name.starts_with('[') {
+                        if let Some(nested) = name.strip_prefix('[') {
                             // Nested (pre-folded) negated class.
                             out.push_str("[^");
-                            out.push_str(&name[1..]);
+                            out.push_str(nested);
                         } else {
                             out.push_str(if *neg { "\\P{" } else { "\\p{" });
                             out.push_str(name);
@@ -972,7 +972,7 @@ fn emit(n: &Node, out: &mut String) {
             }
             out.push_str("])");
         }
-        Node::Capture(_, s) => {
+        Node::Capture(s) => {
             out.push('(');
             emit(s, out);
             out.push(')');

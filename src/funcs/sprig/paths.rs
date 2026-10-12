@@ -39,9 +39,7 @@ pub(crate) fn clean(path: &str) -> String {
         dotdot = 1;
     }
     while r < n {
-        if p[r] == b'/' {
-            r += 1;
-        } else if p[r] == b'.' && (r + 1 == n || p[r + 1] == b'/') {
+        if p[r] == b'/' || (p[r] == b'.' && (r + 1 == n || p[r + 1] == b'/')) {
             r += 1;
         } else if p[r] == b'.' && p[r + 1] == b'.' && (r + 2 == n || p[r + 2] == b'/') {
             r += 2;

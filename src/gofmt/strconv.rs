@@ -1,6 +1,8 @@
 //! Port of the parts of Go's `strconv` (and `unicode/utf8`) that `fmt` and the
 //! template functions rely on: float formatting, quoting, number parsing.
 
+#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Write as _;
@@ -373,7 +375,7 @@ pub fn parse_uint(s: &str, base: u32, bit_size: u32) -> Result<u64, NumErr> {
             continue;
         } else if c.is_ascii_digit() {
             c - b'0'
-        } else if (b'a'..=b'z').contains(&lower(c)) {
+        } else if lower(c).is_ascii_lowercase() {
             lower(c) - b'a' + 10
         } else {
             return Err(NumErr::Syntax);

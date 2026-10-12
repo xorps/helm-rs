@@ -41,7 +41,7 @@ fn printf_fixed_cases() {
     add("%v %v %v", vec![fl(1e6), fl(1.5e-7), fl(123456789.0)]);
     add("%v|%v|%v|%v", vec![fl(0.1), fl(1e21), fl(1e20), fl(-0.0)]);
     add("%g %G %e %E %f %F", vec![fl(1234.5678), fl(1234.5678), fl(1234.5678), fl(1234.5678), fl(1234.5678), fl(1234.5678)]);
-    add("%.2f %.0f %.3e %.10g %8.3f %-8.3f| %+.1f %08.3f % f", vec![fl(0.125), fl(2.5), fl(1.0005), fl(1.0/3.0), fl(3.14159), fl(3.14159), fl(2.0), fl(-3.5), fl(1.0)]);
+    add("%.2f %.0f %.3e %.10g %8.3f %-8.3f| %+.1f %08.3f % f", vec![fl(0.125), fl(2.5), fl(1.0005), fl(1.0/3.0), fl(3.25159), fl(3.25159), fl(2.0), fl(-3.5), fl(1.0)]);
     add("%#v %#g %#.3g %#e %#f %#x", vec![fl(1.0), fl(1.0), fl(2.0), fl(1.0), fl(1.0), fl(1.0)]);
     add("%x %X %b %.3x", vec![fl(1.0), fl(-3.75), fl(1.0), fl(1.0/3.0)]);
     add("%d %5d %-5d| %05d %+d % d %x %X %o %O %b %#x %#o %#b %c %q %U %#U", vec![i(42), i(42), i(42), i(-42), i(42), i(42), i(255), i(255), i(8), i(8), i(5), i(255), i(8), i(5), i(0x1F600), i(65), i(0x1F600), i(0x1F600)]);
@@ -64,7 +64,7 @@ fn printf_fixed_cases() {
     add("%[2]d %[1]d", vec![i(1), i(2)]);
     add("%[3]d %[0]d %[x]d", vec![i(1), i(2)]);
     add("%[2]*[1]d|%-*d|%*d", vec![i(12), i(5), i(-5), i(1), s("x"), i(2)]);
-    add("%.*f|%.*f", vec![i(2), fl(3.14159), i(-1), fl(1.0)]);
+    add("%.*f|%.*f", vec![i(2), fl(3.25159), i(-1), fl(1.0)]);
     add("%", vec![]);
     add("%!|%z|%-", vec![i(1), i(2)]);
     add("%v %v", vec![Arg::new(Value::Int64(-5), "(int64 -5)"), Arg::new(Value::Uint64(7), "(semver \"7.0.0\").Major")]);
@@ -80,7 +80,7 @@ fn printf_fixed_cases() {
         Arg::new(Value::object(helm_rs::funcs::duration::Duration(-1)), "(mustToDuration \"-1ns\")"),
         list_arg(vec![Arg::new(Value::object(helm_rs::funcs::duration::Duration(60_000_000_000)), "(mustToDuration \"1m\")")]),
     ]);
-    add("%6.2v|%.1v|%10.4v", vec![s("hello"), list_arg(vec![s("abc"), fl(1.25)]), fl(3.14159265)]);
+    add("%6.2v|%.1v|%10.4v", vec![s("hello"), list_arg(vec![s("abc"), fl(1.25)]), fl(3.25159265)]);
     add("%e %e %e", vec![fl(1e100), fl(1e-100), fl(5e-324)]);
     add("%.30f|%.20e|%.40g", vec![fl(0.1), fl(1.0/3.0), fl(2.0f64.sqrt())]);
     add("%v %v %v %v", vec![fl(1e-5), fl(1e-4), fl(123456.0), fl(1234567.0)]);

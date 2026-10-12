@@ -3,6 +3,8 @@
 //! created with `NewFromFloat`, division rounded to 16 places (half away from
 //! zero), and conversion back with `Float64()` (nearest float).
 
+#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;

@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use hmac::Mac as _;
 
 use super::strings::{base64_decode, base64_encode};
-use super::{iarg, rand_below, sarg};
+use super::{iarg, sarg};
 use crate::func::{CallCtx, FuncError, FuncMap, FuncResult, Sig, Ty};
 use crate::gofmt::strconv;
 use crate::value::Value;
@@ -332,6 +332,5 @@ mod tests {
         let p = derive_password(1, "long", "pass", "user", "example.com");
         assert_eq!(p.len(), 14);
         assert_eq!(derive_password(1, "nope", "a", "b", "c"), "cannot find password template nope");
-        let _ = rand_below;
     }
 }

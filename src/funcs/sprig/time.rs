@@ -7,6 +7,8 @@
 //! [`crate::Env::now`]; its abbreviation is `UTC` when the offset is zero and
 //! empty (printed as `+hhmm`) otherwise.
 
+#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -108,7 +110,7 @@ fn days_in(month: i64, year: i64) -> i64 {
 const DAYS_BEFORE: [i64; 13] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
 
 /// Go's `norm`.
-fn norm(hi: i64, lo: i64, base: i64) -> (i64, i64) {
+fn norm(hi: i128, lo: i128, base: i128) -> (i128, i128) {
     let (mut hi, mut lo) = (hi, lo);
     if lo < 0 {
         let n = (-lo - 1) / base + 1;
@@ -121,6 +123,16 @@ fn norm(hi: i64, lo: i64, base: i64) -> (i64, i64) {
         lo -= n * base;
     }
     (hi, lo)
+}
+
+fn days_from_civil_wide(y: i128, m: i128, d: i128) -> i128 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
 }
 
 impl Time {
@@ -136,18 +148,19 @@ impl Time {
 
     /// `time.Date(...)` (normalizing out-of-range fields, like Go).
     pub fn date(year: i64, month: i64, day: i64, hour: i64, min: i64, sec: i64, nsec: i64, loc: Location) -> Time {
-        let (year, m) = norm(year, month - 1, 12);
+        let (year, m) = norm(year as i128, month as i128 - 1, 12);
         let month = m + 1;
-        let (sec, nsec) = norm(sec, nsec, 1_000_000_000);
-        let (min, sec) = norm(min, sec, 60);
-        let (hour, min) = norm(hour, min, 60);
-        let (day, hour) = norm(day, hour, 24);
-        let days = days_from_civil(year, month, 1) + day - 1;
-        let unix = days
-            .saturating_mul(86400)
-            .saturating_add(hour * 3600 + min * 60 + sec);
+        let (sec, nsec) = norm(sec as i128, nsec as i128, 1_000_000_000);
+        let (min, sec) = norm(min as i128, sec, 60);
+        let (hour, min) = norm(hour as i128, min, 60);
+        let (day, hour) = norm(day as i128, hour, 24);
+        // Wide arithmetic: Go wraps on overflow, we saturate (never panic).
+        let year = year.clamp(-(1i128 << 80), 1i128 << 80);
+        let days = days_from_civil_wide(year, month, 1) + day - 1;
+        let unix = days * 86400 + hour * 3600 + min * 60 + sec;
         let (_, off) = loc.name_offset();
-        Time { unix: unix.saturating_sub(off as i64), nsec: nsec as u32, loc }
+        let unix = (unix - off as i128).clamp(i64::MIN as i128 / 2, i64::MAX as i128 / 2) as i64;
+        Time { unix, nsec: nsec as u32, loc }
     }
 
     fn local_secs(&self) -> i64 {

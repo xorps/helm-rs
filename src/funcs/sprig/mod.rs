@@ -196,10 +196,7 @@ pub(crate) fn to_int64(v: &Value) -> i64 {
         Value::Int(n) | Value::Int64(n) => *n,
         Value::Uint64(n) => *n as i64,
         Value::Float(f) => crate::funcs::duration::f64_to_i64(*f),
-        Value::String(s) => match strconv::parse_int(trim_zero_decimal(s), 0, 64) {
-            Ok(n) => n,
-            Err(_) => 0,
-        },
+        Value::String(s) => strconv::parse_int(trim_zero_decimal(s), 0, 64).unwrap_or(0),
         Value::Bool(b) => *b as i64,
         _ => 0,
     }

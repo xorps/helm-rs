@@ -258,7 +258,7 @@ fn go_pow10(y: f64) -> f64 {
         return 10.0;
     }
     let yi = y.abs();
-    if yi >= 9.223_372_036_854_775_808e18 {
+    if yi >= 9_223_372_036_854_775_808.0 {
         return if y > 0.0 { f64::INFINITY } else { 0.0 };
     }
     let mut a1 = 1.0f64;

@@ -405,7 +405,7 @@ pub fn parse_duration(orig: &str) -> Result<Duration, String> {
 
 /// Go's (amd64) `int64(f)` conversion: out-of-range and NaN give MinInt64.
 pub fn f64_to_i64(f: f64) -> i64 {
-    if f.is_nan() || f >= 9.223_372_036_854_775_807e18 || f < -9.223_372_036_854_775_808e18 {
+    if f.is_nan() || !(-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&f) {
         i64::MIN
     } else {
         f as i64
@@ -421,7 +421,7 @@ fn from_seconds_float(seconds: f64) -> Result<Duration, String> {
     if seconds.is_nan() || seconds.is_infinite() {
         return Err(format!("invalid duration seconds: {}", crate::gofmt::format_value(&Value::Float(seconds))));
     }
-    if seconds > MAX_DURATION_SECONDS_FLOAT || seconds < MIN_DURATION_SECONDS_FLOAT {
+    if !(MIN_DURATION_SECONDS_FLOAT..=MAX_DURATION_SECONDS_FLOAT).contains(&seconds) {
         return Err(format!("duration seconds overflow: {}", crate::gofmt::format_value(&Value::Float(seconds))));
     }
     let nanos = seconds * SECOND as f64;

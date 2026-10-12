@@ -1,5 +1,7 @@
 //! String functions (`strings.go` and the goutils/xstrings helpers).
 
+#![allow(clippy::needless_range_loop, clippy::collapsible_match, clippy::too_many_arguments, clippy::type_complexity)]
+
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -204,8 +206,8 @@ fn abbreviate_full(s: &[u8], offset: i64, max_width: i64) -> Result<Vec<u8>, ()>
     if offset > len {
         offset = len;
     }
-    if len - offset < max_width - 3 {
-        offset = len - (max_width - 3);
+    if len.wrapping_sub(offset) < max_width.wrapping_sub(3) {
+        offset = len.wrapping_sub(max_width.wrapping_sub(3));
     }
     let marker = b"...";
     if offset <= 4 {
@@ -216,7 +218,7 @@ fn abbreviate_full(s: &[u8], offset: i64, max_width: i64) -> Result<Vec<u8>, ()>
     if max_width < 7 {
         return Err(());
     }
-    if offset + max_width - 3 < len {
+    if offset.wrapping_add(max_width).wrapping_sub(3) < len {
         let inner = abbreviate_full(&s[offset as usize..], 0, max_width - 3).unwrap_or_default();
         let mut out = marker.to_vec();
         out.extend_from_slice(&inner);
