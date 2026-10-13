@@ -1,0 +1,2 @@
+# The chart `required`s a cluster name.
+clusterName: test-cluster

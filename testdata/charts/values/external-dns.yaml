@@ -1,0 +1,2 @@
+# `policy` is required by values.schema.json.
+policy: upsert-only

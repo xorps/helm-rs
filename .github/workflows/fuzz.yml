@@ -1,0 +1,80 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Differential fuzz cases per chart / per template source
+        default: "200"
+      seconds:
+        description: Seconds per cargo-fuzz target
+        default: "600"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  GO_VERSION: "1.27.1"
+  # Nightly for cargo-fuzz only; everything else uses rust-toolchain.toml.
+  FUZZ_NIGHTLY: nightly-2026-10-11
+  CARGO_FUZZ_VERSION: 0.13.2
+
+jobs:
+  differential:
+    name: differential fuzzing vs Helm v4.3.0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HELM_ORACLE_REQUIRED: "1"
+      HELM_RS_CHARTS_REQUIRED: "1"
+      HELM_RS_FUZZ_SEED: ${{ github.run_id }}
+      HELM_RS_FUZZ_ITERS: ${{ inputs.iterations || '200' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: oracle/go.sum
+      - run: scripts/build-oracle.sh
+      - run: scripts/fetch-helm.sh
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: testdata/charts/cache
+          key: charts-${{ hashFiles('testdata/charts/charts.lock') }}
+      - run: scripts/fetch-charts.sh
+      - name: Values and template fuzzing
+        run: |
+          echo "seed: $HELM_RS_FUZZ_SEED, iterations: $HELM_RS_FUZZ_ITERS"
+          cargo test --release --no-fail-fast --test charts_fuzz --test template_fuzz --test engine_fuzz -- --nocapture
+
+  cargo-fuzz:
+    name: cargo-fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [template_render, yaml_from_str, chart_from_tgz]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pinned nightly (cargo-fuzz needs -Zsanitizer)
+        run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: fuzz
+      - run: cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
+      - name: Seed the archive corpus with real charts
+        if: matrix.target == 'chart_from_tgz'
+        run: |
+          scripts/fetch-helm.sh
+          scripts/fetch-charts.sh
+          mkdir -p fuzz/corpus/chart_from_tgz
+          cp testdata/charts/cache/*.tgz fuzz/corpus/chart_from_tgz/
+      - name: Fuzz (must never panic)
+        run: cargo "+$FUZZ_NIGHTLY" fuzz run ${{ matrix.target }} -- -max_total_time=${{ inputs.seconds || '600' }}

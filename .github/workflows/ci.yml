@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Go version the official Helm v4.3.0 binary was built with.
+  GO_VERSION: "1.27.1"
+
+jobs:
+  lint:
+    name: fmt, clippy, docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo fmt --check
+      - run: cargo fmt --check
+        working-directory: fuzz
+      - run: cargo clippy --all-targets --release -- -D warnings
+      - run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  no-std:
+    name: no_std (bare metal)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo build --lib --release --target aarch64-unknown-none
+      - run: cargo build --lib --release --target aarch64-unknown-none --no-default-features
+      - run: cargo build --lib --release --target thumbv7em-none-eabihf --no-default-features
+
+  fuzz-build:
+    name: fuzz targets build
+    runs-on: ubuntu-latest
+    env:
+      # Keep in sync with .github/workflows/fuzz.yml.
+      FUZZ_NIGHTLY: nightly-2026-10-11
+      CARGO_FUZZ_VERSION: 0.13.2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml) and the pinned nightly
+        run: |
+          rustup toolchain install
+          rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: fuzz
+      - run: cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked
+      - run: cargo "+$FUZZ_NIGHTLY" fuzz build
+
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust 1.88 (Cargo.toml rust-version)
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo +1.88.0 check --lib --all-features
+
+  test:
+    name: test vs Helm v4.3.0
+    runs-on: ubuntu-latest
+    env:
+      # Missing oracle, helm binary or charts is a failure here, not a skip.
+      HELM_ORACLE_REQUIRED: "1"
+      HELM_RS_CHARTS_REQUIRED: "1"
+      # Reproducible fuzzing: rerun locally with the same seed.
+      HELM_RS_FUZZ_SEED: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: oracle/go.sum
+      - name: Build the Go oracle (Helm v4.3.0 as a library)
+        run: scripts/build-oracle.sh
+      - name: Fetch the official helm v4.3.0 binary (sha256-verified)
+        run: scripts/fetch-helm.sh
+      - name: Cache the chart corpus
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: testdata/charts/cache
+          key: charts-${{ hashFiles('testdata/charts/charts.lock') }}
+      - name: Fetch the chart corpus (sha256-verified)
+        run: scripts/fetch-charts.sh
+      - name: Test
+        run: |
+          echo "fuzz seed: $HELM_RS_FUZZ_SEED (reproduce with HELM_RS_FUZZ_SEED=$HELM_RS_FUZZ_SEED)"
+          cargo test --release --no-fail-fast

@@ -1,0 +1,40 @@
+[package]
+name = "helm-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+helm-rs = { path = ".." }
+
+# Not part of the parent package's workspace.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "template_render"
+path = "fuzz_targets/template_render.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "yaml_from_str"
+path = "fuzz_targets/yaml_from_str.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chart_from_tgz"
+path = "fuzz_targets/chart_from_tgz.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,9 @@
+# The Rust toolchain for development and CI (bump deliberately).
+# CI exceptions, by design: the MSRV check uses 1.88 (Cargo.toml
+# rust-version), and cargo-fuzz uses the nightly pinned in
+# .github/workflows/fuzz.yml.
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-unknown-none", "thumbv7em-none-eabihf"]
+profile = "minimal"
