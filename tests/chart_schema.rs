@@ -23,8 +23,18 @@ fn check(schema: &str, values: &str) {
                 l.sort_unstable();
                 l
             }
-            if g != w {
-                assert_eq!(sorted(&g), sorted(&w), "schema {schema}, values {values}");
+            if sorted(&g) != sorted(&w) {
+                // Helm's validator is itself nondeterministic in places (e.g.
+                // metaschema error paths built from Go map iteration): accept
+                // any output Helm produces for the same input.
+                let helm_agrees = (0..32).any(|_| {
+                    matches!(oracle_op(json!({"op": "schema", "schema": schema, "values": values})),
+                        Some(Err(w2)) if sorted(&w2) == sorted(&g))
+                });
+                assert!(
+                    helm_agrees,
+                    "schema {schema}, values {values}\n ours: {g}\n helm: {w}"
+                );
             }
         }
         (w, g) => panic!("schema {schema}, values {values}: oracle {w:?}, rust {g:?}"),

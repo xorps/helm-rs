@@ -388,6 +388,9 @@ impl<'s, 'e> State<'s, 'e> {
                 self.set_at(a.pos, AtKind::Action);
                 let val = self.eval_pipeline(dot, &a.pipe)?;
                 if a.pipe.decl.is_empty() {
+                    if val.value().is_cyclic() {
+                        return Err(self.error(CYCLIC_MSG.into(), Some(CYCLIC_HELP.into())));
+                    }
                     self.print_value(&val, out);
                 }
                 Ok(())
@@ -520,7 +523,7 @@ impl<'s, 'e> State<'s, 'e> {
                     one(
                         self,
                         Ev::Val(Value::Int(i as i64)),
-                        Ev::Val(Value::Int(*e as i64)),
+                        Ev::Val(Value::object(crate::value::GoUint8(*e))),
                         out,
                     )?;
                 }
@@ -1001,8 +1004,24 @@ impl<'s, 'e> State<'s, 'e> {
         // Reflection-based functions see Go's named type; everything else
         // sees a map/slice-kind object (e.g. `VersionSet`) as its data, as
         // Go's reflect.Value.Len/Index/MapKeys would.
-        let keeps_objects = matches!(name, "typeOf" | "typeIs" | "typeIsLike" | "dig")
-            || name.starts_with("duration")
+        // Encoders handle objects themselves (nil maps, struct field order).
+        let keeps_objects = matches!(
+            name,
+            "typeOf" | "typeIs" | "typeIsLike" | "kindOf" | "kindIs" | "dig"
+        ) || matches!(
+            name,
+            "toJson"
+                | "mustToJson"
+                | "toRawJson"
+                | "mustToRawJson"
+                | "toPrettyJson"
+                | "mustToPrettyJson"
+                | "toYaml"
+                | "mustToYaml"
+                | "toYamlPretty"
+                | "toToml"
+                | "mustToToml"
+        ) || name.starts_with("duration")
             || name == "mustToDuration";
         match target {
             CallTarget::Builtin(b) => self.call_builtin(b, argv),
@@ -1040,14 +1059,34 @@ impl<'s, 'e> State<'s, 'e> {
                         };
                     }
                 }
+                // (data, original) for each object passed as plain data.
+                let mut converted: Vec<(Value, Value)> = Vec::new();
                 if !keeps_objects {
                     for v in &mut vals {
                         if let Value::Object(o) = v
+                            && o.kind() == Kind::Uint8
+                        {
+                            // Numeric helpers (cast.ToInt64, ...) see the integer.
+                            *v = o.to_data();
+                            continue;
+                        }
+                        if let Value::Object(o) = v
                             && matches!(o.kind(), Kind::Map | Kind::Slice)
                         {
-                            *v = o.to_data();
+                            // A nil map reads as an empty map of its type.
+                            let data = match o.to_data() {
+                                Value::Nil if o.kind() == Kind::Map => Value::empty_map(),
+                                d => d,
+                            };
+                            converted.push((data.clone(), v.clone()));
+                            *v = data;
                         }
                     }
+                }
+                if matches!(name, "toString" | "cat" | "quote" | "squote")
+                    && vals.iter().any(Value::is_cyclic)
+                {
+                    return Err(CallErr::Plain(FuncError::new(CYCLIC_MSG)));
                 }
                 let mut cc = CallCtx {
                     env: &mut *self.ctx.env,
@@ -1060,6 +1099,9 @@ impl<'s, 'e> State<'s, 'e> {
                             items: l,
                         })))
                     }
+                    // A function that returns an argument unchanged (ternary,
+                    // default, coalesce, ...) returns the original Go type.
+                    (Ok(v), None) => Ok(restore_object(v, &converted)),
                     (r, _) => r,
                 };
                 r.map(Ev::of_result).map_err(CallErr::Plain)
@@ -1644,6 +1686,16 @@ impl State<'_, '_> {
             }
             Builtin::Index => builtin_index(&argv[0], &argv[1..]).map_err(plain),
             Builtin::Slice => builtin_slice(&argv[0], &argv[1..]).map_err(plain),
+            Builtin::Print
+            | Builtin::Println
+            | Builtin::Printf
+            | Builtin::Html
+            | Builtin::Js
+            | Builtin::Urlquery
+                if argv.iter().any(|a| a.value().is_cyclic()) =>
+            {
+                Err(plain(CYCLIC_MSG.into()))
+            }
             Builtin::Print => Ok(Ev::Val(Value::string(gofmt::sprint(&values(argv))))),
             Builtin::Println => Ok(Ev::Val(Value::string(gofmt::sprintln(&values(argv))))),
             Builtin::Printf => {
@@ -1719,6 +1771,27 @@ fn eval_args(argv: &[Ev]) -> String {
     gofmt::sprint(&vals)
 }
 
+/// Go's `fmt` recurses forever on a value that contains itself; Helm dies
+/// with a stack overflow. We fail cleanly instead.
+const CYCLIC_MSG: &str = "cannot format a self-referential value";
+const CYCLIC_HELP: &str = "a map or list contains itself (e.g. after `merge .Values $`); Helm crashes with a Go stack overflow here";
+
+/// If `v` is (the same storage as) the data of a converted object argument,
+/// returns that original object.
+fn restore_object(v: Value, converted: &[(Value, Value)]) -> Value {
+    for (data, orig) in converted {
+        let same = match (&v, data) {
+            (Value::Map(a), Value::Map(b)) => a.ptr_eq(b),
+            (Value::List(a), Value::List(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        };
+        if same {
+            return orig.clone();
+        }
+    }
+    v
+}
+
 /// The integer value of an int-kind named type (`time.Duration`).
 fn obj_int(v: &Ev) -> Option<i64> {
     match v {
@@ -1730,9 +1803,21 @@ fn obj_int(v: &Ev) -> Option<i64> {
     }
 }
 
+/// The value of a uint-kind named type (`uint8`).
+fn obj_uint(v: &Ev) -> Option<u64> {
+    match v {
+        Ev::Val(Value::Object(o)) => o
+            .as_any()
+            .downcast_ref::<crate::value::GoUint8>()
+            .map(|b| b.0 as u64),
+        _ => None,
+    }
+}
+
 fn index_arg(index: &Ev, cap: usize) -> Result<usize, String> {
     let x: i64 = match index {
         v if obj_int(v).is_some() => obj_int(v).unwrap_or(0),
+        v if obj_uint(v).is_some() => obj_uint(v).unwrap_or(0) as i64,
         Ev::Val(Value::Int(i)) | Ev::Val(Value::Int64(i)) => *i,
         Ev::Val(Value::Uint64(u)) => *u as i64,
         Ev::Invalid => return Err("cannot index slice/array with nil".into()),
@@ -1775,14 +1860,14 @@ fn builtin_index(item: &Ev, indexes: &[Ev]) -> Result<Ev, String> {
             Ev::Val(Value::Bytes(b)) => {
                 let x = index_arg(&index, b.len())?;
                 match b.get(x) {
-                    Some(v) => Ev::Val(Value::Int(*v as i64)),
+                    Some(v) => Ev::Val(Value::object(crate::value::GoUint8(*v))),
                     None => return Err("reflect: slice index out of range".into()),
                 }
             }
             Ev::Val(Value::String(s)) => {
                 let x = index_arg(&index, s.len())?;
                 match s.as_bytes().get(x) {
-                    Some(v) => Ev::Val(Value::Int(*v as i64)),
+                    Some(v) => Ev::Val(Value::object(crate::value::GoUint8(*v))),
                     None => return Err("reflect: string index out of range".into()),
                 }
             }
@@ -1868,6 +1953,7 @@ fn basic_kind(v: &Ev) -> BasicKind {
         Ev::Val(Value::Float(_)) => BasicKind::Float,
         Ev::Val(Value::String(_)) => BasicKind::String,
         v if obj_int(v).is_some() => BasicKind::Int,
+        v if obj_uint(v).is_some() => BasicKind::Uint,
         _ => BasicKind::Invalid,
     }
 }
@@ -1882,6 +1968,7 @@ fn as_i(v: &Ev) -> i64 {
 fn as_u(v: &Ev) -> u64 {
     match v {
         Ev::Val(Value::Uint64(u)) => *u,
+        v if obj_uint(v).is_some() => obj_uint(v).unwrap_or(0),
         _ => 0,
     }
 }

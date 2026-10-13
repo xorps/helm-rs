@@ -186,6 +186,11 @@ fn builtins() {
         "{{ .Values.s | printf \"%s!\" }}",
         "{{ call .Values.s }}",
         "{{ 1 | not }}",
+        // index on a string yields a Go uint8.
+        "{{ index \"abc\" 0 }} {{ printf \"%d %x %v %T %s\" (index \"abc\" 0) (index \"abc\" 0) (index \"abc\" 0) (index \"abc\" 0) (index \"abc\" 0) }}",
+        "{{ eq (index \"abc\" 0) 97 }} {{ lt (index \"abc\" 0) 98 }} {{ index .Values.list (index \"\\x01\" 0) }}",
+        "{{ index (index \"abc\" 0) 0 }}",
+        "{{ eq (index \"abc\" 0) 97.0 }}",
     ]);
 }
 

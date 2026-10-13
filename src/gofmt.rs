@@ -111,6 +111,20 @@ struct Flags {
 
 /// The `time.Duration` downcast hook: durations print as integers for
 /// numeric verbs.
+/// An integer-kind object: `time.Duration` (signed) or `uint8` (unsigned).
+fn int_object(v: &Value) -> Option<(u64, bool)> {
+    if let Some(n) = duration_nanos(v) {
+        return Some((n as u64, true));
+    }
+    match v {
+        Value::Object(o) => o
+            .as_any()
+            .downcast_ref::<crate::value::GoUint8>()
+            .map(|b| (b.0 as u64, false)),
+        _ => None,
+    }
+}
+
 fn duration_nanos(v: &Value) -> Option<i64> {
     match v {
         Value::Object(o) => o
@@ -232,8 +246,8 @@ fn int_from_arg(a: &[Value], arg_num: usize) -> (i64, bool, usize) {
                 }
             }
             v => {
-                if let Some(n) = duration_nanos(v) {
-                    num = n;
+                if let Some((n, _)) = int_object(v) {
+                    num = n as i64;
                     is_int = true;
                 }
             }
@@ -873,7 +887,7 @@ impl Printer {
         }
         let Value::Object(o) = arg else { return false };
         if self.f.sharp_v {
-            if duration_nanos(arg).is_some() || struct_view(arg).is_some() {
+            if int_object(arg).is_some() || struct_view(arg).is_some() {
                 return false;
             }
             // GoStringer (time.Time) or best effort.
@@ -1033,8 +1047,8 @@ impl Printer {
                 }
             }
             Value::Object(o) => {
-                if let Some(n) = duration_nanos(value) {
-                    self.fmt_int(None, Some(value), n as u64, true, verb);
+                if let Some((n, signed)) = int_object(value) {
+                    self.fmt_int(None, Some(value), n, signed, verb);
                     return;
                 }
                 if let Some(sv) = struct_view(value) {
