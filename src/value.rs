@@ -131,6 +131,7 @@ pub enum Kind {
     Bool,
     Int,
     Int64,
+    Uint8,
     Uint64,
     Float64,
     String,
@@ -147,6 +148,7 @@ impl Kind {
             Kind::Bool => "bool",
             Kind::Int => "int",
             Kind::Int64 => "int64",
+            Kind::Uint8 => "uint8",
             Kind::Uint64 => "uint64",
             Kind::Float64 => "float64",
             Kind::String => "string",
@@ -601,5 +603,73 @@ impl Object for GoBytesString {
     }
     fn as_any(&self) -> &dyn core::any::Any {
         self
+    }
+}
+
+/// A Go `uint8` (a byte from `index` on a string or `[]byte`). Prints and
+/// compares as an unsigned integer but keeps its Go type for `typeOf`,
+/// `kindOf` and error messages.
+#[derive(Debug)]
+pub struct GoUint8(pub u8);
+
+impl Object for GoUint8 {
+    fn type_name(&self) -> &str {
+        "uint8"
+    }
+    fn kind(&self) -> Kind {
+        Kind::Uint8
+    }
+    fn format(&self, out: &mut String) {
+        use core::fmt::Write;
+        let _ = write!(out, "{}", self.0);
+    }
+    fn to_data(&self) -> Value {
+        Value::Uint64(self.0 as u64)
+    }
+    fn truthy(&self) -> bool {
+        self.0 != 0
+    }
+    fn stringer(&self) -> Stringer {
+        Stringer::None
+    }
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
+
+impl Value {
+    /// Whether this value contains itself (a map or list reachable from
+    /// itself, e.g. after `mustMerge .Values $`). Go's `fmt` recurses forever
+    /// on such values, crashing Helm with a stack overflow.
+    pub fn is_cyclic(&self) -> bool {
+        fn walk(v: &Value, path: &mut Vec<*const ()>, depth: usize) -> bool {
+            if depth > 10_000 {
+                return true;
+            }
+            match v {
+                Value::Map(m) => {
+                    let id = Rc::as_ptr(&m.0) as *const ();
+                    if path.contains(&id) {
+                        return true;
+                    }
+                    path.push(id);
+                    let found = m.borrow().values().any(|c| walk(c, path, depth + 1));
+                    path.pop();
+                    found
+                }
+                Value::List(l) => {
+                    let id = Rc::as_ptr(l) as *const ();
+                    if path.contains(&id) {
+                        return true;
+                    }
+                    path.push(id);
+                    let found = l.iter().any(|c| walk(c, path, depth + 1));
+                    path.pop();
+                    found
+                }
+                _ => false,
+            }
+        }
+        matches!(self, Value::Map(_) | Value::List(_)) && walk(self, &mut Vec::new(), 0)
     }
 }

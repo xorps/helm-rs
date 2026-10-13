@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"sort"
 	"strings"
@@ -117,6 +118,8 @@ func fail(stage string, err error) Response {
 }
 
 func handle(req Request) (resp Response) {
+	heapJitter()
+	defer func() { jitterSink = nil }()
 	defer func() {
 		if r := recover(); r != nil {
 			resp = fail("panic", fmt.Errorf("%v", r))
@@ -375,4 +378,19 @@ func helmTemplate(req Request) Response {
 	}
 	s := out.String()
 	return Response{Output: &s}
+}
+
+// jitterSink keeps heapJitter's allocations alive for the current request.
+var jitterSink []*common.Capabilities
+
+// heapJitter shifts where this request's objects land on the heap. Helm's
+// output can include pointer addresses (fmt prints nested pointers such as
+// .Capabilities as 0xc...), which are arbitrary in real Helm; Go's allocator
+// is deterministic enough that two renders of the same input often print the
+// same address, hiding that nondeterminism from the test harness.
+func heapJitter() {
+	jitterSink = make([]*common.Capabilities, rand.IntN(256))
+	for i := range jitterSink {
+		jitterSink[i] = &common.Capabilities{}
+	}
 }
