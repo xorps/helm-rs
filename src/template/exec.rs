@@ -1007,7 +1007,14 @@ impl<'s, 'e> State<'s, 'e> {
         // Encoders handle objects themselves (nil maps, struct field order).
         let keeps_objects = matches!(
             name,
-            "typeOf" | "typeIs" | "typeIsLike" | "kindOf" | "kindIs" | "dig"
+            "typeOf"
+                | "typeIs"
+                | "typeIsLike"
+                | "kindOf"
+                | "kindIs"
+                | "dig"
+                | "deepCopy"
+                | "mustDeepCopy"
         ) || matches!(
             name,
             "toJson"
