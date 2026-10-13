@@ -1,7 +1,5 @@
 //! Calls into helm-rs, with panics (e.g. unimplemented `todo!()`s) caught and
 //! reported as outcomes instead of aborting the whole test.
-#![allow(clippy::result_large_err)]
-
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};

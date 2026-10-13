@@ -805,7 +805,7 @@ pub(crate) mod tests {
 
     #[test]
     fn errors() {
-        let e = |b: &[u8]| load_archive_files(b).unwrap_err().message;
+        let e = |b: &[u8]| load_archive_files(b).unwrap_err().message().to_string();
         assert_eq!(e(b""), "EOF");
         assert_eq!(e(b"\x1f\x8b"), "unexpected EOF");
         assert_eq!(e(b"not gzip at all"), "gzip: invalid header");

@@ -323,9 +323,9 @@ impl<'s, 'e> State<'s, 'e> {
         };
         let mut diag = Error::new(ErrorKind::Exec, msg);
         if let Some(at) = self.at {
-            diag.location = Some(self.location(self.at_info(at).1));
+            diag.set_location(Some(self.location(self.at_info(at).1)));
         }
-        diag.help = help;
+        diag.set_help(help);
         fail_flow(go, diag)
     }
 
@@ -591,7 +591,7 @@ impl<'s, 'e> State<'s, 'e> {
         self.ctx.depth -= 1;
         r.map_err(|f| match f {
             Flow::Fail(mut fail) => {
-                fail.diag.frames.push(Frame {
+                fail.diag.push_frame(Frame {
                     location: call_site,
                     call: format!("template {}", go_quote(&t.name)),
                 });
@@ -864,7 +864,7 @@ impl<'s, 'e> State<'s, 'e> {
             let start = ident[idx].start;
             let end = start + 1 + ident[idx].name.len();
             let _ = node;
-            fail.diag.location = Some(self.location(start..end));
+            fail.diag.set_location(Some(self.location(start..end)));
         }
         f
     }
@@ -1144,7 +1144,7 @@ impl<'s, 'e> State<'s, 'e> {
                     wrapped: Some(Box::new(inner)),
                 };
                 let mut diag = Error::new(ErrorKind::Exec, msg);
-                diag.location = Some(self.location(call_span));
+                diag.set_location(Some(self.location(call_span)));
                 fail_flow(go, diag)
             }
             CallErr::Helm(he) => {
@@ -1159,13 +1159,13 @@ impl<'s, 'e> State<'s, 'e> {
                     wrapped: Some(Box::new(inner)),
                 };
                 match frame {
-                    Some(call) => diag.frames.push(Frame {
+                    Some(call) => diag.push_frame(Frame {
                         location: self.location(call_span),
                         call,
                     }),
                     None => {
-                        if diag.location.is_none() {
-                            diag.location = Some(self.location(call_span));
+                        if diag.location().is_none() {
+                            diag.set_location(Some(self.location(call_span)));
                         }
                     }
                 }

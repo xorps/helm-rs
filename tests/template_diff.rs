@@ -297,5 +297,8 @@ fn infinite_recursion_fails_cleanly() {
     };
     assert!(matches!(helm, OracleResult::Err { .. }));
     let e = ours.unwrap_err();
-    assert!(e.message.contains("exceeded maximum template depth"), "{e}");
+    assert!(
+        e.message().contains("exceeded maximum template depth"),
+        "{e}"
+    );
 }

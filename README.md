@@ -36,9 +36,11 @@ nil pointer evaluating interface {}.major
    = note: from `include "mychart.image"` at mychart/templates/deployment.yaml:8:21
 ```
 
-The fields are available programmatically ([`Error`]: `kind`, `message`,
-`location`, `frames`, `help`), and `Error::helm_message()` returns the exact
-message Helm would print, for tools that need compatibility.
+Everything is available programmatically through [`Error`]'s accessors
+(`kind()`, `message()`, `location()`, `frames()`, `help()`), and
+`helm_message()` returns the exact message Helm would print, for tools that
+need compatibility. `Error` is a single boxed pointer, so `Result<T, Error>`
+stays small.
 
 ## Usage
 

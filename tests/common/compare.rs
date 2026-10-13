@@ -158,18 +158,17 @@ pub fn compare_errors(display: &str, helm_msg: &str, ours: &helm_rs::Error) -> O
             let same = |l: &helm_rs::Location| {
                 l.name == hl.name && (l.line == hl.line || (is_parse && l.line < hl.line))
             };
-            ours.location.as_ref().is_some_and(same)
-                || ours.frames.iter().any(|f| same(&f.location))
+            ours.location().is_some_and(same) || ours.frames().iter().any(|f| same(&f.location))
         });
         // Helm reports `fail`/`required` at the outermost template; we report
         // where the call happened and list the callers as frames.
         let same = |l: &helm_rs::Location| l.name == hl.name && l.line == hl.line;
         let ok = any_match
-            || ours.location.as_ref().is_some_and(same)
-            || ours.frames.iter().any(|f| same(&f.location));
+            || ours.location().is_some_and(same)
+            || ours.frames().iter().any(|f| same(&f.location));
         if !ok {
             kind.get_or_insert(Kind::ErrLocation);
-            let mine = ours.location.as_ref().map_or("none".to_string(), |l| {
+            let mine = ours.location().map_or("none".to_string(), |l| {
                 format!("{}:{}:{}", l.name, l.line, l.column)
             });
             let _ = writeln!(report, "error location differs: helm {hl}, helm-rs {mine}");

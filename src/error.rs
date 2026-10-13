@@ -7,6 +7,7 @@
 //! source line and a caret underline; [`Error::helm_message`] gives the
 //! message Helm itself would print.
 
+use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -119,70 +120,125 @@ pub struct Frame {
 }
 
 /// A rendering error.
+///
+/// A single pointer wide: the diagnostic (message, location with source
+/// snippet, call stack, hint, Helm's own message) lives behind a `Box`, so
+/// `Result<T, Error>` stays small on the success path.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Error {
-    pub kind: ErrorKind,
-    /// The error message, without location information.
-    pub message: String,
-    /// Where the error happened (innermost).
-    pub location: Option<Location>,
-    /// Call stack from the innermost caller outwards.
-    pub frames: Vec<Frame>,
-    /// The message Helm would produce for this error, when known.
-    pub helm_message: Option<String>,
-    /// An extra hint, e.g. which part of a field chain was nil.
-    pub help: Option<String>,
+pub struct Error(Box<Details>);
+
+#[derive(Clone, PartialEq, Eq)]
+struct Details {
+    kind: ErrorKind,
+    message: String,
+    location: Option<Location>,
+    frames: Vec<Frame>,
+    helm_message: Option<String>,
+    help: Option<String>,
 }
 
 impl Error {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Error {
-        Error {
+        Error(Box::new(Details {
             kind,
             message: message.into(),
             location: None,
             frames: Vec::new(),
             helm_message: None,
             help: None,
-        }
+        }))
     }
 
+    /// Sets where the error happened.
     pub fn at(mut self, location: Location) -> Error {
-        self.location = Some(location);
+        self.0.location = Some(location);
         self
     }
 
+    /// Adds a hint, e.g. which part of a field chain was nil.
     pub fn with_help(mut self, help: impl Into<String>) -> Error {
-        self.help = Some(help.into());
+        self.0.help = Some(help.into());
         self
     }
 
+    /// Sets the message Helm would print for this error.
     pub fn with_helm_message(mut self, msg: impl Into<String>) -> Error {
-        self.helm_message = Some(msg.into());
+        self.0.helm_message = Some(msg.into());
+        self
+    }
+
+    /// Adds a call-stack frame (outermost frames are added last).
+    pub fn with_frame(mut self, frame: Frame) -> Error {
+        self.0.frames.push(frame);
         self
     }
 
     /// Wraps the message with context, keeping location information.
     pub fn context(mut self, ctx: impl fmt::Display) -> Error {
-        self.message = alloc::format!("{ctx}: {}", self.message);
+        self.0.message = alloc::format!("{ctx}: {}", self.0.message);
         self
     }
 
-    /// The message Helm would print for this error (best effort).
+    /// What went wrong, broadly.
+    pub fn kind(&self) -> ErrorKind {
+        self.0.kind
+    }
+
+    /// The error message, without location information.
+    pub fn message(&self) -> &str {
+        &self.0.message
+    }
+
+    /// Where the error happened (innermost).
+    pub fn location(&self) -> Option<&Location> {
+        self.0.location.as_ref()
+    }
+
+    /// The `include`/`template`/`tpl` call stack, innermost caller first.
+    pub fn frames(&self) -> &[Frame] {
+        &self.0.frames
+    }
+
+    /// An extra hint, e.g. which part of a field chain was nil.
+    pub fn help(&self) -> Option<&str> {
+        self.0.help.as_deref()
+    }
+
+    /// The message Helm would print for this error (falls back to
+    /// [`Error::message`] when Helm's exact text is not known).
     pub fn helm_message(&self) -> String {
-        match &self.helm_message {
+        match &self.0.helm_message {
             Some(m) => m.clone(),
-            None => self.message.clone(),
+            None => self.0.message.clone(),
         }
     }
 
     /// Line of the innermost location, if any.
     pub fn line(&self) -> Option<u32> {
-        self.location.as_ref().map(|l| l.line)
+        self.0.location.as_ref().map(|l| l.line)
     }
 
     /// Column of the innermost location, if any.
     pub fn column(&self) -> Option<u32> {
-        self.location.as_ref().map(|l| l.column)
+        self.0.location.as_ref().map(|l| l.column)
+    }
+
+    // Crate-internal mutation (the executor builds errors incrementally).
+
+    pub(crate) fn set_location(&mut self, location: Option<Location>) {
+        self.0.location = location;
+    }
+
+    pub(crate) fn set_help(&mut self, help: Option<String>) {
+        self.0.help = help;
+    }
+
+    pub(crate) fn set_helm_message(&mut self, msg: Option<String>) {
+        self.0.helm_message = msg;
+    }
+
+    pub(crate) fn push_frame(&mut self, frame: Frame) {
+        self.0.frames.push(frame);
     }
 }
 
@@ -204,20 +260,20 @@ impl fmt::Debug for Error {
 /// ```
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)?;
-        if let Some(loc) = &self.location {
+        write!(f, "{}", self.0.message)?;
+        if let Some(loc) = &self.0.location {
             write!(f, "\n  --> {loc}")?;
             write_snippet(f, loc)?;
         }
-        if let Some(help) = &self.help {
+        if let Some(help) = &self.0.help {
             write!(f, "\n   = help: {help}")?;
         }
         // Collapse runs of identical frames (deep recursion).
         let mut i = 0;
-        while i < self.frames.len() {
-            let frame = &self.frames[i];
+        while i < self.0.frames.len() {
+            let frame = &self.0.frames[i];
             let mut n = 1;
-            while i + n < self.frames.len() && self.frames[i + n] == *frame {
+            while i + n < self.0.frames.len() && self.0.frames[i + n] == *frame {
                 n += 1;
             }
             write!(

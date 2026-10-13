@@ -3,8 +3,6 @@
 //!
 //! Knobs: `HELM_RS_FUZZ_SEED` (u64), `HELM_RS_FUZZ_ITERS` (default 300).
 
-#![allow(clippy::result_large_err)]
-
 mod common;
 #[path = "common/values.rs"]
 mod values;
