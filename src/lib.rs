@@ -9,9 +9,6 @@
 //! stack; see [`Error`].
 #![no_std]
 #![forbid(unsafe_code)]
-// `Error` carries a full diagnostic (spans, source, call stack) by design; it
-// only travels on the error path.
-#![allow(clippy::result_large_err)]
 
 extern crate alloc;
 

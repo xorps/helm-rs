@@ -347,15 +347,19 @@ fn sort_templates(mut keys: Vec<String>) -> Vec<String> {
 /// (`cleanupParseError`).
 fn parse_error(pe: &ParseError, helm_file: Option<&str>) -> Error {
     let mut e = Error::new(ErrorKind::Parse, pe.message.clone());
-    e.location = Some(Location::new(pe.name.clone(), pe.line as u32, 0));
+    e.set_location(Some(Location::new(pe.name.clone(), pe.line as u32, 0)));
     if let Some(src) = pe_source(pe) {
-        e.location = Some(Location::from_span(pe.name.clone(), src, pe.span.clone()));
+        e.set_location(Some(Location::from_span(
+            pe.name.clone(),
+            src,
+            pe.span.clone(),
+        )));
     }
     let helm = match helm_file {
         Some(file) => cleanup_parse_error(file, &pe.go_message),
         None => pe.go_message.clone(),
     };
-    e.helm_message = Some(helm);
+    e.set_helm_message(Some(helm));
     e
 }
 
@@ -376,7 +380,7 @@ fn cleanup_parse_error(filename: &str, go_msg: &str) -> String {
 
 fn finish_exec_error(filename: &str, f: exec::Fail) -> Error {
     let mut diag = f.diag;
-    diag.helm_message = Some(reformat_exec_error_msg(filename, &f.go));
+    diag.set_helm_message(Some(reformat_exec_error_msg(filename, &f.go)));
     diag
 }
 
@@ -523,12 +527,10 @@ mod tests {
         );
         assert_eq!(render("{{ .missing }}", data.clone()).unwrap(), "");
         let e = render("line1\n {{ .a.b.c }}", crate::map! {}).unwrap_err();
-        assert_eq!(e.message, "nil pointer evaluating interface {}.b");
+        assert_eq!(e.message(), "nil pointer evaluating interface {}.b");
         assert_eq!(
-            e.helm_message.as_deref(),
-            Some(
-                "t:2:6\n  executing \"t\" at <.a.b.c>:\n    nil pointer evaluating interface {}.b"
-            )
+            e.helm_message(),
+            "t:2:6\n  executing \"t\" at <.a.b.c>:\n    nil pointer evaluating interface {}.b"
         );
         assert_eq!((e.line(), e.column()), (Some(2), Some(7)));
     }
@@ -536,10 +538,7 @@ mod tests {
     #[test]
     fn parse_errors() {
         let e = render("a\n{{ .x ", Value::Nil).unwrap_err();
-        assert_eq!(
-            e.helm_message.as_deref(),
-            Some("parse error at (t:2): unclosed action")
-        );
+        assert_eq!(e.helm_message(), "parse error at (t:2): unclosed action");
         assert_eq!((e.line(), e.column()), (Some(2), Some(1)));
     }
 }

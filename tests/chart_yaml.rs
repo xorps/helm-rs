@@ -1,7 +1,5 @@
 //! End-to-end chart tests with real YAML (Chart.yaml, values, manifests),
 //! diffed against `helm template`.
-#![allow(clippy::result_large_err)]
-
 mod common;
 
 use std::collections::BTreeMap;
@@ -158,7 +156,7 @@ fn yaml_errors_have_helm_messages_and_locations() {
     if let Some(w) = want {
         assert_eq!(e.helm_message(), w);
     }
-    assert_eq!(e.location.as_ref().unwrap().name, "Chart.yaml");
+    assert_eq!(e.location().unwrap().name, "Chart.yaml");
 
     // Type error: located at the offending key.
     let f = files(&[(
@@ -191,7 +189,7 @@ fn yaml_errors_have_helm_messages_and_locations() {
     if let Some(w) = want {
         assert_eq!(e.helm_message(), w);
     }
-    let loc = e.location.unwrap();
+    let loc = e.location().unwrap();
     assert_eq!(loc.name, "values.yaml");
     assert!(loc.line >= 4, "{loc:?}");
 
@@ -208,7 +206,7 @@ fn yaml_errors_have_helm_messages_and_locations() {
         e.helm_message()
             .starts_with("error unpacking subchart sub in x: cannot load Chart.yaml: ")
     );
-    assert_eq!(e.location.unwrap().name, "charts/sub/Chart.yaml");
+    assert_eq!(e.location().unwrap().name, "charts/sub/Chart.yaml");
 }
 
 #[test]
@@ -229,7 +227,7 @@ fn manifest_yaml_errors_match_helm() {
         &mut DeterministicEnv::default(),
     )
     .unwrap_err();
-    assert_eq!(e.location.as_ref().unwrap().name, "x/templates/a.yaml");
+    assert_eq!(e.location().unwrap().name, "x/templates/a.yaml");
 }
 
 /// values.yaml documents are split like k8s' YAMLReader: a leading `---` is
@@ -272,7 +270,7 @@ fn values_documents_match_helm() {
             }
             (Err(w), Err(e)) => {
                 assert_eq!(e.helm_message(), w, "{values:?}");
-                let loc = e.location.as_ref().expect("location");
+                let loc = e.location().expect("location");
                 assert_eq!(loc.name, "values.yaml");
                 if let Some(l) = line {
                     assert_eq!(loc.line, *l, "{values:?} {}", e.helm_message());

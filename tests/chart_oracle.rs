@@ -22,7 +22,6 @@ fn files(list: &[(&str, &str)]) -> Files {
         .collect()
 }
 
-#[allow(clippy::result_large_err)]
 fn load(files: &Files) -> Result<Chart, helm_rs::Error> {
     Chart::from_files_with_parser(files.clone(), json_yaml)
 }
@@ -524,7 +523,7 @@ fn manifest_sorting_matches_helm() {
             .unwrap()
             .unwrap_err();
         let got = chart::template_output(&c, r, &RenderOptions::default(), json_yaml).unwrap_err();
-        assert_eq!(got.message, want, "case {bad}");
+        assert_eq!(got.message(), want, "case {bad}");
         assert_eq!(got.line(), Some(3));
     }
 }

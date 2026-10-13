@@ -6,9 +6,6 @@
 //! `ProcessDependencies`, `ToRenderValues`, the engine's per-template values
 //! (`recAllTpls`), and what `helm template` prints.
 
-// `Error` carries a full source location; boxing it would only move the cost.
-#![allow(clippy::result_large_err)]
-
 #[cfg(feature = "archive")]
 mod archive;
 mod capabilities;
