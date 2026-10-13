@@ -115,6 +115,42 @@ fn deep_copy(v: &Value, depth: usize) -> FuncResult {
                 by_value,
             })
         }
+        // Named slice/map types keep their Go type (copystructure uses reflect).
+        Value::Object(o) if o.as_any().is::<crate::value::TypedList>() => {
+            let t = o
+                .as_any()
+                .downcast_ref::<crate::value::TypedList>()
+                .unwrap();
+            let items = t
+                .items
+                .iter()
+                .map(|x| deep_copy(x, depth + 1))
+                .collect::<Result<Vec<_>, _>>()?;
+            Value::typed_list(t.go_type, items)
+        }
+        Value::Object(o) if o.as_any().is::<crate::value::TypedMap>() => {
+            let t = o.as_any().downcast_ref::<crate::value::TypedMap>().unwrap();
+            let map = match &t.map {
+                Some(m) => {
+                    let entries: Vec<(String, Value)> = m
+                        .borrow()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    let mut out = crate::value::Map::new();
+                    for (k, v) in entries {
+                        out.insert(k, deep_copy(&v, depth + 1)?);
+                    }
+                    Some(crate::value::MapRef::new(out))
+                }
+                None => None,
+            };
+            Value::object(crate::value::TypedMap {
+                go_type: t.go_type,
+                map,
+                elem_zero: t.elem_zero.clone(),
+            })
+        }
         Value::Map(m) => {
             let entries: Vec<(String, Value)> = m
                 .borrow()
